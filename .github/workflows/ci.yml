@@ -3,9 +3,9 @@ name: CI
 # Windows PowerShell 5.1, which every Windows build PC has.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 permissions:
   contents: read
