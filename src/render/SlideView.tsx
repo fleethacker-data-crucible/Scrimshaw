@@ -1,6 +1,6 @@
 // Renders one slide at its native size. The same component draws the editor canvas, thumbnails
 // and the player, so authoring and playback cannot drift apart.
-import { useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
+import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
 import { interpolate, stateOf, type PlayerState } from '../engine/runtime.ts';
 import type { Course, ID, Layer, Slide, SlideObject, Style } from '../model/types.ts';
 
@@ -83,22 +83,34 @@ interface Handlers {
   onClick?: (id: ID) => void;
   onHover?: (id: ID, entering: boolean) => void;
   onInput?: (id: ID, text: string) => void;
+  /** Drag and drop: targetId null means dropped outside every target. */
+  onDrop?: (id: ID, targetId: ID | null) => void;
 }
 
-function ObjectView({ course, o, mode, state, text, transient, onPointer, handlers, inputValue, animate, mediaRef }: {
+/** Drag-and-drop wiring for one object, computed by SlideView. */
+interface DragWiring {
+  pos: { x: number; y: number } | null;
+  lifted: boolean;
+  props: Record<string, unknown>;
+}
+
+function ObjectView({ course, o, mode, state, text, transient, onPointer, handlers, inputValue, animate, mediaRef, drag }: {
   course: Course; o: SlideObject; mode: ViewMode; state: string; text: (t: string) => string; transient: 'hover' | 'down' | null;
   onPointer: (id: ID, t: 'hover' | 'down' | null) => void; handlers: Handlers; inputValue: string; animate: boolean;
-  mediaRef?: (id: ID, el: HTMLVideoElement | null) => void;
+  mediaRef?: (id: ID, el: HTMLVideoElement | null) => void; drag?: DragWiring;
 }) {
   const { style: s, text: stateText } = effectiveStyle(o, state, mode === 'play' ? transient : null);
   const css = boxCss(o, s);
+  if (drag?.pos) { css.left = drag.pos.x; css.top = drag.pos.y; }
+  if (drag?.lifted) { css.zIndex = 20; css.boxShadow = '0 10px 24px rgba(0,0,0,.35)'; css.cursor = 'grabbing'; css.transition = 'none'; }
+  else if (drag && mode === 'play' && o.draggable) css.transition = 'left .15s ease-out, top .15s ease-out';
   const play = mode === 'play';
   const disabled = state === 'Disabled';
   if (play && animate && o.enter.type !== 'none') {
     css.animation = `scr-${o.enter.type} ${o.enter.duration}s ease-out both`;
   }
   const content = text(stateText ?? o.text);
-  const interactive = play && !disabled && (o.kind === 'button' || o.kind === 'hotspot' || o.kind === 'choice' || o.triggers.some((t) => t.event.type === 'click'));
+  const interactive = play && !disabled && !o.draggable && (o.kind === 'button' || o.kind === 'hotspot' || o.kind === 'choice' || o.triggers.some((t) => t.event.type === 'click'));
   const a11y: Record<string, unknown> = {};
   if (play && o.decorative) a11y['aria-hidden'] = true;
   if (interactive || (play && o.kind === 'choice')) {
@@ -110,7 +122,7 @@ function ObjectView({ course, o, mode, state, text, transient, onPointer, handle
     a11y.onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handlers.onClick?.(o.id); } };
   }
   if (play && disabled) a11y['aria-disabled'] = true;
-  const pointer = play && !disabled ? {
+  const pointer = play && !disabled && !o.draggable ? {
     onPointerEnter: () => { onPointer(o.id, 'hover'); handlers.onHover?.(o.id, true); },
     onPointerLeave: () => { onPointer(o.id, null); handlers.onHover?.(o.id, false); },
     onPointerDown: () => onPointer(o.id, 'down'),
@@ -165,7 +177,7 @@ function ObjectView({ course, o, mode, state, text, transient, onPointer, handle
   if (mode === 'edit' && o.initiallyHidden) { css.opacity = (s.opacity ?? 1) * 0.45; css.outline = '1px dashed #9a988f'; }
   return (
     <div className={`obj obj-${o.kind}${mode === 'edit' && o.kind === 'hotspot' ? ' hotspot-edit' : ''}`} style={css} data-id={o.id}
-      title={mode === 'edit' && o.initiallyHidden ? `${o.name} starts hidden` : undefined} {...a11y} {...pointer}>
+      title={mode === 'edit' && o.initiallyHidden ? `${o.name} starts hidden` : undefined} {...a11y} {...pointer} {...(play && !disabled ? drag?.props : {})}>
       {inner}
     </div>
   );
@@ -193,13 +205,104 @@ export interface SlideViewProps extends Handlers {
 export function SlideView(p: SlideViewProps) {
   const { course, slide, mode } = p;
   const [pointer, setPointer] = useState<{ id: ID; t: 'hover' | 'down' } | null>(null);
+  const [dragging, setDragging] = useState<{ id: ID; cx: number; cy: number; dx: number; dy: number; moved: boolean } | null>(null);
+  const [grabbed, setGrabbed] = useState<ID | null>(null);
+  const [announce, setAnnounce] = useState('');
+  const el = useRef<HTMLDivElement>(null);
+  const st = p.state;
+  const play = mode === 'play' && !!st;
+  const allObjs = slide.layers.flatMap((l) => l.objects);
+  const visibleNow = (o: SlideObject) => !st || stateOf(st, o) !== 'Hidden';
+  const restPos = (o: SlideObject): { x: number; y: number } => {
+    const base = st?.positions[o.id] ?? { x: o.x, y: o.y };
+    const tid = st?.drops[o.id];
+    const t = tid ? allObjs.find((x) => x.id === tid) : undefined;
+    if (!t) return base;
+    const tp = st?.positions[t.id] ?? { x: t.x, y: t.y };
+    // Snap to the target's right end so its label (left) stays readable; centre when there is no room.
+    const pad = Math.max(6, Math.round((t.h - o.h) / 2));
+    const x = o.w + pad * 2 <= t.w * 0.75 ? tp.x + t.w - o.w - pad : tp.x + t.w / 2 - o.w / 2;
+    return { x: Math.round(x), y: Math.round(tp.y + t.h / 2 - o.h / 2) };
+  };
+  const targetAt = (x: number, y: number, except: ID): SlideObject | null => {
+    for (let i = allObjs.length - 1; i >= 0; i--) {
+      const t = allObjs[i];
+      if (!t.dropTarget || t.id === except || !visibleNow(t)) continue;
+      const tp = st?.positions[t.id] ?? { x: t.x, y: t.y };
+      if (x >= tp.x && x <= tp.x + t.w && y >= tp.y && y <= tp.y + t.h) return t;
+    }
+    return null;
+  };
+  const label = (o: SlideObject) => (o.text ? interpolate(o.text, course, st!) : '') || o.alt || o.name;
+  const dragWiring = (o: SlideObject): DragWiring | undefined => {
+    if (!play) return undefined;
+    if (o.draggable) {
+      const rest = restPos(o);
+      const live = dragging?.id === o.id ? { x: rest.x + dragging.dx, y: rest.y + dragging.dy } : rest;
+      const scale = () => (el.current ? el.current.getBoundingClientRect().width / course.size.w : 1);
+      return {
+        pos: live.x !== o.x || live.y !== o.y ? live : null,
+        lifted: dragging?.id === o.id && dragging.moved,
+        props: {
+          role: 'button', tabIndex: 0, 'aria-roledescription': 'draggable item', 'aria-pressed': grabbed === o.id,
+          'aria-label': `${label(o)}${st!.drops[o.id] ? `, on ${label(allObjs.find((x) => x.id === st!.drops[o.id])!)}` : ''}. Press Enter to pick up.`,
+          onPointerDown: (e: RPointerEvent) => {
+            if (e.button !== 0) return;
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+            setDragging({ id: o.id, cx: e.clientX, cy: e.clientY, dx: 0, dy: 0, moved: false });
+          },
+          onPointerMove: (e: RPointerEvent) => {
+            if (dragging?.id !== o.id) return;
+            const k = scale();
+            const dx = (e.clientX - dragging.cx) / k;
+            const dy = (e.clientY - dragging.cy) / k;
+            setDragging({ ...dragging, dx, dy, moved: dragging.moved || Math.abs(dx) + Math.abs(dy) > 4 });
+          },
+          onPointerUp: () => {
+            if (dragging?.id !== o.id) return;
+            const d = dragging;
+            setDragging(null);
+            if (!d.moved) { p.onClick?.(o.id); return; }
+            const t = targetAt(rest.x + d.dx + o.w / 2, rest.y + d.dy + o.h / 2, o.id);
+            p.onDrop?.(o.id, t?.id ?? null);
+            setAnnounce(t ? `Dropped ${label(o)} on ${label(t)}.` : `${label(o)} returned.`);
+          },
+          onPointerCancel: () => setDragging(null),
+          onKeyDown: (e: KeyboardEvent) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              if (grabbed === o.id) { setGrabbed(null); setAnnounce(`Put down ${label(o)}.`); }
+              else { setGrabbed(o.id); setAnnounce(`Picked up ${label(o)}. Tab to a drop target and press Enter, or press Escape to cancel.`); }
+            } else if (e.key === 'Escape' && grabbed) { setGrabbed(null); setAnnounce('Cancelled.'); }
+            else if ((e.key === 'Delete' || e.key === 'Backspace') && st!.drops[o.id]) { p.onDrop?.(o.id, null); setAnnounce(`${label(o)} returned.`); }
+          },
+        },
+      };
+    }
+    if (o.dropTarget && grabbed) {
+      const item = allObjs.find((x) => x.id === grabbed);
+      return {
+        pos: st!.positions[o.id] ?? null, lifted: false,
+        props: {
+          role: 'button', tabIndex: 0, 'aria-label': `Drop ${item ? label(item) : 'item'} on ${label(o)}`,
+          onClick: () => { if (grabbed) { p.onDrop?.(grabbed, o.id); setAnnounce(`Dropped ${item ? label(item) : 'item'} on ${label(o)}.`); setGrabbed(null); } },
+          onKeyDown: (e: KeyboardEvent) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); p.onDrop?.(grabbed, o.id); setAnnounce(`Dropped ${item ? label(item) : 'item'} on ${label(o)}.`); setGrabbed(null); }
+            if (e.key === 'Escape') { setGrabbed(null); setAnnounce('Cancelled.'); }
+          },
+        },
+      };
+    }
+    const pos = st!.positions[o.id];
+    return pos ? { pos, lifted: false, props: {} } : undefined;
+  };
   const onPointer = (id: ID, t: 'hover' | 'down' | null) => setPointer(t ? { id, t } : (pointer?.id === id ? null : pointer));
   const text = (t: string) => (p.state ? interpolate(t, course, p.state) : t);
   const layers: Layer[] = [slide.layers[0], ...p.layerIds.map((id) => slide.layers.find((l) => l.id === id)).filter((l): l is Layer => !!l && !l.base)];
   const modalOn = mode === 'play' && layers.some((l) => !l.base && l.modal);
 
   return (
-    <div className={`slide ${p.className ?? ''}`} style={{ width: course.size.w, height: course.size.h, background: slide.background.startsWith('asset:') ? `center / cover url(${resolveSrc(course, slide.background)})` : slide.background, ...p.style }}>
+    <div ref={el} className={`slide ${p.className ?? ''}`} style={{ width: course.size.w, height: course.size.h, background: slide.background.startsWith('asset:') ? `center / cover url(${resolveSrc(course, slide.background)})` : slide.background, ...p.style }}>
       {layers.map((layer, li) => {
         const t = p.times?.[layer.id] ?? Infinity;
         const isBaseUnderModal = modalOn && layer.base;
@@ -224,13 +327,14 @@ export function SlideView(p: SlideViewProps) {
               return (
                 <ObjectView key={o.id} course={course} o={o} mode={mode} state={st} text={text}
                   transient={pointer?.id === o.id ? pointer.t : null} onPointer={onPointer} handlers={p}
-                  inputValue={inputValue} animate={mode === 'play'} mediaRef={p.mediaRef} />
+                  inputValue={inputValue} animate={mode === 'play'} mediaRef={p.mediaRef} drag={dragWiring(o)} />
               );
             })}
             {layer.base && p.dimBase && <div className="layer-dim" />}
           </div>
         );
       })}
+      {play && <div className="sr-only" aria-live="assertive">{announce}</div>}
     </div>
   );
 }

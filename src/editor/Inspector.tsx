@@ -220,6 +220,14 @@ function DesignTab() {
         </Section>
       )}
 
+      {!multi && o.kind !== 'input' && o.kind !== 'video' && (
+        <Section title="Drag and drop">
+          <label className="check"><input type="checkbox" checked={o.draggable} onChange={(e) => set('Draggable', (x) => { x.draggable = e.target.checked; if (e.target.checked) x.dropTarget = false; })} /> Learner can drag this</label>
+          <label className="check"><input type="checkbox" checked={o.dropTarget} onChange={(e) => set('Drop target', (x) => { x.dropTarget = e.target.checked; if (e.target.checked) x.draggable = false; })} /> Drop target</label>
+          {o.draggable && <DropTargetPicker o={o} />}
+        </Section>
+      )}
+
       <Section title="Accessibility">
         {!multi && (
           <Field label={o.kind === 'image' ? 'Alt text' : 'Accessible name'} hint={o.kind === 'image' ? 'Describe the image for screen readers.' : 'Used when the object has no visible text.'}>
@@ -229,6 +237,19 @@ function DesignTab() {
         <label className="check"><input type="checkbox" checked={o.decorative} onChange={(e) => set('Decorative', (x) => { x.decorative = e.target.checked; })} /> Decorative (hidden from screen readers)</label>
       </Section>
     </>
+  );
+}
+
+function DropTargetPicker({ o }: { o: SlideObject }) {
+  const { slide, editSelected } = useEditor();
+  const targets = slide.layers.flatMap((l) => l.objects).filter((x) => x.dropTarget);
+  return (
+    <Field label="Correct drop target" hint={targets.length ? 'Used to grade drag-and-drop questions.' : 'Mark another object as a drop target first.'}>
+      <select value={o.correctTargetId ?? ''} onChange={(e) => editSelected('Correct target', (x) => { x.correctTargetId = e.target.value || null; })}>
+        <option value="">None</option>
+        {targets.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+      </select>
+    </Field>
   );
 }
 
@@ -485,13 +506,30 @@ function QuestionProps({ editSlide }: { editSlide: (label: string, fn: (s: Slide
   const choices = slide.layers.flatMap((l) => l.objects).filter((o) => o.kind === 'choice');
   return (
     <>
-      <p className="muted text-[13px]">{{ 'multiple-choice': 'Multiple choice', 'multiple-response': 'Multiple response', 'true-false': 'True / false', 'fill-in': 'Fill in the blank' }[q.kind]} question. The Submit button runs “Submit interaction”.</p>
+      <p className="muted text-[13px]">{{ 'multiple-choice': 'Multiple choice', 'multiple-response': 'Multiple response', 'true-false': 'True / false', 'fill-in': 'Fill in the blank', 'drag-drop': 'Drag and drop' }[q.kind]} question. The Submit button runs “Submit interaction”.</p>
       <div className="grid-2">
         <Field label="Points"><NumberInput label="Points" min={0} max={1000} value={q.points} onChange={(v) => editSlide('Points', (s) => { s.question!.points = v; }, 'pts')} /></Field>
         <Field label="Attempts" hint="0 = unlimited"><NumberInput label="Attempts" min={0} max={99} value={q.attempts} onChange={(v) => editSlide('Attempts', (s) => { s.question!.attempts = v; }, 'att')} /></Field>
       </div>
       <label className="check"><input type="checkbox" checked={q.graded} onChange={(e) => editSlide('Graded', (s) => { s.question!.graded = e.target.checked; })} /> Graded (counts toward the score)</label>
-      {q.kind === 'fill-in' ? (
+      {q.kind !== 'fill-in' && (
+        <label className="check"><input type="checkbox" checked={q.shuffle} onChange={(e) => editSlide('Shuffle', (s) => { s.question!.shuffle = e.target.checked; })} /> Shuffle {q.kind === 'drag-drop' ? 'items' : 'answers'} each time</label>
+      )}
+      {q.kind === 'drag-drop' ? (
+        <Section title="Where each item belongs">
+          {slide.layers.flatMap((l) => l.objects).filter((o) => o.draggable).map((item) => (
+            <Field key={item.id} label={item.text || item.name}>
+              <select value={item.correctTargetId ?? ''} onChange={(e) => editSlide('Correct target', (s) => {
+                for (const l of s.layers) for (const o of l.objects) if (o.id === item.id) o.correctTargetId = e.target.value || null;
+              })}>
+                <option value="">Anywhere (not graded)</option>
+                {slide.layers.flatMap((l) => l.objects).filter((o) => o.dropTarget).map((t) => <option key={t.id} value={t.id}>{t.text || t.name}</option>)}
+              </select>
+            </Field>
+          ))}
+          <p className="hint">Make any object draggable or a drop target in its Design tab.</p>
+        </Section>
+      ) : q.kind === 'fill-in' ? (
         <>
           <Field label="Accepted answers" hint="One per line. Matching ignores case and extra spaces.">
             <textarea className="!font-sans !text-[13px]" rows={4} value={q.accepted.join('\n')} onChange={(e) => editSlide('Accepted answers', (s) => { s.question!.accepted = e.target.value.split('\n'); }, 'acc')} />
