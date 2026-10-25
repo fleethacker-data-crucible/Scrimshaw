@@ -74,7 +74,7 @@ Status of each Storyline 360 feature area in Scrimshaw. ✅ done, 🟡 partial, 
 | SCORM 1.2 | ✅ | Status, score, location, suspend data |
 | SCORM 2004 | ✅ | 3rd Edition manifest, completion and success status, scaled score, session time |
 | xAPI (Tin Can) | ✅ | Tin Can launch, initialized/answered/passed/failed/completed/terminated statements, State API resume |
-| cmi5 | ⬜ | |
+| cmi5 | ✅ | Fetch-token launch, LMS.LaunchData (context template, launch mode, mastery score), moveOn statements, cmi5.xml |
 | AICC | ⬜ | |
 | Word / PDF handout export | 🟡 | Printable HTML storyboard (slides, layers, triggers, answers, notes) to print or save as PDF; no .docx |
 | Video (MP4) export | ⬜ | |
@@ -95,7 +95,6 @@ Status of each Storyline 360 feature area in Scrimshaw. ✅ done, 🟡 partial, 
 
 ## Suggested order
 
-1. cmi5 publishing
 3. Curved and freeform motion paths
 4. WYSIWYG rich text editing (formatting already works inline)
 5. Multiple slide masters and theme colour sets

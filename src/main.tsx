@@ -3,7 +3,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { connectLms, type Lms } from './export/scorm.ts';
-import { connectXapi } from './export/xapi.ts';
+import { connectCmi5, connectXapi } from './export/xapi.ts';
 import { captureShell, embeddedCourseJson } from './export/publish.ts';
 import { normalizeCourse } from './model/schema.ts';
 import { Player } from './player/Player.tsx';
@@ -35,7 +35,9 @@ if (embedded !== null) {
     applyTheme('system', false);
     document.title = course.title;
     const transport = (url: string, init: RequestInit) => fetch(url, { ...init, credentials: 'omit' });
-    void connectXapi(course, location.search, transport).catch(() => null).then((x) => {
+    const search = location.search;
+    const xapi = new URLSearchParams(search).has('fetch') ? connectCmi5(course, search, transport) : connectXapi(course, search, transport);
+    void xapi.catch(() => null).then((x) => {
       const lms: Lms = x ?? connectLms(window);
       root.render(
         <StrictMode>

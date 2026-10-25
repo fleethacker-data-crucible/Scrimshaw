@@ -229,7 +229,7 @@ export function PublishDialog({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const problems = validateCourse(course);
   const ready = canPublish();
-  const run = async (kind: 'html' | 'scorm' | 'scorm2004' | 'xapi' | 'json') => {
+  const run = async (kind: 'html' | 'scorm' | 'scorm2004' | 'xapi' | 'cmi5' | 'json') => {
     setBusy(true);
     try {
       if (kind === 'json') download(fileName(course.title, 'scrim'), serializeCourse(course), 'application/json');
@@ -237,7 +237,8 @@ export function PublishDialog({ onClose }: { onClose: () => void }) {
       if (kind === 'scorm') download(fileName(course.title, 'scorm12.zip'), await buildScormZip(course));
       if (kind === 'scorm2004') download(fileName(course.title, 'scorm2004.zip'), await buildScormZip(course, undefined, '2004'));
       if (kind === 'xapi') download(fileName(course.title, 'xapi.zip'), await buildXapiZip(course));
-      toast(kind.startsWith('scorm') || kind === 'xapi' ? 'Package downloaded. Upload the zip to your LMS.' : 'Downloaded.', 'ok');
+      if (kind === 'cmi5') download(fileName(course.title, 'cmi5.zip'), await buildXapiZip(course, undefined, 'cmi5'));
+      toast(kind !== 'html' && kind !== 'json' ? 'Package downloaded. Upload the zip to your LMS.' : 'Downloaded.', 'ok');
     } catch (e) {
       toast(`Publishing failed: ${(e as Error).message}`, 'err');
     } finally { setBusy(false); }
@@ -263,8 +264,9 @@ export function PublishDialog({ onClose }: { onClose: () => void }) {
         </div>
         <div className="box flex items-center gap-3">
           <Package size={22} />
-          <div className="flex-1"><b>xAPI (Tin Can) package</b><p className="muted text-[12px] !m-0">For an LRS-backed LMS. Sends statements for the attempt, each answer and the result, and resumes through the xAPI State API.</p></div>
-          <Button disabled={!ready || busy} onClick={() => run('xapi')} aria-label="Download xAPI zip"><Download />xAPI</Button>
+          <div className="flex-1"><b>xAPI package</b><p className="muted text-[12px] !m-0">For an LRS-backed LMS: Tin Can, or cmi5 (the xAPI profile newer LMSs prefer). Sends statements for the attempt, answers and result, and resumes through the xAPI State API.</p></div>
+          <Button disabled={!ready || busy} onClick={() => run('xapi')} aria-label="Download xAPI Tin Can zip"><Download />Tin Can</Button>
+          <Button disabled={!ready || busy} onClick={() => run('cmi5')} aria-label="Download cmi5 zip"><Download />cmi5</Button>
         </div>
         <div className="box flex items-center gap-3">
           <Globe size={22} />

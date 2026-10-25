@@ -152,3 +152,123 @@ function isoDuration(ms: number): string {
   const s = Math.round((t % 60) * 100) / 100;
   return `PT${h}H${m}M${s}S`;
 }
+
+// ---------- cmi5 ----------
+
+const CMI5_CAT = 'https://w3id.org/xapi/cmi5/context/categories/cmi5';
+const MOVEON_CAT = 'https://w3id.org/xapi/cmi5/context/categories/moveon';
+const EXT_MASTERY = 'https://w3id.org/xapi/cmi5/context/extensions/masteryscore';
+
+export function cmi5Xml(course: Course): string {
+  const id = activityId(course);
+  const graded = course.quiz.reporting === 'passed-failed';
+  return `<?xml version="1.0" encoding="utf-8"?>
+<courseStructure xmlns="https://w3id.org/xapi/profiles/cmi5/v1/CourseStructure.xsd">
+  <course id="${escapeXml(id)}">
+    <title><langstring lang="en-US">${escapeXml(course.title || 'Untitled course')}</langstring></title>
+    <description><langstring lang="en-US">${escapeXml(course.description || course.title || '')}</langstring></description>
+  </course>
+  <au id="${escapeXml(`${id}/au`)}" moveOn="${graded ? 'CompletedAndPassed' : 'Completed'}"${graded ? ` masteryScore="${(Math.round(course.quiz.passPercent) / 100).toFixed(2)}"` : ''} launchMethod="AnyWindow">
+    <title><langstring lang="en-US">${escapeXml(course.title || 'Untitled course')}</langstring></title>
+    <description><langstring lang="en-US">${escapeXml(course.description || course.title || '')}</langstring></description>
+    <url>index.html</url>
+  </au>
+</courseStructure>
+`;
+}
+
+/** cmi5 launch: endpoint, fetch, actor, registration, activityId on the query string. */
+export async function connectCmi5(course: Course, search: string, transport: XapiTransport, now: () => number = Date.now): Promise<XapiLms | null> {
+  const q = new URLSearchParams(search);
+  const fetchUrl = q.get('fetch');
+  const reg = q.get('registration');
+  const auId = q.get('activityId');
+  if (!fetchUrl || !reg || !auId) return null;
+  const launch = parseLaunch(search, auId);
+  if (!launch) return null;
+  try { const u = new URL(fetchUrl); if (u.protocol !== 'https:' && u.protocol !== 'http:') return null; } catch { return null; }
+  // 1. Exchange the one-time fetch URL for an auth token.
+  let token = '';
+  try {
+    const r = await transport(fetchUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    const body = JSON.parse(await r.text()) as Record<string, string>;
+    token = body['auth-token'] ?? '';
+  } catch { /* fall through */ }
+  if (!token) return null;
+  const headers = { 'Content-Type': 'application/json', 'X-Experience-API-Version': XAPI_VERSION, Authorization: `Basic ${token}` };
+  const stateUrl = (stateId: string) => {
+    const p = new URLSearchParams({ activityId: auId, agent: JSON.stringify(launch.actor), registration: reg, stateId });
+    return `${launch.endpoint}activities/state?${p}`;
+  };
+  // 2. Launch data from the LMS: context template, launch mode, mastery score.
+  let template: Record<string, unknown> = {};
+  let launchMode = 'Normal';
+  let mastery: number | null = null;
+  try {
+    const r = await transport(stateUrl('LMS.LaunchData'), { method: 'GET', headers });
+    if (r.ok) {
+      const d = JSON.parse(await r.text()) as { contextTemplate?: Record<string, unknown>; launchMode?: string; masteryScore?: number };
+      template = d.contextTemplate ?? {};
+      launchMode = d.launchMode ?? 'Normal';
+      mastery = typeof d.masteryScore === 'number' ? d.masteryScore : null;
+    }
+  } catch { /* defaults */ }
+  let suspendData = '';
+  try {
+    const r = await transport(stateUrl('scrimshaw-resume'), { method: 'GET', headers });
+    if (r.ok) suspendData = await r.text();
+  } catch { /* none */ }
+  const started = now();
+  const object = { objectType: 'Activity', id: auId };
+  const ctx = (moveOn: boolean, extra: Record<string, unknown> = {}) => {
+    const t = structuredClone(template) as { contextActivities?: Record<string, unknown[]>; extensions?: Record<string, unknown> };
+    const ca = t.contextActivities ?? {};
+    ca.category = [...(ca.category ?? []), { id: CMI5_CAT }, ...(moveOn ? [{ id: MOVEON_CAT }] : [])];
+    return { ...t, registration: reg, contextActivities: ca, extensions: { ...(t.extensions ?? {}), ...extra } };
+  };
+  const send = (verb: { id: string }, opts: { result?: Record<string, unknown>; moveOn?: boolean; ext?: Record<string, unknown>; cmi5?: boolean } = {}, keepalive = false) =>
+    transport(`${launch.endpoint}statements`, {
+      method: 'POST', headers, keepalive,
+      body: JSON.stringify({
+        id: uuid(), actor: launch.actor, verb, object, timestamp: new Date(now()).toISOString(),
+        ...(opts.result ? { result: opts.result } : {}),
+        context: opts.cmi5 === false ? { registration: reg } : ctx(!!opts.moveOn, opts.ext),
+      }),
+    }).catch(() => null);
+  void send(VERBS.initialized);
+  const normal = launchMode === 'Normal';
+  let finished = false;
+  let reported = false;
+  let lastSaved = '';
+  return {
+    connected: true, version: null, suspendData, location: '',
+    setProgress(_l, data) {
+      if (data === lastSaved) return;
+      lastSaved = data;
+      void transport(stateUrl('scrimshaw-resume'), { method: 'PUT', headers, body: data }).catch(() => null);
+    },
+    answered(qn) {
+      // Interactions are allowed cmi5 statements ("cmi5 allowed"): no cmi5 category.
+      void send(VERBS.answered, { cmi5: false, result: { success: qn.correct, response: qn.response.slice(0, 1000) } });
+    },
+    complete(status, scorePercent) {
+      if (!normal || reported) return; // Browse and Review launches must not report completion or success.
+      reported = true;
+      const duration = isoDuration(now() - started);
+      void send(VERBS.completed, { moveOn: true, result: { completion: true, duration } });
+      if (status !== 'completed') {
+        const passed = mastery !== null && scorePercent !== null ? scorePercent / 100 >= mastery : status === 'passed';
+        void send(passed ? VERBS.passed : VERBS.failed, {
+          moveOn: true,
+          result: { success: passed, duration, ...(scorePercent !== null ? { score: { scaled: Math.round(scorePercent) / 100 } } : {}) },
+          ext: mastery !== null ? { [EXT_MASTERY]: mastery } : {},
+        });
+      }
+    },
+    finish() {
+      if (finished) return;
+      finished = true;
+      void send(VERBS.terminated, { result: { duration: isoDuration(now() - started) } }, true);
+    },
+  };
+}

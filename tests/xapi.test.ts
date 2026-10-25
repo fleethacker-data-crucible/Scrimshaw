@@ -52,3 +52,39 @@ test('connectXapi resumes from the State API and sends statements', async () => 
   assert.ok(tincanXml(course).includes('<name>Tin Can &amp; co</name>'));
   assert.equal(await connectXapi(course, '', transport), null);
 });
+
+test('cmi5: fetch token, launch data, moveOn statements, browse mode reports nothing', async () => {
+  const { connectCmi5, cmi5Xml } = await import('../src/export/xapi.ts');
+  const course = newCourse('Five');
+  const run = async (launchMode: string) => {
+    const calls: { url: string; method: string; body?: string; headers: Record<string, string> }[] = [];
+    const transport: XapiTransport = async (url, init) => {
+      calls.push({ url, method: init.method, body: init.body, headers: init.headers });
+      if (url.startsWith('https://lms.example.com/fetch')) return { ok: true, status: 200, text: async () => '{"auth-token":"TOKEN"}' };
+      if (url.includes('stateId=LMS.LaunchData')) return { ok: true, status: 200, text: async () => JSON.stringify({ launchMode, masteryScore: 0.8, contextTemplate: { extensions: { 'https://w3id.org/xapi/cmi5/context/extensions/sessionid': 'S1' } } }) };
+      return { ok: false, status: 404, text: async () => '' };
+    };
+    const search = `?endpoint=${encodeURIComponent('https://lrs.example.com/xapi/')}&fetch=${encodeURIComponent('https://lms.example.com/fetch/1')}&actor=${encodeURIComponent(actor)}&registration=R&activityId=${encodeURIComponent('urn:au:1')}`;
+    const lms = (await connectCmi5(course, search, transport))!;
+    lms.complete('passed', 85);
+    lms.finish();
+    await new Promise((r) => setTimeout(r, 0));
+    return calls;
+  };
+  const calls = await run('Normal');
+  const st = calls.filter((c) => c.url.endsWith('/statements'));
+  assert.equal(st[0].headers.Authorization, 'Basic TOKEN');
+  const bodies = st.map((c) => JSON.parse(c.body!));
+  assert.deepEqual(bodies.map((b) => b.verb.id.split('/').pop()), ['initialized', 'completed', 'passed', 'terminated']);
+  const passed = bodies[2];
+  assert.equal(passed.object.id, 'urn:au:1');
+  assert.equal(passed.context.registration, 'R');
+  assert.equal(passed.context.extensions['https://w3id.org/xapi/cmi5/context/extensions/sessionid'], 'S1');
+  assert.equal(passed.context.extensions['https://w3id.org/xapi/cmi5/context/extensions/masteryscore'], 0.8);
+  assert.ok(passed.context.contextActivities.category.some((c: { id: string }) => c.id.endsWith('/moveon')));
+  const browse = (await run('Browse')).filter((c) => c.url.endsWith('/statements')).map((c) => JSON.parse(c.body!).verb.id.split('/').pop());
+  assert.deepEqual(browse, ['initialized', 'terminated']);
+  const xml = cmi5Xml(course);
+  assert.ok(xml.includes('moveOn="CompletedAndPassed"') && xml.includes('masteryScore="0.80"'));
+  assert.equal(await connectCmi5(course, '?endpoint=x', async () => ({ ok: false, status: 0, text: async () => '' })), null);
+});
