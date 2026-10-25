@@ -263,9 +263,22 @@ try {
   await fr.getByText(/places? found/).waitFor();
   await fr.getByRole('textbox', { name: 'Replace with' }).fill('Whale tooth');
   await fr.getByRole('button', { name: 'Replace all' }).click();
-  await page.getByText(/Replaced \d+ occurrence/).waitFor();
+  await page.getByText(/Replaced [1-9]\d* occurrence/).waitFor();
   ok('find and replace across the course');
   await fr.getByRole('button', { name: 'Close', exact: true }).last().click();
+
+  // ---------- right-click menu ----------
+  {
+    const cv = await page.getByRole('application', { name: /Slide canvas/ }).boundingBox();
+    const before = await page.getByRole('list', { name: 'Objects' }).getByRole('button').count().catch(() => 0);
+    await page.mouse.click(cv.x + cv.width / 2, cv.y + cv.height * 0.42, { button: 'right' });
+    await page.screenshot({ path: path.join(out, '11-context-menu.png') });
+    await page.getByRole('menu', { name: 'Object actions' }).getByRole('menuitem', { name: /^Duplicate/ }).click();
+    await page.getByRole('tab', { name: 'Design' }).waitFor();
+    await page.keyboard.press('Escape');
+    const after = await page.getByRole('list', { name: 'Objects' }).getByRole('button').count();
+    if (after === before + 1) ok('right-click menu duplicates an object'); else fail(`objects ${before} -> ${after}`);
+  }
 
   // ---------- new course, question slide insert ----------
   await page.getByRole('button', { name: 'File' }).click();
