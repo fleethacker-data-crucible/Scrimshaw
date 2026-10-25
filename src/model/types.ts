@@ -20,6 +20,8 @@ export interface Course {
    *  Never part of the play order. Its objects are display-only (no triggers). */
   master: Slide;
   variables: Variable[];
+  /** Theme colours: the swatches offered for every colour. Changing one recolours what uses it. */
+  theme: string[];
   /** First slide the player shows. Falls back to the first slide of the first scene. */
   startSlideId: ID | null;
   player: PlayerSettings;

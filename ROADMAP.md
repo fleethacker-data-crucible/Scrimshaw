@@ -27,7 +27,7 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 | Sliders, dials | 🟡 | Sliders bound to a number variable; no dials |
 | Markers, scrolling panels, zoom regions | ⬜ | |
 | Drag and drop | ✅ | Draggable objects and drop targets, snap, one item per target, keyboard support, drop triggers, graded question type |
-| Slide masters / themes | 🟡 | One slide master (display objects such as logos, footers, slide numbers) with per-slide opt-out; no multiple masters or theme colour sets |
+| Slide masters / themes | 🟡 | One slide master (logos, footers, slide numbers) with per-slide opt-out; theme colours that recolour what uses them; no multiple masters or theme fonts |
 | Copy/paste between slides and projects | ✅ | Carries embedded media |
 | Undo/redo | ✅ | 200 steps |
 | Align, distribute, z-order, snapping, grid | ✅ | |
@@ -97,6 +97,6 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 
 1. Curved and freeform motion paths
 2. WYSIWYG rich text editing (formatting already works inline)
-3. Multiple slide masters and theme colour sets
+3. Multiple slide masters and theme fonts
 4. Word bank and ranking question types
 5. Player layout options

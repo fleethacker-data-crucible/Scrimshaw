@@ -151,6 +151,10 @@ export function normalizeCourse(input: unknown): Course {
       for (const o of m.layers[0].objects) o.triggers = [];
       return m;
     })(),
+    theme: (() => {
+      const t = Array.isArray(input.theme) ? input.theme.filter((c): c is string => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c)) : [];
+      return t.length ? t.slice(0, 16) : [...d.theme];
+    })(),
     variables: arr(input.variables, (v) => (isObj(v) && typeof v.id === 'string' && typeof v.name === 'string' && ['text', 'number', 'boolean'].includes(v.type as string)
       ? (v as unknown as Course['variables'][number]) : null)),
     startSlideId: typeof input.startSlideId === 'string' ? input.startSlideId : null,
