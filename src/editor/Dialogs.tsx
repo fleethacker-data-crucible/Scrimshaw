@@ -5,11 +5,12 @@ import { allSlides, slideTriggers } from '../model/query.ts';
 import type { Course, ID, VariableType } from '../model/types.ts';
 import { buildPlayerHtml, buildScormZip, canPublish, download, fileName } from '../export/publish.ts';
 import { serializeCourse } from '../model/schema.ts';
+import { contrast, findTexts, replaceAll } from '../model/texts.ts';
 import { deleteProject, listProjects, type ProjectMeta } from '../store/persist.ts';
 import { Download, FileBraces, Globe, Package, Plus, Trash, TriangleAlert } from '../ui/icons.tsx';
 import { Button, Dialog, Field, IconButton, NumberInput, Select, useUi } from '../ui/kit.tsx';
 import { useEditor } from './context.tsx';
-import { uniqueVarName } from './Inspector.tsx';
+import { ColorInput, uniqueVarName } from './Inspector.tsx';
 
 // ---------- variables ----------
 
@@ -114,6 +115,12 @@ export function CourseDialog({ onClose }: { onClose: () => void }) {
           {([['showMenu', 'Menu'], ['showNav', 'Prev / Next bar'], ['showSeekbar', 'Seekbar'], ['showTitle', 'Course title'], ['resume', 'Resume where the learner left off']] as const).map(([k, label]) => (
             <label key={k} className="check"><input type="checkbox" checked={p[k]} onChange={(e) => set('Player setting', (c) => { c.player[k] = e.target.checked; })} /> {label}</label>
           ))}
+          <div className="col-span-2 grid gap-1">
+            <ColorInput label="Player accent (buttons, seekbar)" value={p.accent || '#2f74c8'} onChange={(v) => set('Player accent', (c) => { c.player.accent = v === 'transparent' ? '' : v; }, 'accent')} />
+            {p.accent && (contrast(p.accent, '#ffffff') ?? 21) < 4.5 && (
+              <div className="notice warn"><b>!</b>White button text on this colour is {contrast(p.accent, '#ffffff')!.toFixed(2)}:1, below the 4.5:1 AA minimum. Pick a darker colour.</div>
+            )}
+          </div>
           <Field label="Menu navigation">
             <Select label="Menu navigation" value={p.navigation} onChange={(v) => set('Player setting', (c) => { c.player.navigation = v; })} options={[{ value: 'free', label: 'Free' }, { value: 'restricted', label: 'Restricted to visited slides' }]} />
           </Field>
@@ -244,7 +251,7 @@ export function PublishDialog({ onClose }: { onClose: () => void }) {
 // ---------- shortcuts ----------
 
 export const SHORTCUTS: [string, string][] = [
-  ['Ctrl+Z / Ctrl+Y', 'Undo / redo'], ['Ctrl+S', 'Save now'], ['F5', 'Preview from this slide'], ['Ctrl+M', 'New slide'],
+  ['Ctrl+Z / Ctrl+Y', 'Undo / redo'], ['Ctrl+S', 'Save now'], ['Ctrl+H', 'Find and replace'], ['F5', 'Preview from this slide'], ['Ctrl+M', 'New slide'],
   ['Ctrl+C / X / V', 'Copy, cut, paste objects'], ['Ctrl+D', 'Duplicate objects'], ['Ctrl+A', 'Select all on the layer'],
   ['Delete', 'Delete selection'], ['Arrows', 'Nudge 1 px (Shift: 10 px)'], ['Ctrl+] / Ctrl+[', 'Bring forward / send backward'],
   ['Ctrl+Shift+] / [', 'Bring to front / send to back'], ['Page Up / Page Down', 'Previous / next slide'], ['Escape', 'Clear selection'],
@@ -261,6 +268,50 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
           <tbody>{SHORTCUTS.map(([k, v]) => <tr key={k}><td><kbd>{k}</kbd></td><td>{v}</td></tr>)}</tbody>
         </table>
       </div>
+    </Dialog>
+  );
+}
+
+// ---------- find and replace ----------
+
+export function FindReplaceDialog({ onClose }: { onClose: () => void }) {
+  const { course, edit, select } = useEditor();
+  const { toast } = useUi();
+  const [find, setFind] = useState('');
+  const [replace, setReplace] = useState('');
+  const [matchCase, setMatchCase] = useState(false);
+  const hits = findTexts(course, find, matchCase);
+  return (
+    <Dialog title="Find and replace" onClose={onClose} wide={620} footer={
+      <>
+        <Button variant="ghost" onClick={onClose}>Close</Button>
+        <Button disabled={!find || hits.length === 0} onClick={() => {
+          let n = 0;
+          edit('Replace all', (c) => { n = replaceAll(c, find, replace, matchCase); });
+          toast(`Replaced ${n} occurrence${n === 1 ? '' : 's'}.`, 'ok');
+        }}>Replace all</Button>
+      </>
+    }>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Find"><input autoFocus value={find} onChange={(e) => setFind(e.target.value)} /></Field>
+        <Field label="Replace with"><input value={replace} onChange={(e) => setReplace(e.target.value)} /></Field>
+      </div>
+      <label className="check"><input type="checkbox" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} /> Match case</label>
+      <p className="muted text-[13px]" role="status">{find ? `${hits.length} place${hits.length === 1 ? '' : 's'} found` : 'Searches slide titles, text, state text, alt text and accepted answers.'}</p>
+      {hits.length > 0 && (
+        <ul className="grid gap-1 max-h-64 overflow-auto" aria-label="Matches">
+          {hits.slice(0, 200).map((h) => (
+            <li key={h.key}>
+              <button type="button" className="ghost w-full !h-auto !py-1 !justify-start text-left !whitespace-normal" onClick={() => { if (h.slideId) select({ slideId: h.slideId, objectIds: h.objectId ? [h.objectId] : [] }); }}>
+                <span className="grid gap-0.5 font-normal">
+                  <span className="text-[11px] text-muted">{h.where} · {h.field}</span>
+                  <span className="text-[13px] line-clamp-2">{h.text}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </Dialog>
   );
 }

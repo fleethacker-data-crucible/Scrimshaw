@@ -136,3 +136,36 @@ test('SCORM 2004 manifest declares the passing measure', async () => {
   assert.ok(xml.includes('adlcp:scormType="sco"'));
   assert.ok(xml.includes('Twenty &amp; four'));
 });
+
+test('texts: collect, find, replace, and CSV translation round-trip', async () => {
+  const T = await import('../src/model/texts.ts');
+  const { allSlides } = await import('../src/model/query.ts');
+  const c = sampleCourse();
+  const entries = T.collectTexts(c);
+  assert.ok(entries.some((e) => e.field === 'slide title' && e.text === 'Tools of the trade'));
+  assert.ok(entries.some((e) => e.field === 'state text' && e.text === 'Needle ✓'));
+  assert.ok(T.findTexts(c, 'needle', false).length >= 3);
+  assert.equal(T.findTexts(c, 'NEEDLE', true).length, 0);
+  const n = T.replaceAll(c, 'Tooth', 'Whale tooth', true);
+  assert.ok(n >= 2);
+  assert.ok(T.findTexts(c, 'Whale tooth', true).length >= 2);
+  const csv = T.textsToCsv(c);
+  assert.ok(csv.startsWith('﻿key,where,field,source,translation'));
+  const rows = T.parseCsv(csv);
+  const titleRow = rows.find((r) => r[0] === `slide:${allSlides(c)[1].id}:title`)!;
+  titleRow[4] = 'Werkzeuge, "Handwerk"\nZeile 2';
+  const back = rows.map((r) => r.map((v) => (/[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)).join(',')).join('\r\n');
+  const map = T.csvToTexts(back);
+  assert.equal(map.size, 1);
+  assert.equal(T.applyTexts(c, map), 1);
+  assert.equal(allSlides(c)[1].title, 'Werkzeuge, "Handwerk"\nZeile 2');
+  assert.throws(() => T.csvToTexts('a,b\n1,2'), /key/);
+});
+
+test('contrast ratio', async () => {
+  const { contrast } = await import('../src/model/texts.ts');
+  assert.equal(contrast('#ffffff', '#000000')!.toFixed(1), '21.0');
+  assert.ok(contrast('#2f74c8', '#ffffff')! >= 4.5, 'kit accent passes AA with white');
+  assert.ok(contrast('#e8c15a', '#ffffff')! < 4.5);
+  assert.equal(contrast('nope', '#fff'), null);
+});

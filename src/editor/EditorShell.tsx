@@ -12,13 +12,14 @@ import {
   AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignStartHorizontal, AlignStartVertical,
   BringToFront, ChevronDown, Circle, Copy, FileBraces, FolderOpen, Grid3x3, Image, Keyboard, Magnet, MonitorPlay, MousePointerClick, Moon,
   Package, Play, Redo2, Save, Scan, SendToBack, Settings as SettingsIcon, Square, SquareCheck, SquareDashed, Sun, TextCursorInput, Trash, Type, Undo2,
-  Variable, Video, Volume2, Workflow, ZoomIn, ZoomOut, Clock,
+  Variable, Video, Volume2, Gauge, Workflow, ZoomIn, ZoomOut, Clock,
 } from '../ui/icons.tsx';
 import { Button, IconButton, Menu, useUi } from '../ui/kit.tsx';
 import { fileToAsset, imageSize, pickFile, withAsset } from './assets.ts';
 import { Canvas } from './Canvas.tsx';
 import { EditorProvider, useEditor } from './context.tsx';
-import { CourseDialog, ProjectsDialog, PublishDialog, ShortcutsDialog, VariablesDialog } from './Dialogs.tsx';
+import { CourseDialog, FindReplaceDialog, ProjectsDialog, PublishDialog, ShortcutsDialog, VariablesDialog } from './Dialogs.tsx';
+import { applyTexts, csvToTexts, textsToCsv } from '../model/texts.ts';
 import { Inspector } from './Inspector.tsx';
 import { LayersPanel } from './LayersPanel.tsx';
 import { Logo } from './Logo.tsx';
@@ -71,7 +72,7 @@ export function EditorRoot() {
   );
 }
 
-type DialogName = 'variables' | 'course' | 'projects' | 'publish' | 'shortcuts' | null;
+type DialogName = 'variables' | 'course' | 'projects' | 'publish' | 'shortcuts' | 'find' | null;
 
 function EditorShell({ settings, setSettings, openCourse }: { settings: Settings; setSettings: (fn: (s: Settings) => Settings) => void; openCourse: (c: Course) => void }) {
   const ed = useEditor();
@@ -188,6 +189,16 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
       toast(`Opened “${c.title}”.`, 'ok');
     } catch (e) { toast((e as Error).message, 'err'); }
   };
+  const importTranslation = async () => {
+    const f = await pickFile('.csv,text/csv');
+    if (!f) return;
+    try {
+      const values = csvToTexts(await f.text());
+      let n = 0;
+      edit('Import translation', (c) => { n = applyTexts(c, values); });
+      toast(n ? `Updated ${n} text${n === 1 ? '' : 's'} from the translation. Undo reverts it.` : 'No translated rows matched this course.', n ? 'ok' : 'warn');
+    } catch (e) { toast((e as Error).message, 'err'); }
+  };
   const openNew = async (c: Course) => { await saveNow(); await saveProject(c).catch(() => {}); setDialog(null); openCourse(c); };
 
   // ---- keyboard ----
@@ -211,6 +222,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
         return;
       }
       if (k === '?') { setDialog('shortcuts'); return; }
+      if (mod && k.toLowerCase() === 'h') { e.preventDefault(); setDialog('find'); return; }
       if (story) return;
       if (mod && k.toLowerCase() === 'a') { e.preventDefault(); select({ objectIds: layer.objects.filter((o) => !o.locked && !o.editorHidden).map((o) => o.id) }); return; }
       if (mod && k.toLowerCase() === 'c') { if (copy()) e.preventDefault(); return; }
@@ -254,6 +266,10 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
           { label: 'Save to file (.scrim)', onSelect: saveToFile },
           { separator: true, label: '' },
           { label: 'Course settings…', icon: <SettingsIcon />, onSelect: () => setDialog('course') },
+          { separator: true, label: '' },
+          { label: 'Find and replace…', shortcut: 'Ctrl+H', onSelect: () => setDialog('find') },
+          { label: 'Export text for translation (.csv)', onSelect: () => download(fileName(course.title, 'translation.csv'), textsToCsv(course), 'text/csv') },
+          { label: 'Import translated text (.csv)…', onSelect: importTranslation },
         ]}>File<ChevronDown size={14} /></Menu>
         <span className="spacer" />
         <IconButton label={undo ? `Undo ${undo} (Ctrl+Z)` : 'Nothing to undo'} disabled={!undo} onClick={() => dispatch({ type: 'undo' })}><Undo2 /></IconButton>
@@ -287,6 +303,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
         <RB icon={<SquareDashed size={14} />} label="Hotspot" onClick={() => insert('hotspot')} />
         <RB icon={<TextCursorInput size={14} />} label="Text entry" onClick={() => insert('input')} />
         <RB icon={<SquareCheck size={14} />} label="Choice" onClick={() => insert('choice')} />
+        <RB icon={<Gauge size={14} />} label="Slider" onClick={() => insert('slider')} />
         <span className="sep" />
         <span className="ribbon-label lbl">Arrange</span>
         <Menu label="Align" size="small" items={[
@@ -342,6 +359,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
       {dialog === 'course' && <CourseDialog onClose={() => setDialog(null)} />}
       {dialog === 'publish' && <PublishDialog onClose={() => setDialog(null)} />}
       {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}
+      {dialog === 'find' && <FindReplaceDialog onClose={() => setDialog(null)} />}
       {dialog === 'projects' && (
         <ProjectsDialog currentId={course.id} onClose={() => setDialog(null)} onImport={importFile}
           onOpen={async (id) => {

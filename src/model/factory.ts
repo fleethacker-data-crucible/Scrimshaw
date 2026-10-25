@@ -55,6 +55,7 @@ const KIND_DEFAULTS: Record<ObjectKind, () => Partial<SlideObject>> = {
   }),
   choice: () => ({ name: 'Choice', w: 560, h: 44, text: 'Answer option', style: baseStyle({ fontSize: 18, valign: 'middle' }) }),
   video: () => ({ name: 'Video', w: 480, h: 270, controls: true, style: baseStyle({ fill: '#000000', padding: 0 }) }),
+  slider: () => ({ name: 'Slider', w: 360, h: 40, min: 0, max: 10, step: 1, style: baseStyle({ fill: '#2f74c8', padding: 0 }) }),
   audio: () => ({ name: 'Audio', w: 48, h: 48, autoplay: true, controls: false, style: baseStyle({ fill: '#2f74c8', color: '#ffffff', radius: 24, padding: 0, align: 'center', valign: 'middle' }) }),
 };
 
@@ -65,7 +66,7 @@ export function newObject(kind: ObjectKind, over: Partial<SlideObject> = {}): Sl
     style: baseStyle(), text: '', shape: 'rect', src: '', alt: '', decorative: false,
     initiallyHidden: false, start: 0, end: null,
     enter: { type: 'none', duration: 0.5 }, exit: { type: 'none', duration: 0.5 },
-    states: [], triggers: [], variableId: null, correct: false, choiceMode: 'radio',
+    states: [], triggers: [], variableId: null, min: 0, max: 10, step: 1, correct: false, choiceMode: 'radio',
     draggable: false, dropTarget: false, correctTargetId: null,
     autoplay: false, controls: true, loop: false, locked: false, editorHidden: false,
     ...d,
@@ -122,7 +123,7 @@ export function newCourse(title = 'Untitled course'): Course {
     scenes: [newScene('Scene 1', [first])],
     variables: [],
     startSlideId: null,
-    player: { showMenu: true, showNav: true, showSeekbar: true, showTitle: true, navigation: 'free', resume: true },
+    player: { showMenu: true, showNav: true, showSeekbar: true, showTitle: true, accent: '', navigation: 'free', resume: true },
     quiz: { passPercent: 80, reporting: 'passed-failed', completionSlideId: null },
     assets: {},
     created: now, modified: now,

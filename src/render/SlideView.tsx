@@ -198,6 +198,24 @@ function ObjectView({ course, o, mode, state, text, transient, onPointer, handle
             disabled={disabled} onChange={(e) => handlers.onInput?.(o.id, e.target.value)} />
         : <div className="obj-text" style={{ ...textCss(s), opacity: 0.6 }}>{content}</div>;
       break;
+    case 'slider': {
+      const lo = Number.isFinite(o.min) ? o.min : 0;
+      const hi = Number.isFinite(o.max) && o.max > lo ? o.max : lo + 10;
+      const step = o.step > 0 ? o.step : 1;
+      const raw = Number(inputValue);
+      const value = inputValue !== '' && Number.isFinite(raw) ? Math.min(hi, Math.max(lo, raw)) : lo;
+      inner = play
+        ? <input type="range" className="w-full h-full" min={lo} max={hi} step={step} value={value} disabled={disabled}
+            style={{ accentColor: s.fill === 'transparent' ? undefined : s.fill, margin: 0 }}
+            aria-label={o.alt || o.name} aria-valuetext={String(value)} onChange={(e) => handlers.onInput?.(o.id, e.target.value)} />
+        : (
+          <div className="w-full h-full relative" aria-hidden="true">
+            <div className="absolute left-0 right-0 top-1/2 h-1.5 -mt-[3px] rounded-full" style={{ background: '#9a988f55' }} />
+            <div className="absolute top-1/2 -mt-[9px] w-[18px] h-[18px] rounded-full" style={{ left: 0, background: s.fill === 'transparent' ? '#2f74c8' : s.fill }} />
+          </div>
+        );
+      break;
+    }
     case 'choice': {
       const selected = state === 'Selected';
       inner = (
@@ -368,7 +386,7 @@ export function SlideView(p: SlideViewProps) {
               } else if (mode === 'edit' && p.previewStates?.[o.id]) {
                 st = p.previewStates[o.id];
               }
-              const inputValue = o.kind === 'input' && p.state
+              const inputValue = (o.kind === 'input' || o.kind === 'slider') && p.state
                 ? (p.state.inputs[o.id] ?? (o.variableId ? String(p.state.vars[o.variableId] ?? '') : ''))
                 : '';
               return (
