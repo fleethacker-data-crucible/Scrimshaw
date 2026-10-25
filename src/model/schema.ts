@@ -106,7 +106,8 @@ export function normalizeCourse(input: unknown): Course {
   const d = newCourse();
   const scenes = input.scenes
     .map((s) => (isObj(s) && typeof s.id === 'string'
-      ? { id: s.id, name: str(s.name, 'Scene'), slides: arr(s.slides, slide) }
+      ? { id: s.id, name: str(s.name, 'Scene'), slides: arr(s.slides, slide),
+          bank: isObj(s.bank) ? { shuffle: bool(s.bank.shuffle), draw: Math.max(0, Math.floor(num(s.bank.draw))) } : null }
       : null))
     .filter((s): s is Course['scenes'][number] => s !== null);
   if (scenes.length === 0 || scenes.every((s) => s.slides.length === 0)) throw new CourseFormatError('The course has no slides.');

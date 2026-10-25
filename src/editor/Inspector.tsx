@@ -507,8 +507,29 @@ function SlideProps({ editSlide }: { editSlide: (label: string, fn: (s: Slide) =
       <Field label="Notes" hint={`Private to authors. ${course.title ? '' : ''}`}>
         <textarea className="!font-sans !text-[13px]" rows={4} value={slide.notes} onChange={(e) => editSlide('Notes', (s) => { s.notes = e.target.value; }, `notes-${slide.id}`)} />
       </Field>
-      <p className="hint">Select an object on the canvas to edit it, or drag on empty space to select several.</p>
+      <ObjectList />
     </>
+  );
+}
+
+/** Every object on the editing layer as a button: the keyboard route to selecting objects. */
+function ObjectList() {
+  const { layer, select } = useEditor();
+  return (
+    <Section title={`Objects on ${layer.base ? 'the base layer' : layer.name}`}>
+      {layer.objects.length === 0 && <p className="muted text-[13px]">None yet. Use Insert in the ribbon.</p>}
+      <ul className="grid gap-1" aria-label="Objects">
+        {[...layer.objects].reverse().map((o) => (
+          <li key={o.id}>
+            <button type="button" className="ghost w-full !justify-start" onClick={() => select({ objectIds: [o.id] })}>
+              <span className="truncate flex-1 text-left font-normal">{o.name}</span>
+              <span className="muted text-[11px] font-normal">{o.kind}{o.initiallyHidden ? ' · hidden' : ''}{o.triggers.length ? ` · ${o.triggers.length} trigger${o.triggers.length > 1 ? 's' : ''}` : ''}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className="hint">Select an object here or on the canvas. Arrow keys nudge it; Escape clears the selection.</p>
+    </Section>
   );
 }
 

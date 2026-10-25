@@ -57,6 +57,8 @@ export interface Scene {
   id: ID;
   name: string;
   slides: Slide[];
+  /** Question bank: shuffle this scene's question slides and/or draw only some of them. Redrawn on retry. */
+  bank: { shuffle: boolean; draw: number } | null;
 }
 
 export interface Slide {
