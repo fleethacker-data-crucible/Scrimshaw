@@ -3,7 +3,7 @@ import { newVariable } from '../model/factory.ts';
 import { validateCourse } from '../model/describe.ts';
 import { allSlides, slideTriggers } from '../model/query.ts';
 import type { Course, ID, VariableType } from '../model/types.ts';
-import { buildPlayerHtml, buildScormZip, canPublish, download, fileName } from '../export/publish.ts';
+import { buildPlayerHtml, buildScormZip, buildXapiZip, canPublish, download, fileName } from '../export/publish.ts';
 import { serializeCourse } from '../model/schema.ts';
 import { contrast, findTexts, replaceAll } from '../model/texts.ts';
 import { deleteProject, listProjects, type ProjectMeta } from '../store/persist.ts';
@@ -202,14 +202,15 @@ export function PublishDialog({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const problems = validateCourse(course);
   const ready = canPublish();
-  const run = async (kind: 'html' | 'scorm' | 'scorm2004' | 'json') => {
+  const run = async (kind: 'html' | 'scorm' | 'scorm2004' | 'xapi' | 'json') => {
     setBusy(true);
     try {
       if (kind === 'json') download(fileName(course.title, 'scrim'), serializeCourse(course), 'application/json');
       if (kind === 'html') download(fileName(course.title, 'html'), buildPlayerHtml(course), 'text/html');
       if (kind === 'scorm') download(fileName(course.title, 'scorm12.zip'), await buildScormZip(course));
       if (kind === 'scorm2004') download(fileName(course.title, 'scorm2004.zip'), await buildScormZip(course, undefined, '2004'));
-      toast(kind.startsWith('scorm') ? 'SCORM package downloaded. Upload the zip to your LMS.' : 'Downloaded.', 'ok');
+      if (kind === 'xapi') download(fileName(course.title, 'xapi.zip'), await buildXapiZip(course));
+      toast(kind.startsWith('scorm') || kind === 'xapi' ? 'Package downloaded. Upload the zip to your LMS.' : 'Downloaded.', 'ok');
     } catch (e) {
       toast(`Publishing failed: ${(e as Error).message}`, 'err');
     } finally { setBusy(false); }
@@ -232,6 +233,11 @@ export function PublishDialog({ onClose }: { onClose: () => void }) {
           <div className="flex-1"><b>SCORM package</b><p className="muted text-[12px] !m-0">A zip for your LMS: SCORM 1.2 (widest support) or SCORM 2004 3rd Edition. Reports completion, pass/fail, score and time, and resumes where the learner left off.</p></div>
           <Button disabled={!ready || busy} onClick={() => run('scorm')} aria-label="Download SCORM 1.2 zip"><Download />1.2</Button>
           <Button disabled={!ready || busy} onClick={() => run('scorm2004')} aria-label="Download SCORM 2004 zip"><Download />2004</Button>
+        </div>
+        <div className="box flex items-center gap-3">
+          <Package size={22} />
+          <div className="flex-1"><b>xAPI (Tin Can) package</b><p className="muted text-[12px] !m-0">For an LRS-backed LMS. Sends statements for the attempt, each answer and the result, and resumes through the xAPI State API.</p></div>
+          <Button disabled={!ready || busy} onClick={() => run('xapi')} aria-label="Download xAPI zip"><Download />xAPI</Button>
         </div>
         <div className="box flex items-center gap-3">
           <Globe size={22} />

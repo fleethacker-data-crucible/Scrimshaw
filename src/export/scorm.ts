@@ -134,6 +134,8 @@ export interface Lms {
   setProgress(location: string, suspendData: string): void;
   complete(status: 'passed' | 'failed' | 'completed', scorePercent: number | null): void;
   finish(): void;
+  /** xAPI only: one statement per graded attempt. */
+  answered?(question: { id: string; title: string; correct: boolean; response: string; points: number; max: number }): void;
 }
 
 /** SCORM 1.2 CMITimespan: HHHH:MM:SS.SS */
