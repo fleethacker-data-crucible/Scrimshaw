@@ -72,11 +72,11 @@ const FAVICON = `data:image/png;base64,${readFileSync(path.join(root, 'src/asset
 
 function html(css, js) {
   return `<!doctype html>
-<html lang="en">
+<html lang="en" data-app="scrimshaw">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="generator" content="Scrimshaw ${pkg.version} (FleetHacker UI Kit ${kitVersion})">
+<meta name="generator" content="Scrimshaw ${pkg.version} (FleetHacker UI Kit ${kitVersion}, Fleet UI)">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob: file: https: http:; media-src 'self' data: blob: file: https: http:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Scrimshaw</title>
 <link rel="icon" href="${FAVICON}">
