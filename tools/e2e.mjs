@@ -49,6 +49,12 @@ try {
   // ---------- editor ----------
   const page = await newPage();
   await page.goto(url);
+  // Scrimshaw opens on the Welcome view: the full logo, a headline and the ways in.
+  await page.getByRole('heading', { name: 'Carve a course worth remembering.', level: 1 }).waitFor();
+  if (await page.locator('.welcome img.welcome-logo:visible').count() === 1) ok('opens on the Welcome view with the logo'); else fail('Welcome view logo missing');
+  await page.screenshot({ path: path.join(out, '00-welcome-dark.png') });
+  await axe(page, 'the Welcome view (dark)');
+  await page.getByRole('button', { name: /^Continue / }).click();
   await page.getByRole('heading', { name: 'Scrimshaw', level: 1 }).waitFor();
   ok('editor loads from file://');
   await page.getByText('Saved', { exact: true }).waitFor({ timeout: 5000 }).then(() => ok('autosaves to IndexedDB'), () => fail('no Saved status'));
