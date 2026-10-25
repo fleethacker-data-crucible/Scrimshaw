@@ -9,6 +9,7 @@ import { contrast, findTexts, replaceAll } from '../model/texts.ts';
 import { deleteProject, listProjects, type ProjectMeta } from '../store/persist.ts';
 import { Download, FileBraces, Globe, Package, Plus, Trash, TriangleAlert } from '../ui/icons.tsx';
 import { Button, Dialog, Field, IconButton, NumberInput, Select, useUi } from '../ui/kit.tsx';
+import { fileToAsset, pickFile, withAsset } from './assets.ts';
 import { useEditor } from './context.tsx';
 import { ColorInput, uniqueVarName } from './Inspector.tsx';
 
@@ -96,6 +97,7 @@ export function VariablesDialog({ onClose }: { onClose: () => void }) {
 
 export function CourseDialog({ onClose }: { onClose: () => void }) {
   const { course, edit } = useEditor();
+  const { toast } = useUi();
   const set = (label: string, fn: (c: Course) => void, key?: string) => edit(label, fn, key);
   const p = course.player;
   return (
@@ -115,6 +117,17 @@ export function CourseDialog({ onClose }: { onClose: () => void }) {
           {([['showMenu', 'Menu'], ['showNav', 'Prev / Next bar'], ['showSeekbar', 'Seekbar'], ['showTitle', 'Course title'], ['resume', 'Resume where the learner left off']] as const).map(([k, label]) => (
             <label key={k} className="check"><input type="checkbox" checked={p[k]} onChange={(e) => set('Player setting', (c) => { c.player[k] = e.target.checked; })} /> {label}</label>
           ))}
+          <div className="col-span-2 flex items-center gap-2">
+            <span className="text-[12px] text-fg-2">Logo</span>
+            {p.logo && course.assets[p.logo.slice(6)] && <img src={course.assets[p.logo.slice(6)].data} alt="Current logo" className="h-7 w-auto max-w-[120px] object-contain border border-line rounded-kit" />}
+            <Button size="small" variant="ghost" onClick={async () => {
+              const f = await pickFile('image/*');
+              if (!f) return;
+              try { const a = await fileToAsset(f, 'image'); edit('Player logo', (c) => { withAsset(c, a); c.player.logo = `asset:${a.id}`; }); }
+              catch (e) { toast((e as Error).message, 'err'); }
+            }}>{p.logo ? 'Replace logo…' : 'Add a logo…'}</Button>
+            {p.logo && <Button size="small" variant="ghost" onClick={() => set('Remove logo', (c) => { c.player.logo = ''; })}>Remove</Button>}
+          </div>
           <div className="col-span-2 grid gap-1">
             <ColorInput label="Player accent (buttons, seekbar)" value={p.accent || '#2f74c8'} onChange={(v) => set('Player accent', (c) => { c.player.accent = v === 'transparent' ? '' : v; }, 'accent')} />
             {p.accent && (contrast(p.accent, '#ffffff') ?? 21) < 4.5 && (
