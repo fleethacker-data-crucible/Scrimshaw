@@ -1,0 +1,9 @@
+* text=auto
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.png binary
+*.woff2 binary
+dist/** -text -diff linguist-generated
+vendor/** -text linguist-vendored
+src/ui/icons.tsx linguist-generated

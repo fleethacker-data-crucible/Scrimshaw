@@ -1,0 +1,81 @@
+name: CI
+# Runs on the self-hosted Windows build PC (same runner labels as Arc). It needs Node 22.18+ and
+# Windows PowerShell 5.1, which every Windows build PC has.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hygiene:
+    name: Repo hygiene
+    runs-on: [self-hosted, Windows, X64]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - name: Block committed logs, node_modules and scratch output
+        shell: powershell
+        run: |
+          $fail = $false
+          $bad = @(git ls-files '*.log' 'node_modules/*' '.build/*' '*.scorm12.zip')
+          if ($bad.Count) { Write-Host "::error::Tracked logs or build scratch:"; $bad; $fail = $true }
+          $nonAscii = @(git ls-files '*.ps1' | Where-Object { $b = [IO.File]::ReadAllBytes($_); -not ($b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB) -and ($b | Where-Object { $_ -gt 127 } | Select-Object -First 1) })
+          if ($nonAscii.Count) { Write-Host "::error::PowerShell files with non-ASCII text and no BOM (Windows PowerShell 5.1 misreads them):"; $nonAscii; $fail = $true }
+          if ($fail) { exit 1 }
+
+  powershell:
+    name: Windows PowerShell 5.1 (parse + server smoke test)
+    runs-on: [self-hosted, Windows, X64]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - name: Parse every .ps1
+        shell: powershell
+        run: |
+          $bad = 0
+          Get-ChildItem -Recurse -Filter *.ps1 | Where-Object { $_.FullName -notmatch 'node_modules' } | ForEach-Object {
+            $t = $null; $e = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$t, [ref]$e)
+            if ($e) { $bad++; $e | ForEach-Object { Write-Host ("::error file={0},line={1}::{2}" -f $_.Extent.File, $_.Extent.StartLineNumber, $_.Message) } }
+          }
+          if ($bad) { exit 1 }
+      - name: Server serves dist and refuses traversal and foreign hosts
+        shell: powershell
+        run: |
+          $job = Start-Job { param($d) & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $d 'Start.ps1') -Port 18765 -NoBrowser -IdleMinutes 2 } -ArgumentList $PWD.Path
+          Start-Sleep -Seconds 4
+          function Status([string]$Url, [hashtable]$Headers = @{}) {
+            try { (Invoke-WebRequest -UseBasicParsing -Uri $Url -Headers $Headers).StatusCode } catch { [int]$_.Exception.Response.StatusCode }
+          }
+          $fail = $false
+          if ((Status 'http://127.0.0.1:18765/') -ne 200) { Write-Host '::error::index.html not served'; $fail = $true }
+          if ((Status 'http://127.0.0.1:18765/%2e%2e/package.json') -ne 404) { Write-Host '::error::path traversal not blocked'; $fail = $true }
+          if ((Status 'http://127.0.0.1:18765/' @{ Host = 'evil.example:18765' }) -ne 403) { Write-Host '::error::foreign Host header not refused'; $fail = $true }
+          Stop-Job $job; Remove-Job $job -Force
+          if ($fail) { exit 1 }
+
+  ui:
+    name: Typecheck, unit tests, build is current
+    runs-on: [self-hosted, Windows, X64]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - name: Install
+        shell: powershell
+        run: npm install --no-audit --no-fund
+      - name: Typecheck
+        shell: powershell
+        run: npm run typecheck
+      - name: Unit tests
+        shell: powershell
+        run: npm test
+      - name: dist/ matches the source
+        shell: powershell
+        run: |
+          npm run build
+          git diff --exit-code --stat -- dist/
+          if ($LASTEXITCODE) { Write-Host '::error::dist/ is out of date. Run npm run build and commit dist/.'; exit 1 }

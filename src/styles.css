@@ -1,0 +1,144 @@
+/* Layer order: Tailwind preflight (base) < FleetHacker UI Kit < app components < utilities.
+   The kit lives in @layer kit, so app and utility classes refine it without !important. */
+@layer theme, base, kit, components, utilities;
+@import "tailwindcss";
+@import "../vendor/ui-kit/kit.css";
+@source "./";
+
+/* Tailwind utilities read the kit's tokens, so bg-panel, text-muted, border-line etc. follow the theme. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-sel: var(--sel);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-fg: var(--text);
+  --color-fg-2: var(--text-2);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-brand: var(--brand);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-err: var(--err);
+  --font-sans: var(--sans);
+  --font-mono: var(--mono);
+  --radius-kit: var(--radius);
+}
+
+@layer components {
+  html, body, #root { height: 100%; }
+  body { overflow: hidden; }
+
+  /* ---- app shell (review: 240px sidebar, 56px top bar) ---- */
+  .shell { display: grid; grid-template-rows: auto auto minmax(0, 1fr); height: 100vh; }
+  .shell > .topbar { padding: 10px 16px; min-height: 56px; }
+  .ribbon { display: flex; flex-wrap: wrap; row-gap: 4px; align-items: center; gap: var(--s1); padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--panel); }
+  .ribbon .sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 6px; }
+  @media (max-width: 1500px) { .ribbon .lbl { display: none; } .ribbon .sep { margin: 0 2px; } }
+  .ribbon-label { font-size: var(--fs-xs); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
+  .workspace { display: grid; grid-template-columns: 240px minmax(0, 1fr) 300px; min-height: 0; }
+  .workspace.no-bottom .center { grid-template-rows: minmax(0, 1fr); }
+  .pane { min-height: 0; overflow: auto; background: var(--panel); }
+  .pane.left { border-right: 1px solid var(--border); }
+  .pane.right { border-left: 1px solid var(--border); }
+  .pane-head { display: flex; align-items: center; gap: var(--s1); padding: 8px 10px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--panel); z-index: 2; }
+  .pane-head h2 { margin: 0; flex: 1; }
+  .center { display: grid; grid-template-rows: minmax(0, 1fr) auto; min-width: 0; min-height: 0; }
+  .stage { position: relative; overflow: auto; background: var(--bg); display: grid; place-items: center; padding: 32px; }
+  .bottom { display: grid; grid-template-columns: minmax(0, 1fr) 260px; border-top: 1px solid var(--border); background: var(--panel); height: 210px; min-height: 0; }
+  .bottom > section { min-height: 0; overflow: auto; }
+  .bottom > section + section { border-left: 1px solid var(--border); }
+
+  /* ---- slide list ---- */
+  .scene-head { display: flex; align-items: center; gap: 4px; padding: 10px 10px 4px; }
+  .scene-head .name { flex: 1; font-size: var(--fs-xs); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
+  .slide-list { list-style: none; margin: 0; padding: 0 8px 8px; display: grid; gap: 6px; }
+  .thumb { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 6px; align-items: start; padding: 6px; border-radius: var(--radius); cursor: pointer; border: 1px solid transparent; }
+  .thumb:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+  .thumb[aria-current=true] { background: var(--sel); box-shadow: inset 3px 0 0 var(--brand); }
+  .thumb .num { font-size: var(--fs-sm); color: var(--muted); text-align: right; padding-top: 2px; }
+  .thumb .mini { border: 1px solid var(--border); border-radius: 2px; overflow: hidden; position: relative; }
+  .thumb .t { font-size: var(--fs-sm); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .thumb.drop-before { box-shadow: inset 0 3px 0 var(--focus); }
+
+  /* ---- canvas ---- */
+  .canvas { position: relative; flex: none; box-shadow: 0 2px 16px #0005; }
+  .canvas.grid-on { background-image: linear-gradient(to right, #8881 1px, transparent 1px), linear-gradient(to bottom, #8881 1px, transparent 1px); }
+  .sel-box { position: absolute; border: 1px solid var(--focus); pointer-events: none; }
+  .sel-box.primary { outline: 1px dashed var(--focus); outline-offset: 2px; }
+  .handle { position: absolute; width: 9px; height: 9px; background: var(--bg); border: 1px solid var(--focus); pointer-events: auto; }
+  .marquee { position: absolute; border: 1px dashed var(--focus); background: color-mix(in srgb, var(--focus) 12%, transparent); pointer-events: none; }
+  .guide { position: absolute; background: #ff4fd8; pointer-events: none; }
+  .layer-dim { position: absolute; inset: 0; background: color-mix(in srgb, var(--bg) 55%, transparent); pointer-events: none; }
+  .text-editor { position: absolute; resize: none; border: 1px solid var(--focus); outline: none; background: transparent; padding: 0; margin: 0; overflow: hidden; height: auto; min-height: 0; font-family: inherit; white-space: pre-wrap; }
+
+  /* ---- inspector ---- */
+  .insp { padding: 10px 12px 24px; display: grid; gap: 12px; }
+  .insp .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .insp .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .insp input[type=number] { width: 100%; }
+  .insp input[type=color] { padding: 1px; width: 100%; }
+  .insp h3 { margin: 4px 0 0; font-size: var(--fs-xs); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .list-row { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-2); }
+  .list-row .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .list-row[aria-current=true] { border-color: var(--focus); }
+  .trigger-text { font-size: var(--fs-sm); line-height: 1.4; }
+  .trigger-text b { color: var(--text); font-weight: 600; }
+  .trigger-text .when { color: var(--text-2); }
+
+  /* ---- timeline ---- */
+  .tl { font-size: var(--fs-sm); }
+  .tl-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; border-bottom: 1px solid var(--border); height: 26px; }
+  .tl-row .nm { padding: 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; gap: 4px; align-items: center; }
+  .tl-row[aria-selected=true] { background: var(--sel); }
+  .tl-track { position: relative; height: 100%; }
+  .tl-bar { position: absolute; top: 5px; bottom: 5px; border-radius: 3px; background: color-mix(in srgb, var(--accent) 55%, var(--panel)); border: 1px solid var(--accent); cursor: grab; touch-action: none; }
+  .tl-bar .grip { position: absolute; top: 0; bottom: 0; width: 6px; cursor: ew-resize; }
+  .tl-ruler { position: relative; height: 22px; border-bottom: 1px solid var(--border-strong); }
+  .tl-tick { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--border); padding-left: 3px; color: var(--muted); font-size: var(--fs-xs); }
+  .tl-end { position: absolute; top: 0; bottom: 0; width: 8px; margin-left: -4px; cursor: ew-resize; touch-action: none; }
+  .tl-end::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: var(--brand); }
+
+  /* ---- story view ---- */
+  .story { position: absolute; inset: 0; overflow: auto; background: var(--bg); padding: 24px; }
+  .story-scene { border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); padding: 12px; margin-bottom: 20px; }
+  .story-grid { display: flex; flex-wrap: wrap; gap: 18px; }
+  .story-card { width: 176px; cursor: pointer; border-radius: var(--radius); padding: 6px; border: 1px solid transparent; background: none; color: inherit; text-align: left; }
+  .story-card:hover { border-color: var(--border-strong); }
+  .story-card[aria-current=true] { border-color: var(--focus); }
+
+  /* ---- player ---- */
+  .player { position: fixed; inset: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: #111; color: #fff; }
+  .player.embedded { position: absolute; }
+  .player-top { display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: var(--panel); color: var(--text); border-bottom: 1px solid var(--border); }
+  .player-body { display: grid; grid-template-columns: auto minmax(0, 1fr); min-height: 0; }
+  .player-menu { width: 260px; overflow: auto; background: var(--panel); color: var(--text); border-right: 1px solid var(--border); padding: 8px; }
+  .player-stage { display: grid; place-items: center; min-width: 0; min-height: 0; overflow: hidden; position: relative; }
+  .player-bar { display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: var(--panel); color: var(--text); border-top: 1px solid var(--border); }
+  .seek { flex: 1; }
+  .player-notice { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); z-index: 50; }
+
+  /* ---- slide objects (shared by canvas and player) ---- */
+  .slide { position: relative; overflow: hidden; transform-origin: 0 0; font-family: var(--sans); }
+  .obj { position: absolute; box-sizing: border-box; }
+  .obj-text { width: 100%; height: 100%; display: flex; flex-direction: column; white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; }
+  .obj[role=button], .obj[role=radio], .obj[role=checkbox] { cursor: pointer; }
+  .obj[role=button]:focus-visible, .obj[role=radio]:focus-visible, .obj[role=checkbox]:focus-visible, .obj input:focus-visible { outline: 3px solid #5a9cec; outline-offset: 2px; }
+  .obj input.obj-input { all: unset; box-sizing: border-box; width: 100%; height: 100%; padding: 0 10px; font: inherit; color: inherit; }
+  .obj .mark { flex: none; width: 22px; height: 22px; border: 2px solid currentColor; display: grid; place-items: center; }
+  .obj .mark.radio { border-radius: 50%; }
+  .obj .mark.check { border-radius: 3px; }
+  .obj .mark i { width: 10px; height: 10px; background: currentColor; display: block; }
+  .obj .mark.radio i { border-radius: 50%; }
+  .hotspot-edit { outline: 1px dashed #c93b3b; background: #c93b3b22; }
+
+  @keyframes scr-fade { from { opacity: 0 } }
+  @keyframes scr-fly-left { from { transform: translateX(-120%); opacity: 0 } }
+  @keyframes scr-fly-right { from { transform: translateX(120%); opacity: 0 } }
+  @keyframes scr-fly-up { from { transform: translateY(60%); opacity: 0 } }
+  @keyframes scr-fly-down { from { transform: translateY(-60%); opacity: 0 } }
+  @keyframes scr-zoom { from { transform: scale(.3); opacity: 0 } }
+  @keyframes scr-wipe { from { clip-path: inset(0 100% 0 0) } to { clip-path: inset(0 0 0 0) } }
+  @keyframes scr-out-fade { to { opacity: 0 } }
+}
