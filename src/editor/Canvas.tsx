@@ -265,6 +265,16 @@ export function Canvas({ zoom, onZoomResolved, onZoom, snap, grid, previewStates
             </div>
           );
         })}
+        {primary?.motion && !live && (
+          <svg className="absolute inset-0 pointer-events-none overflow-visible" width={W * scale} height={H * scale} aria-hidden="true">
+            <rect x={(primary.x + primary.motion.dx) * scale} y={(primary.y + primary.motion.dy) * scale} width={primary.w * scale} height={primary.h * scale}
+              fill="none" stroke="var(--brand)" strokeDasharray="5 4" strokeWidth={1.5} />
+            <line x1={(primary.x + primary.w / 2) * scale} y1={(primary.y + primary.h / 2) * scale}
+              x2={(primary.x + primary.motion.dx + primary.w / 2) * scale} y2={(primary.y + primary.motion.dy + primary.h / 2) * scale}
+              stroke="var(--brand)" strokeWidth={2} strokeDasharray="2 4" markerEnd="url(#motion-head)" />
+            <defs><marker id="motion-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="var(--brand)" /></marker></defs>
+          </svg>
+        )}
         {marquee && <div className="marquee" style={{ left: marquee.x * scale, top: marquee.y * scale, width: marquee.w * scale, height: marquee.h * scale }} />}
         {guides.v.map((x, i) => <div key={`v${i}`} className="guide" style={{ left: x * scale, top: 0, width: 1, height: H * scale }} />)}
         {guides.h.map((y, i) => <div key={`h${i}`} className="guide" style={{ top: y * scale, left: 0, height: 1, width: W * scale }} />)}

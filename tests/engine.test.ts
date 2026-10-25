@@ -410,3 +410,22 @@ test('essay questions record the response and never score', () => {
   assert.equal(s.answers[q.id].graded, false);
   assert.equal(E.results(c, s).hasQuiz, false);
 });
+
+test('motion paths: play and reverse from triggers, reset on re-entry', () => {
+  const { c, s1, s2 } = twoSlides();
+  const boat = newObject('shape', { motion: { dx: 300, dy: 0, duration: 1, start: 'trigger', at: 0, easing: 'ease' } });
+  const go = newObject('button');
+  go.triggers.push(newTrigger({ type: 'click' }, { type: 'play-motion', objectId: boat.id }));
+  const back = newObject('button');
+  back.triggers.push(newTrigger({ type: 'click' }, { type: 'reverse-motion', objectId: boat.id }));
+  s1.layers[0].objects.push(boat, go, back);
+  let s = E.start(c);
+  assert.equal(s.motion[boat.id], undefined);
+  s = E.click(c, s, go.id);
+  assert.equal(s.motion[boat.id], true);
+  s = E.click(c, s, back.id);
+  assert.equal(s.motion[boat.id], false);
+  s = E.navigate(c, s, s2.id);
+  s = E.navigate(c, s, s1.id);
+  assert.deepEqual(s.motion, {}, 'motion restarts with the slide');
+});

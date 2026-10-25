@@ -162,13 +162,18 @@ interface DragWiring {
   props: Record<string, unknown>;
 }
 
-function ObjectView({ course, o, mode, state, text, transient, onPointer, handlers, inputValue, animate, mediaRef, drag, exiting }: {
+function ObjectView({ course, o, mode, state, text, transient, onPointer, handlers, inputValue, animate, mediaRef, drag, exiting, moved }: {
   course: Course; o: SlideObject; mode: ViewMode; state: string; text: (t: string) => string; transient: 'hover' | 'down' | null;
   onPointer: (id: ID, t: 'hover' | 'down' | null) => void; handlers: Handlers; inputValue: string; animate: boolean;
-  mediaRef?: (id: ID, el: HTMLMediaElement | null) => void; drag?: DragWiring; exiting?: boolean;
+  mediaRef?: (id: ID, el: HTMLMediaElement | null) => void; drag?: DragWiring; exiting?: boolean; moved?: boolean;
 }) {
   const { style: s, text: stateText } = effectiveStyle(o, state, mode === 'play' ? transient : null);
   const css = boxCss(o, s);
+  if (mode === 'play' && o.motion) {
+    // The CSS translate property composes with rotation and entrance animations (which use transform).
+    css.translate = moved ? `${o.motion.dx}px ${o.motion.dy}px` : '0 0';
+    css.transition = `translate ${o.motion.duration}s ${o.motion.easing === 'linear' ? 'linear' : 'ease-in-out'}`;
+  }
   if (drag?.pos) { css.left = drag.pos.x; css.top = drag.pos.y; }
   if (drag?.lifted) { css.zIndex = 20; css.boxShadow = '0 10px 24px rgba(0,0,0,.35)'; css.cursor = 'grabbing'; css.transition = 'none'; }
   else if (drag && mode === 'play' && o.draggable) css.transition = 'left .15s ease-out, top .15s ease-out';
@@ -447,7 +452,8 @@ export function SlideView(p: SlideViewProps) {
                 <ObjectView key={o.id} course={course} o={o} mode={mode} state={st} text={text}
                   transient={pointer?.id === o.id ? pointer.t : null} onPointer={onPointer} handlers={p}
                   inputValue={inputValue} animate={mode === 'play'} mediaRef={p.mediaRef} drag={dragWiring(o)}
-                  exiting={mode === 'play' && o.end !== null && t >= o.end} />
+                  exiting={mode === 'play' && o.end !== null && t >= o.end}
+                  moved={!!o.motion && !!p.state && (p.state.motion[o.id] ?? (o.motion.start === 'timeline' && t >= o.motion.at))} />
               );
             })}
             {layer.base && p.dimBase && <div className="layer-dim" />}

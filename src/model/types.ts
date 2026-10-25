@@ -154,6 +154,8 @@ export interface SlideObject {
   end: number | null;
   enter: Animation;
   exit: Animation;
+  /** Motion path: a straight move by (dx, dy). Starts at `at` seconds on the timeline, or only when a trigger plays it. */
+  motion: { dx: number; dy: number; duration: number; start: 'timeline' | 'trigger'; at: number; easing: 'linear' | 'ease' } | null;
   states: ObjectState[];
   triggers: Trigger[];
   /** input: the text or number variable it writes to. slider: the number variable it controls. */
@@ -229,6 +231,8 @@ export type Action =
   | { type: 'submit-interaction' }
   | { type: 'reset-results' }
   | { type: 'open-url'; url: string }
+  | { type: 'play-motion'; objectId: ID | 'this' }
+  | { type: 'reverse-motion'; objectId: ID | 'this' }
   | { type: 'play-media'; objectId: ID }
   | { type: 'pause-media'; objectId: ID }
   | { type: 'pause-timeline' }

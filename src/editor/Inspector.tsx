@@ -419,6 +419,26 @@ function TimingTab() {
           <Field label="Duration (s)"><NumberInput label="Animation duration" min={0.1} max={10} step={0.1} value={o.enter.duration} onChange={(v) => editSelected('Animation', (x) => { x.enter = { ...x.enter, duration: v }; }, 'anim-d')} /></Field>
         </div>
       </Section>
+      <Section title="Motion path">
+        <label className="check"><input type="checkbox" checked={!!o.motion} onChange={(e) => editSelected('Motion path', (x) => { x.motion = e.target.checked ? { dx: 200, dy: 0, duration: 1, start: 'timeline', at: x.start, easing: 'ease' } : null; })} /> Move in a straight line</label>
+        {o.motion && (
+          <>
+            <div className="grid-2">
+              <Field label="Across (px)"><NumberInput label="Move across" value={o.motion.dx} onChange={(v) => editSelected('Motion path', (x) => { if (x.motion) x.motion.dx = v; }, 'mdx')} /></Field>
+              <Field label="Down (px)"><NumberInput label="Move down" value={o.motion.dy} onChange={(v) => editSelected('Motion path', (x) => { if (x.motion) x.motion.dy = v; }, 'mdy')} /></Field>
+              <Field label="Duration (s)"><NumberInput label="Motion duration" min={0.05} max={60} step={0.1} value={o.motion.duration} onChange={(v) => editSelected('Motion path', (x) => { if (x.motion) x.motion.duration = v; }, 'mdur')} /></Field>
+              <Field label="Easing"><Select label="Easing" value={o.motion.easing} options={[{ value: 'ease', label: 'Ease in and out' }, { value: 'linear', label: 'Steady' }]} onChange={(v) => editSelected('Motion path', (x) => { if (x.motion) x.motion.easing = v; })} /></Field>
+            </div>
+            <Field label="Starts">
+              <Select label="Motion starts" value={o.motion.start} options={[{ value: 'timeline', label: 'On the timeline' }, { value: 'trigger', label: 'When a trigger plays it' }]} onChange={(v) => editSelected('Motion path', (x) => { if (x.motion) x.motion.start = v; })} />
+            </Field>
+            {o.motion.start === 'timeline' && (
+              <Field label="At (s)"><NumberInput label="Motion starts at" min={0} step={0.1} value={o.motion.at} onChange={(v) => editSelected('Motion path', (x) => { if (x.motion) x.motion.at = v; }, 'mat')} /></Field>
+            )}
+            <p className="hint">The dashed outline on the canvas shows where it ends. Triggers can play the motion or move it back.</p>
+          </>
+        )}
+      </Section>
       <Section title="Exit animation">
         <div className="grid-2">
           <Field label="Effect"><Select label="Exit effect" value={o.exit.type} options={ANIMS} onChange={(v) => editSelected('Animation', (x) => { x.exit = { ...x.exit, type: v }; })} /></Field>

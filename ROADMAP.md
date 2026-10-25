@@ -15,7 +15,7 @@ Status of each Storyline 360 feature area in Scrimshaw. ✅ done, 🟡 partial, 
 | Timeline | 🟡 | Start/end per object, slide length, cue-point triggers (timeline reaches). No cue-point markers in the UI, no layer timelines of their own length |
 | Entrance animations | ✅ | Fade, fly ×4, grow, wipe |
 | Exit animations | ✅ | Entrance effects played in reverse when the object disappears |
-| Motion paths | ⬜ | |
+| Motion paths | 🟡 | Straight-line paths on the timeline or from triggers (play and reverse), easing; no curved or freeform paths |
 | Text formatting | 🟡 | Per-object font, size, weight, colour, alignment; inline **bold**, *italic*, __underline__, ~~strike~~, links and bullet lines; no WYSIWYG run editor yet |
 | Shapes | ✅ | Rectangle, rounded, oval, triangle, arrow, line |
 | Images | ✅ | Embedded, alt text, decorative flag |
@@ -96,7 +96,7 @@ Status of each Storyline 360 feature area in Scrimshaw. ✅ done, 🟡 partial, 
 ## Suggested order
 
 1. cmi5 publishing
-3. Motion paths
+3. Curved and freeform motion paths
 4. WYSIWYG rich text editing (formatting already works inline)
 5. Multiple slide masters and theme colour sets
 6. Word bank and Likert question types

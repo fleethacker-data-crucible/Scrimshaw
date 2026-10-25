@@ -62,6 +62,11 @@ function object(v: unknown): SlideObject | null {
     ...(v as Partial<SlideObject>),
     id: v.id,
     style: { ...baseStyle(), ...(isObj(v.style) ? (v.style as object) : {}) },
+    motion: isObj(v.motion) ? {
+      dx: num(v.motion.dx), dy: num(v.motion.dy), duration: Math.max(0.05, num(v.motion.duration, 1)),
+      start: v.motion.start === 'trigger' ? 'trigger' : 'timeline', at: Math.max(0, num(v.motion.at)),
+      easing: v.motion.easing === 'linear' ? 'linear' : 'ease',
+    } : null,
     enter: anim(v.enter, d.enter),
     exit: anim(v.exit, d.exit),
     states: arr(v.states, (s) => (isObj(s) && typeof s.id === 'string' && typeof s.name === 'string'
