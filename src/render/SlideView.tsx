@@ -8,6 +8,18 @@ import { cueAt, parseVtt, vttFromDataUrl } from './vtt.ts';
 
 export type ViewMode = 'edit' | 'play' | 'thumb';
 
+/** Outside the player, fill in the project built-ins so thumbnails and the canvas read naturally. */
+export function projectText(t: string, course: Course, slide: Slide): string {
+  if (!t.includes('%Project.')) return t;
+  const slides = course.scenes.flatMap((s) => s.slides);
+  const i = slides.findIndex((s) => s.id === slide.id);
+  const map: Record<string, string> = {
+    'Project.SlideNumber': i >= 0 ? String(i + 1) : '#', 'Project.TotalSlides': String(slides.length),
+    'Project.SlideTitle': i >= 0 ? slide.title : 'Slide title', 'Project.CourseTitle': course.title,
+  };
+  return t.replace(/%(Project\.\w+)%/g, (m, k: string) => map[k] ?? m);
+}
+
 export function resolveSrc(course: Course, src: string): string {
   if (src.startsWith('asset:')) return course.assets[src.slice(6)]?.data ?? '';
   return src;
@@ -412,7 +424,7 @@ export function SlideView(p: SlideViewProps) {
     return pos ? { pos, lifted: false, props: {} } : undefined;
   };
   const onPointer = (id: ID, t: 'hover' | 'down' | null) => setPointer(t ? { id, t } : (pointer?.id === id ? null : pointer));
-  const text = (t: string) => (p.state ? interpolate(t, course, p.state) : t);
+  const text = (t: string) => (p.state ? interpolate(t, course, p.state) : projectText(t, course, slide));
   const layers: Layer[] = [slide.layers[0], ...p.layerIds.map((id) => slide.layers.find((l) => l.id === id)).filter((l): l is Layer => !!l && !l.base)];
   const modalOn = mode === 'play' && layers.some((l) => !l.base && l.modal);
 

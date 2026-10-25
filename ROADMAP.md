@@ -76,7 +76,7 @@ Status of each Storyline 360 feature area in Scrimshaw. ✅ done, 🟡 partial, 
 | xAPI (Tin Can) | ✅ | Tin Can launch, initialized/answered/passed/failed/completed/terminated statements, State API resume |
 | cmi5 | ⬜ | |
 | AICC | ⬜ | |
-| Word / PDF handout export | ⬜ | |
+| Word / PDF handout export | 🟡 | Printable HTML storyboard (slides, layers, triggers, answers, notes) to print or save as PDF; no .docx |
 | Video (MP4) export | ⬜ | |
 | Publish-time validation | ✅ | Broken trigger targets, unanswerable questions, missing alt text |
 

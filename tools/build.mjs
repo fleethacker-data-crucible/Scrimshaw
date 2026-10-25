@@ -59,7 +59,10 @@ async function buildJs() {
   let js = r.outputFiles[0].text;
   // Keep the inline script from closing early. "<\/script" means the same thing in strings, regexes and comments.
   js = js.replace(/<\/script/gi, '<\\/script');
-  if (js.includes('<!--')) throw new Error('Bundle contains "<!--", which is unsafe inside an inline <script>. Rephrase the source that produces it.');
+  // "<!--" inside an inline script can switch the HTML parser into its script-escape states.
+  // React's server renderer emits it from string literals; "\x3C!--" is the same string (and is
+  // equally valid in regex and template literals), so escape every occurrence.
+  js = js.replace(/<!--/g, '\\x3C!--');
   return js;
 }
 
