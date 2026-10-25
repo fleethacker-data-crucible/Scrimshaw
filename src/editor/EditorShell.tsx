@@ -23,7 +23,8 @@ import { applyTexts, csvToTexts, textsToCsv } from '../model/texts.ts';
 import { buildStoryboard, currentCss } from '../export/storyboard.tsx';
 import { Inspector } from './Inspector.tsx';
 import { LayersPanel } from './LayersPanel.tsx';
-import { Logo } from './Logo.tsx';
+import emblem from '../assets/emblem.webp';
+import { Welcome, markWelcomeSeen, welcomeSeen } from './Welcome.tsx';
 import { SlidePanel, useNewSlideItems } from './SlidePanel.tsx';
 import { StoryView } from './StoryView.tsx';
 import { Timeline } from './Timeline.tsx';
@@ -89,6 +90,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
   const [dialog, setDialog] = useState<DialogName>(null);
   const [previewStates, setPreviewStates] = useState<Record<ID, string>>({});
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | 'full' | 'unsaved'>('saved');
+  const [welcome, setWelcome] = useState(() => !welcomeSeen());
   const warnedFull = useRef(false);
   const newSlideItems = useNewSlideItems(() => state.sel.slideId);
 
@@ -311,12 +313,25 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
   const redo = redoLabel(state);
   const statusText = { saved: 'Saved', saving: 'Saving…', unsaved: 'Unsaved changes', error: 'Not saved: browser storage unavailable. Use File › Save to file', full: 'Not saved: browser storage is full. Use File › Save to file' }[saveStatus];
   const multi = selected.length > 1;
+  const leaveWelcome = (then?: () => void) => { markWelcomeSeen(); setWelcome(false); then?.(); };
+
+  if (welcome) {
+    return (
+      <Welcome
+        courseTitle={course.title}
+        onContinue={() => leaveWelcome()}
+        onNew={() => leaveWelcome(() => { void openNew(newCourse()); })}
+        onProjects={() => leaveWelcome(() => setDialog('projects'))}
+        onOpenFile={() => leaveWelcome(() => { void importFile(); })}
+      />
+    );
+  }
 
   return (
     <div className="shell">
       <a className="skip" href="#main">Skip to canvas</a>
       <header className="topbar">
-        <span className="brand"><Logo /><span><h1>Scrimshaw</h1><span className="sub">{course.title || 'Untitled'} · <span role="status" className={saveStatus === 'error' || saveStatus === 'full' ? 'err' : undefined}>{statusText}</span></span></span></span>
+        <span className="brand"><img className="logo rounded-full" src={emblem} alt="" width={40} height={40} /><span><h1>Scrimshaw</h1><span className="sub">{course.title || 'Untitled'} · <span role="status" className={saveStatus === 'error' || saveStatus === 'full' ? 'err' : undefined}>{statusText}</span></span></span></span>
         <Menu label="File" items={[
           { label: 'Projects…', icon: <FolderOpen />, onSelect: () => setDialog('projects') },
           { label: 'New course', onSelect: () => openNew(newCourse()) },
