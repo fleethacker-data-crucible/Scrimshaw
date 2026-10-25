@@ -46,7 +46,7 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 | Fill in the blank | ✅ | Multiple accepted answers, case-insensitive |
 | Matching, sequence, hotspot, numeric, word bank | 🟡 | Hotspot and numeric (range) types; matching and sequence via drag and drop; no word bank yet |
 | Freeform questions (any object as an answer) | 🟡 | Choice objects can sit on any slide; grading needs a question slide |
-| Survey questions (Likert, essay, ranking) | 🟡 | Questions can be ungraded; no Likert/essay types yet |
+| Survey questions (Likert, essay, ranking) | 🟡 | Essay type; any question can be ungraded (a Likert scale is an ungraded multiple choice); no ranking type |
 | Attempts, try again, feedback layers | ✅ | |
 | Points per question, pass mark | ✅ | |
 | Results slide, retry quiz | ✅ | |

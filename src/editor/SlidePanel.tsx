@@ -16,6 +16,7 @@ export const QUESTION_KINDS: { kind: QuestionKind; label: string }[] = [
   { kind: 'drag-drop', label: 'Drag and drop' },
   { kind: 'hotspot', label: 'Hotspot' },
   { kind: 'numeric', label: 'Numeric' },
+  { kind: 'essay', label: 'Essay (survey)' },
 ];
 
 /** Items for "new slide" menus, shared with the ribbon. */

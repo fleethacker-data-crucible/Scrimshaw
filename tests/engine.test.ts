@@ -398,3 +398,15 @@ test('lightbox slides open over the current slide and close back to it', () => {
   s = E.navigate(c, s, z.id);
   assert.equal(s.lightboxFrom, null, 'menu navigation leaves the lightbox');
 });
+
+test('essay questions record the response and never score', () => {
+  const c = newCourse('E');
+  const q = newQuestionSlide('essay');
+  c.scenes[0].slides = [q];
+  let s = E.start(c);
+  s = E.input(c, s, q.question!.inputObjectId!, 'Long voyages left time to carve.');
+  s = E.click(c, s, slideObjects(q).find((o) => o.name === 'Submit')!.id);
+  assert.equal(s.answers[q.id].response, 'Long voyages left time to carve.');
+  assert.equal(s.answers[q.id].graded, false);
+  assert.equal(E.results(c, s).hasQuiz, false);
+});

@@ -124,8 +124,8 @@
   .obj { position: absolute; box-sizing: border-box; }
   .obj-text { width: 100%; height: 100%; display: flex; flex-direction: column; white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; }
   .obj[role=button], .obj[role=radio], .obj[role=checkbox] { cursor: pointer; }
-  .obj[role=button]:focus-visible, .obj[role=radio]:focus-visible, .obj[role=checkbox]:focus-visible, .obj input:focus-visible { outline: 3px solid #5a9cec; outline-offset: 2px; }
-  .obj input.obj-input { all: unset; box-sizing: border-box; width: 100%; height: 100%; padding: 0 10px; font: inherit; color: inherit; }
+  .obj[role=button]:focus-visible, .obj[role=radio]:focus-visible, .obj[role=checkbox]:focus-visible, .obj input:focus-visible, .obj textarea:focus-visible { outline: 3px solid #5a9cec; outline-offset: 2px; }
+  .obj .obj-input { all: unset; box-sizing: border-box; width: 100%; height: 100%; padding: 0 10px; font: inherit; color: inherit; }
   .obj .mark { flex: none; width: 22px; height: 22px; border: 2px solid currentColor; display: grid; place-items: center; }
   .obj .mark.radio { border-radius: 50%; }
   .obj .mark.check { border-radius: 3px; }

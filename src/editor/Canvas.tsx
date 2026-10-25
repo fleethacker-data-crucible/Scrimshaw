@@ -21,6 +21,7 @@ interface Drag {
 }
 
 export interface CanvasProps {
+  onZoom?: (z: number) => void;
   zoom: number | 'fit';
   onZoomResolved: (z: number) => void;
   snap: boolean;
@@ -30,7 +31,7 @@ export interface CanvasProps {
 
 const textKinds = new Set(['text', 'shape', 'button', 'choice', 'input']);
 
-export function Canvas({ zoom, onZoomResolved, snap, grid, previewStates }: CanvasProps) {
+export function Canvas({ zoom, onZoomResolved, onZoom, snap, grid, previewStates }: CanvasProps) {
   const { course, slide, layer, state, select, edit } = useEditor();
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -53,6 +54,18 @@ export function Canvas({ zoom, onZoomResolved, snap, grid, previewStates }: Canv
     return () => ro.disconnect();
   }, [W, H]);
   useEffect(() => onZoomResolved(scale), [scale, onZoomResolved]);
+  // Ctrl/Cmd + wheel zooms. A native non-passive listener, since React's wheel listener is passive.
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || !onZoom) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      onZoom(Math.min(3, Math.max(0.25, Math.round(scale * (e.deltaY < 0 ? 1.1 : 1 / 1.1) * 100) / 100)));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [scale, onZoom]);
   useEffect(() => setEditing(null), [state.sel.slideId, state.sel.layerId]);
 
   const objects = layer.objects.filter((o) => !o.editorHidden);

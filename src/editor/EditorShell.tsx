@@ -34,6 +34,8 @@ function RB({ icon, label, onClick, title }: { icon: React.ReactNode; label: str
 
 /** In-memory clipboard. Carries the media its objects use so pasting into another project works. */
 let clipboard: { objects: SlideObject[]; assets: Asset[] } | null = null;
+/** Format painter: the style (and shape) copied with Ctrl+Alt+C. */
+let styleClip: { style: SlideObject['style']; shape: SlideObject['shape'] } | null = null;
 
 const isTyping = (t: EventTarget | null) => t instanceof HTMLElement && !!t.closest('input,textarea,select,[contenteditable=true]');
 
@@ -172,6 +174,16 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
     const ids = selected.map((o) => o.id);
     edit(ids.length > 1 ? `Delete ${ids.length} objects` : 'Delete object', (c, sel) => { deleteObjects(findSlide(c, sel.slideId)!, ids); return { objectIds: [] }; });
   }, [selected, edit]);
+  const copyStyle = () => {
+    if (selected.length !== 1) { toast('Select one object to copy its formatting.', 'warn'); return; }
+    styleClip = { style: structuredClone(selected[0].style), shape: selected[0].shape };
+    toast(`Copied the formatting of ${selected[0].name}.`, 'ok');
+  };
+  const pasteStyle = () => {
+    const clip = styleClip;
+    if (!clip || selected.length === 0) return;
+    ed.editSelected('Paste formatting', (o) => { o.style = structuredClone(clip.style); if (o.kind === 'shape') o.shape = clip.shape; });
+  };
   const groupable = selected.length >= 2;
   const grouped = selected.some((o) => o.groupId);
   const group = () => {
@@ -237,6 +249,8 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
       if (mod && k.toLowerCase() === 'h') { e.preventDefault(); setDialog('find'); return; }
       if (story) return;
       if (mod && k.toLowerCase() === 'a') { e.preventDefault(); select({ objectIds: layer.objects.filter((o) => !o.locked && !o.editorHidden).map((o) => o.id) }); return; }
+      if (mod && e.altKey && k.toLowerCase() === 'c') { e.preventDefault(); copyStyle(); return; }
+      if (mod && e.altKey && k.toLowerCase() === 'v') { e.preventDefault(); pasteStyle(); return; }
       if (mod && k.toLowerCase() === 'c') { if (copy()) e.preventDefault(); return; }
       if (mod && k.toLowerCase() === 'x') { if (copy()) { e.preventDefault(); remove(); } return; }
       if (mod && k.toLowerCase() === 'v') { if (clipboard) { e.preventDefault(); paste(); } return; }
@@ -331,6 +345,9 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
           { label: 'Distribute horizontally', disabled: selected.length < 3, onSelect: () => doDistribute('h') },
           { label: 'Distribute vertically', disabled: selected.length < 3, onSelect: () => doDistribute('v') },
           { separator: true, label: '' },
+          { label: 'Copy formatting', shortcut: 'Ctrl+Alt+C', disabled: selected.length !== 1, onSelect: copyStyle },
+          { label: 'Paste formatting', shortcut: 'Ctrl+Alt+V', disabled: selected.length === 0, onSelect: pasteStyle },
+          { separator: true, label: '' },
           { label: 'Group', shortcut: 'Ctrl+G', disabled: !groupable, onSelect: group },
           { label: 'Ungroup', shortcut: 'Ctrl+Shift+G', disabled: !grouped, onSelect: ungroup },
         ].map((i) => ({ ...i, disabled: i.disabled || selected.length === 0 }))}>Align<ChevronDown size={12} /></Menu>
@@ -359,7 +376,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
           <main id="main" tabIndex={-1} className="relative min-h-0 grid">
             {story
               ? <StoryView onOpen={() => setStory(false)} />
-              : <Canvas zoom={zoom} onZoomResolved={setResolvedZoom} snap={settings.snap} grid={settings.grid} previewStates={previewStates} />}
+              : <Canvas zoom={zoom} onZoom={setZoom} onZoomResolved={setResolvedZoom} snap={settings.snap} grid={settings.grid} previewStates={previewStates} />}
           </main>
           {settings.showTimeline && !story && (
             <div className="bottom">

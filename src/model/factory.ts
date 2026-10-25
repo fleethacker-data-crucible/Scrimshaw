@@ -66,7 +66,7 @@ export function newObject(kind: ObjectKind, over: Partial<SlideObject> = {}): Sl
     style: baseStyle(), text: '', shape: 'rect', src: '', alt: '', decorative: false,
     initiallyHidden: false, start: 0, end: null,
     enter: { type: 'none', duration: 0.5 }, exit: { type: 'none', duration: 0.5 },
-    states: [], triggers: [], variableId: null, min: 0, max: 10, step: 1, correct: false, choiceMode: 'radio',
+    states: [], triggers: [], variableId: null, multiline: false, min: 0, max: 10, step: 1, correct: false, choiceMode: 'radio',
     draggable: false, dropTarget: false, correctTargetId: null,
     autoplay: false, controls: true, loop: false, locked: false, groupId: null, editorHidden: false,
     ...d,
@@ -152,7 +152,7 @@ function feedbackLayer(name: string, message: string, color: string, action: Act
 export function newQuestionSlide(kind: QuestionKind): Slide {
   const titles: Record<QuestionKind, string> = {
     'multiple-choice': 'Multiple choice', 'multiple-response': 'Multiple response',
-    'true-false': 'True / false', 'fill-in': 'Fill in the blank', 'drag-drop': 'Drag and drop', hotspot: 'Hotspot', numeric: 'Numeric',
+    'true-false': 'True / false', 'fill-in': 'Fill in the blank', 'drag-drop': 'Drag and drop', hotspot: 'Hotspot', numeric: 'Numeric', essay: 'Essay',
   };
   const slide = newSlide(titles[kind]);
   const base = slide.layers[0];
@@ -162,7 +162,8 @@ export function newQuestionSlide(kind: QuestionKind): Slide {
       : kind === 'fill-in' ? 'Enter the question. The learner types the answer.'
       : kind === 'drag-drop' ? 'Drag each item onto where it belongs.'
       : kind === 'hotspot' ? 'Click the correct part of the picture.'
-      : kind === 'numeric' ? 'Enter a question with a number for an answer.' : 'Enter the question.',
+      : kind === 'numeric' ? 'Enter a question with a number for an answer.'
+      : kind === 'essay' ? 'Ask an open question. Answers are recorded, not scored.' : 'Enter the question.',
     style: baseStyle({ fontSize: 26, fontWeight: 600 }),
   }));
   const q: Question = {
@@ -186,6 +187,12 @@ export function newQuestionSlide(kind: QuestionKind): Slide {
     [[100, 180], [300, 260], [480, 170]].forEach(([x, y], i) => {
       base.objects.push(newObject('hotspot', { name: `Area ${i + 1}`, x, y, w: 140, h: 110, correct: i === 0, alt: `Area ${i + 1}` }));
     });
+  } else if (kind === 'essay') {
+    const input = newObject('input', { name: 'Answer entry', x: 60, y: 140, w: 840, h: 200, text: 'Type your answer', multiline: true, style: baseStyle({ fill: '#ffffff', stroke: '#7a7872', strokeWidth: 1, radius: 4, fontSize: 18 }) });
+    base.objects.push(input);
+    q.inputObjectId = input.id;
+    q.graded = false;
+    q.points = 0;
   } else if (kind === 'numeric') {
     const input = newObject('input', { name: 'Answer entry', x: 60, y: 160, w: 240, h: 52, text: 'Number' });
     base.objects.push(input);

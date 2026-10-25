@@ -196,8 +196,11 @@ function ObjectView({ course, o, mode, state, text, transient, onPointer, handle
     }
     case 'input':
       inner = play
-        ? <input className="obj-input" style={textCss(s)} value={inputValue} placeholder={content} aria-label={o.alt || content || o.name}
-            disabled={disabled} onChange={(e) => handlers.onInput?.(o.id, e.target.value)} />
+        ? o.multiline
+          ? <textarea className="obj-input" style={{ ...textCss(s), padding: 10, resize: 'none', whiteSpace: 'pre-wrap' }} value={inputValue} placeholder={content}
+              aria-label={o.alt || content || o.name} disabled={disabled} onChange={(e) => handlers.onInput?.(o.id, e.target.value)} />
+          : <input className="obj-input" style={textCss(s)} value={inputValue} placeholder={content} aria-label={o.alt || content || o.name}
+              disabled={disabled} onChange={(e) => handlers.onInput?.(o.id, e.target.value)} />
         : <div className="obj-text" style={{ ...textCss(s), opacity: 0.6 }}>{content}</div>;
       break;
     case 'slider': {
