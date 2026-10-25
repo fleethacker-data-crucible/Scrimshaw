@@ -314,3 +314,30 @@ test('shuffle permutes answer positions within their own slots', () => {
   const ys = choices.map((o) => (s.positions[o.id] ?? o).y).sort((a, b) => a - b);
   assert.deepEqual(ys, choices.map((o) => o.y).sort((a, b) => a - b));
 });
+
+test('question banks: shuffle and draw within a scene, score only drawn questions, redraw on retry, resume keeps the draw', () => {
+  const c = newCourse('Bank');
+  const intro = c.scenes[0].slides[0];
+  const qs = [1, 2, 3, 4].map((i) => { const q = newQuestionSlide('true-false'); q.title = `Q${i}`; return q; });
+  const results = newResultsSlide();
+  c.scenes[0].slides = [intro, ...qs, results];
+  c.scenes[0].bank = { shuffle: true, draw: 2 };
+  let n = 0;
+  const seq = E.buildSequence(c, () => ((n++ * 0.37) % 1));
+  assert.equal(seq.length, 4, 'intro + 2 drawn + results');
+  assert.equal(seq[0], intro.id);
+  assert.equal(seq[3], results.id);
+  assert.ok(seq.slice(1, 3).every((id) => qs.some((q) => q.id === id)));
+  const s = E.start(c);
+  assert.equal(E.playSlides(c, s).length, 4);
+  assert.equal(E.results(c, s).max, 20, 'only the two drawn questions count');
+  assert.equal(E.readVar(c, s, 'Project.TotalSlides'), 4);
+  const back = E.resumeFrom(c, E.suspend(s))!;
+  assert.deepEqual(back.sequence, s.sequence);
+  E.setRandom(() => 0.99);
+  const retried = E.perform(c, s, { type: 'reset-results' });
+  assert.equal(retried.slideId, retried.sequence[1], 'retry starts at the first drawn question');
+  E.setRandom(Math.random);
+  c.scenes[0].bank = null;
+  assert.equal(E.buildSequence(c).length, 6);
+});

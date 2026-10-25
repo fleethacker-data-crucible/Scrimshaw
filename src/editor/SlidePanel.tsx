@@ -5,7 +5,7 @@ import type { ID, QuestionKind, Slide } from '../model/types.ts';
 import { SlideThumb } from '../render/SlideView.tsx';
 import { addScene, copySlide, deleteScene, deleteSlide, insertSlideAfter, moveSlide } from '../store/ops.ts';
 import { CircleCheck, Copy, Ellipsis, Flag, ListChecks, Plus, Trash, Trophy } from '../ui/icons.tsx';
-import { Button, Menu, useUi, type MenuItem } from '../ui/kit.tsx';
+import { Button, Dialog, Field, Menu, NumberInput, useUi, type MenuItem } from '../ui/kit.tsx';
 import { useEditor } from './context.tsx';
 
 export const QUESTION_KINDS: { kind: QuestionKind; label: string }[] = [
@@ -36,6 +36,7 @@ export function SlidePanel() {
   const { confirm, prompt } = useUi();
   const [dragId, setDragId] = useState<ID | null>(null);
   const [dropAt, setDropAt] = useState<{ sceneId: ID; index: number } | null>(null);
+  const [bankFor, setBankFor] = useState<ID | null>(null);
   const current = state.sel.slideId;
   const newItems = useNewSlideItems(() => current);
   const flat = allSlides(course);
@@ -80,6 +81,7 @@ export function SlidePanel() {
           }}>
           <div className="scene-head">
             <span className="name">{scene.name}</span>
+            {scene.bank && <span className="badge purple" title={`Question bank: ${scene.bank.shuffle ? 'shuffled' : 'in order'}${scene.bank.draw ? `, draws ${scene.bank.draw}` : ''}`}>Bank</span>}
             <Menu label={`Scene ${scene.name} options`} size="icon" align="right" items={[
               { label: 'Rename scene…', icon: <Ellipsis />, onSelect: async () => {
                 const name = await prompt({ title: 'Rename scene', label: 'Scene name', value: scene.name, ok: 'Rename' });
@@ -91,6 +93,7 @@ export function SlidePanel() {
                 return { slideId: s.id, layerId: s.layers[0].id, objectIds: [] };
               }) },
               { label: 'New scene', icon: <Plus />, onSelect: () => edit('New scene', (c) => { const sc = addScene(c); return { slideId: sc.slides[0].id, objectIds: [] }; }) },
+              { label: 'Question bank…', icon: <ListChecks />, onSelect: () => setBankFor(scene.id) },
               { separator: true, label: '' },
               { label: 'Delete scene', icon: <Trash />, danger: true, disabled: course.scenes.length <= 1, onSelect: async () => {
                 if (!(await confirm({ title: 'Delete scene?', message: `“${scene.name}” and its ${scene.slides.length} slide(s) will be deleted. You can undo this.`, ok: 'Delete', danger: true }))) return;
@@ -131,11 +134,36 @@ export function SlidePanel() {
           </ol>
         </section>
       ))}
+      {bankFor && <BankDialog sceneId={bankFor} onClose={() => setBankFor(null)} />}
       <div className="p-2">
         <Button variant="ghost" className="w-full justify-center" onClick={() => edit('New scene', (c) => { const sc = addScene(c); return { slideId: sc.slides[0].id, objectIds: [] }; })}>
           <Plus />New scene
         </Button>
       </div>
     </nav>
+  );
+}
+
+function BankDialog({ sceneId, onClose }: { sceneId: ID; onClose: () => void }) {
+  const { course, edit } = useEditor();
+  const scene = course.scenes.find((s) => s.id === sceneId);
+  if (!scene) return null;
+  const questions = scene.slides.filter((s) => s.question).length;
+  const bank = scene.bank ?? { shuffle: false, draw: 0 };
+  const set = (b: { shuffle: boolean; draw: number } | null) => edit('Question bank', (c) => { c.scenes.find((s) => s.id === sceneId)!.bank = b; }, 'bank');
+  return (
+    <Dialog title={`Question bank: ${scene.name}`} onClose={onClose} footer={<Button onClick={onClose}>Done</Button>}>
+      <p className="muted text-[13px]">Each attempt can show this scene's {questions} question slide(s) in a random order, or a random selection of them. Other slides in the scene stay where they are. Retrying the quiz draws again.</p>
+      <label className="check"><input type="checkbox" checked={!!scene.bank} onChange={(e) => set(e.target.checked ? bank : null)} /> Use this scene as a question bank</label>
+      {scene.bank && (
+        <>
+          <label className="check"><input type="checkbox" checked={bank.shuffle} onChange={(e) => set({ ...bank, shuffle: e.target.checked })} /> Shuffle the order</label>
+          <Field label="Questions to draw" hint={`0 draws all ${questions}.`}>
+            <NumberInput label="Questions to draw" min={0} max={questions} value={bank.draw} onChange={(v) => set({ ...bank, draw: Math.round(v) })} className="w-24" />
+          </Field>
+          <p className="hint">Scores count only the questions a learner was given.</p>
+        </>
+      )}
+    </Dialog>
   );
 }

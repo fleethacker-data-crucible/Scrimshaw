@@ -97,7 +97,7 @@ export function newSlide(title = 'Untitled slide', over: Partial<Slide> = {}): S
 }
 
 export function newScene(name = 'Scene', slides: Slide[] = [newSlide()]): Scene {
-  return { id: uid('sc'), name, slides };
+  return { id: uid('sc'), name, slides, bank: null };
 }
 
 export function newTrigger(event: TriggerEvent, action: Action, over: Partial<Trigger> = {}): Trigger {

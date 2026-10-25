@@ -7,7 +7,7 @@
 //    "state is not Visited" to count first clicks;
 //  - showing a layer with hideOthers hides other layers; the base layer is always visible;
 //  - slide object states are saved when leaving a slide and restored on return ("resume saved state").
-import { allSlides, findLayer, findObject, findSlide, sceneOfSlide, slideIndex, slideObjects, startSlide } from '../model/query.ts';
+import { allSlides, findLayer, findObject, findSlide, sceneOfSlide, slideObjects, startSlide } from '../model/query.ts';
 import type { Action, Condition, ConditionOp, Course, ID, Slide, SlideObject, Trigger, TriggerEvent, Value } from '../model/types.ts';
 
 export interface Answer {
@@ -49,6 +49,8 @@ export interface PlayerState {
   answers: Record<ID, Answer>;
   attempts: Record<ID, number>;
   history: ID[];
+  /** Play order for this attempt: every slide, with question banks shuffled and drawn. */
+  sequence: ID[];
   completed: boolean;
   /** Increments on every slide entry, so the UI can restart the slide timeline. */
   entry: number;
@@ -56,6 +58,42 @@ export interface PlayerState {
 }
 
 const MAX_DEPTH = 12;
+
+// ---------- slide order (question banks) ----------
+
+let rng: () => number = Math.random;
+/** Tests can make shuffling deterministic. */
+export function setRandom(fn: () => number) { rng = fn; }
+
+/** Every slide in play order. In a banked scene, question slides are shuffled and/or drawn in place. */
+export function buildSequence(course: Course, random: () => number = rng): ID[] {
+  const out: ID[] = [];
+  for (const sc of course.scenes) {
+    if (!sc.bank) { out.push(...sc.slides.map((s) => s.id)); continue; }
+    const qs = sc.slides.filter((s) => s.question).map((s) => s.id);
+    if (sc.bank.shuffle) for (let i = qs.length - 1; i > 0; i--) { const j = Math.floor(random() * (i + 1)); [qs[i], qs[j]] = [qs[j], qs[i]]; }
+    let drawn = sc.bank.draw > 0 ? qs.slice(0, sc.bank.draw) : qs;
+    if (!sc.bank.shuffle && sc.bank.draw > 0) {
+      // Draw without shuffling the order: pick a random subset, keep authoring order.
+      const pool = [...qs];
+      for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+      const keep = new Set(pool.slice(0, sc.bank.draw));
+      drawn = qs.filter((id) => keep.has(id));
+    }
+    let k = 0;
+    for (const sl of sc.slides) {
+      if (!sl.question) out.push(sl.id);
+      else if (k < drawn.length) out.push(drawn[k++]);
+    }
+  }
+  return out;
+}
+
+/** The slides of this attempt, in order. */
+export function playSlides(course: Course, s: Pick<PlayerState, 'sequence'>): Slide[] {
+  if (!s.sequence?.length) return allSlides(course);
+  return s.sequence.map((id) => findSlide(course, id)).filter((x): x is Slide => !!x);
+}
 
 // ---------- values ----------
 
@@ -65,12 +103,12 @@ export function initialVars(course: Course): Record<ID, Value> {
   return vars;
 }
 
-export function results(course: Course, s: Pick<PlayerState, 'answers'>) {
+export function results(course: Course, s: Pick<PlayerState, 'answers'> & Partial<Pick<PlayerState, 'sequence'>>) {
   let max = 0;
   let points = 0;
   let answered = 0;
   let correct = 0;
-  for (const sl of allSlides(course)) {
+  for (const sl of playSlides(course, { sequence: s.sequence ?? [] })) {
     const q = sl.question;
     if (!q || !q.graded) continue;
     max += q.points;
@@ -100,7 +138,7 @@ export function readVar(course: Course, s: PlayerState, key: ID): Value | undefi
     }
   }
   if (key.startsWith('Project.')) {
-    const slides = allSlides(course);
+    const slides = playSlides(course, s);
     const i = slides.findIndex((x) => x.id === s.slideId);
     switch (key) {
       case 'Project.SlideNumber': return i + 1;
@@ -343,7 +381,7 @@ export function shuffledPositions(slide: Slide, random: () => number = Math.rand
 function checkCompletion(ctx: Ctx) {
   const { course, s } = ctx;
   if (s.completed) return;
-  const slides = allSlides(course);
+  const slides = playSlides(course, s);
   const target = course.quiz.completionSlideId ?? slides[slides.length - 1]?.id;
   if (s.slideId !== target) return;
   s.completed = true;
@@ -399,7 +437,7 @@ function submit(ctx: Ctx) {
 }
 
 function nextSlide(ctx: Ctx) {
-  const slides = allSlides(ctx.course);
+  const slides = playSlides(ctx.course, ctx.s);
   const i = slides.findIndex((x) => x.id === ctx.s.slideId);
   if (i >= 0 && i < slides.length - 1) enter(ctx, slides[i + 1].id, { pushHistory: true });
 }
@@ -407,7 +445,7 @@ function nextSlide(ctx: Ctx) {
 function prevSlide(ctx: Ctx) {
   const back = ctx.s.history.pop();
   if (back && findSlide(ctx.course, back)) { enter(ctx, back, { pushHistory: false }); return; }
-  const slides = allSlides(ctx.course);
+  const slides = playSlides(ctx.course, ctx.s);
   const i = slides.findIndex((x) => x.id === ctx.s.slideId);
   if (i > 0) enter(ctx, slides[i - 1].id, { pushHistory: false });
 }
@@ -455,13 +493,13 @@ function run(ctx: Ctx, a: Action, where: { layerId: ID | null; self: SlideObject
     }
     case 'submit-interaction': submit(ctx); break;
     case 'reset-results': {
-      let first: ID | null = null;
       for (const sl of allSlides(ctx.course)) if (sl.question) {
-        first ??= sl.id;
         delete ctx.s.answers[sl.id];
         delete ctx.s.attempts[sl.id];
         delete ctx.s.saved[sl.id];
       }
+      ctx.s.sequence = buildSequence(ctx.course);
+      const first = playSlides(ctx.course, ctx.s).find((sl) => sl.question)?.id ?? null;
       ctx.s.completed = false;
       if (first) enter(ctx, first, { pushHistory: true });
       break;
@@ -483,13 +521,15 @@ function run(ctx: Ctx, a: Action, where: { layerId: ID | null; self: SlideObject
 
 // ---------- public API (each returns a new state) ----------
 
-export function start(course: Course, resume?: Partial<Pick<PlayerState, 'slideId' | 'vars' | 'answers' | 'attempts' | 'visited' | 'visitedSlides' | 'saved'>>): PlayerState {
+export function start(course: Course, resume?: Partial<Pick<PlayerState, 'slideId' | 'vars' | 'answers' | 'attempts' | 'visited' | 'visitedSlides' | 'saved' | 'sequence'>>): PlayerState {
   const first = startSlide(course);
   if (!first) throw new Error('The course has no slides.');
   const s: PlayerState = {
     slideId: first.id, layers: [], vars: initialVars(course), states: {}, inputs: {}, drops: {}, positions: {}, visited: {}, visitedSlides: {},
-    saved: {}, answers: {}, attempts: {}, history: [], completed: false, entry: 0, effects: [],
+    saved: {}, answers: {}, attempts: {}, history: [], sequence: [], completed: false, entry: 0, effects: [],
   };
+  const all = new Set(allSlides(course).map((x) => x.id));
+  s.sequence = resume?.sequence?.length && resume.sequence.every((id) => all.has(id)) ? [...resume.sequence] : buildSequence(course);
   if (resume) {
     Object.assign(s.vars, resume.vars ?? {});
     Object.assign(s.answers, resume.answers ?? {});
@@ -498,7 +538,8 @@ export function start(course: Course, resume?: Partial<Pick<PlayerState, 'slideI
     Object.assign(s.visitedSlides, resume.visitedSlides ?? {});
     Object.assign(s.saved, resume.saved ?? {});
   }
-  const target = resume?.slideId && findSlide(course, resume.slideId) ? resume.slideId : first.id;
+  const firstInPlay = playSlides(course, s)[0]?.id ?? first.id;
+  const target = resume?.slideId && findSlide(course, resume.slideId) ? resume.slideId : (course.startSlideId && findSlide(course, course.startSlideId) ? course.startSlideId : firstInPlay);
   const ctx: Ctx = { course, s, depth: 0, navigated: false };
   s.slideId = ''; // nothing to save on the way in
   enter(ctx, target, { pushHistory: false });
@@ -618,16 +659,16 @@ export function takeEffects(state: PlayerState): [PlayerState, Effect[]] {
 }
 
 export function canGoNext(course: Course, s: PlayerState): boolean {
-  const slides = allSlides(course);
-  const i = slideIndex(course, s.slideId);
-  const slide = slides[i];
-  if (!slide || i >= slides.length - 1) return false;
+  const slides = playSlides(course, s);
+  const i = slides.findIndex((x) => x.id === s.slideId);
+  const slide = slides[i] ?? findSlide(course, s.slideId);
+  if (!slide || i < 0 || i >= slides.length - 1) return false;
   if (slide.question && !s.answers[slide.id]) return false;
   return true;
 }
 
 export function canGoPrev(course: Course, s: PlayerState): boolean {
-  return s.history.length > 0 || slideIndex(course, s.slideId) > 0;
+  return s.history.length > 0 || playSlides(course, s).findIndex((x) => x.id === s.slideId) > 0;
 }
 
 export function canOpenFromMenu(course: Course, s: PlayerState, slideId: ID): boolean {
@@ -638,12 +679,12 @@ export function canOpenFromMenu(course: Course, s: PlayerState, slideId: ID): bo
 export function suspend(s: PlayerState): string {
   const answers: Record<ID, [number, number, number]> = {};
   for (const [k, a] of Object.entries(s.answers)) answers[k] = [a.correct ? 1 : 0, a.points, a.final ? 1 : 0];
-  return JSON.stringify({ v: 1, s: s.slideId, vars: s.vars, a: answers, t: s.attempts, vs: Object.keys(s.visitedSlides) });
+  return JSON.stringify({ v: 1, s: s.slideId, vars: s.vars, a: answers, t: s.attempts, vs: Object.keys(s.visitedSlides), q: s.sequence });
 }
 
 export function resumeFrom(course: Course, data: string): PlayerState | null {
   try {
-    const j = JSON.parse(data) as { v: number; s: ID; vars: Record<ID, Value>; a: Record<ID, [number, number, number]>; t: Record<ID, number>; vs: ID[] };
+    const j = JSON.parse(data) as { v: number; s: ID; vars: Record<ID, Value>; a: Record<ID, [number, number, number]>; t: Record<ID, number>; vs: ID[]; q?: ID[] };
     if (j.v !== 1) return null;
     const answers: Record<ID, Answer> = {};
     for (const [k, [c, p, f]] of Object.entries(j.a ?? {})) {
@@ -653,7 +694,7 @@ export function resumeFrom(course: Course, data: string): PlayerState | null {
     }
     const visitedSlides: Record<ID, true> = {};
     for (const id of j.vs ?? []) visitedSlides[id] = true;
-    return start(course, { slideId: j.s, vars: j.vars, answers, attempts: j.t, visitedSlides });
+    return start(course, { slideId: j.s, vars: j.vars, answers, attempts: j.t, visitedSlides, sequence: j.q });
   } catch {
     return null;
   }

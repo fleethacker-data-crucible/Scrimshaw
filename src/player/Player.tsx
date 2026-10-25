@@ -2,7 +2,7 @@
 // seekbar), effects (URLs, media, notices) and progress reporting (SCORM or local resume).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as E from '../engine/runtime.ts';
-import { allSlides, findSlide, slideIndex } from '../model/query.ts';
+import { findSlide } from '../model/query.ts';
 import type { Course, ID } from '../model/types.ts';
 import { SlideView } from '../render/SlideView.tsx';
 import type { Lms } from '../export/scorm.ts';
@@ -48,8 +48,9 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
   const [scale, setScale] = useState(1);
 
   const slide = findSlide(course, state.slideId)!;
-  const slides = allSlides(course);
-  const index = slideIndex(course, state.slideId);
+  const slides = E.playSlides(course, state);
+  const inPlay = new Set(slides.map((s) => s.id));
+  const index = slides.findIndex((s) => s.id === state.slideId);
 
   const apply = useCallback((fn: (s: E.PlayerState) => E.PlayerState) => setState((s) => fn(s)), []);
 
@@ -201,7 +202,7 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
         )}
         {showTitle && <h1 className="flex-1 text-[15px] truncate">{course.title}</h1>}
         {!showTitle && <span className="flex-1" />}
-        {r.hasQuiz && <span className="badge blue" title="Questions answered">{r.answered}/{allSlides(course).filter((s) => s.question?.graded).length} answered</span>}
+        {r.hasQuiz && <span className="badge blue" title="Questions answered">{r.answered}/{slides.filter((s) => s.question?.graded).length} answered</span>}
         {embedded && onClose && <Button variant="ghost" onClick={onClose}><X />Close preview</Button>}
       </div>
       <div className="player-body">
@@ -211,7 +212,7 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
               <div key={sc.id}>
                 <div className="snav-group" style={{ marginTop: 10 }}>{sc.name}</div>
                 <ul className="snav">
-                  {sc.slides.filter((sl) => sl.inMenu).map((sl) => {
+                  {sc.slides.filter((sl) => sl.inMenu && inPlay.has(sl.id)).map((sl) => {
                     const ok = E.canOpenFromMenu(course, state, sl.id);
                     return (
                       <li key={sl.id}>
@@ -251,7 +252,7 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
             <input className="seek" type="range" min={0} max={slide.duration} step={0.05} value={time} aria-label="Slide timeline"
               aria-valuetext={`${time.toFixed(1)} of ${slide.duration} seconds`} onChange={(e) => seek(Number(e.target.value))} />
           ) : <span className="flex-1" />}
-          <span className="text-[12px] muted tabular-nums" aria-label={`Slide ${index + 1} of ${slides.length}`}>{index + 1} / {slides.length}</span>
+          <span className="text-[12px] muted tabular-nums" aria-label={index >= 0 ? `Slide ${index + 1} of ${slides.length}` : 'Extra slide'}>{index >= 0 ? `${index + 1} / ${slides.length}` : '–'}</span>
           <Button onClick={() => apply((s) => E.navigate(course, s, 'next'))} disabled={!E.canGoNext(course, state)}>Next<ChevronRight /></Button>
         </div>
       )}
