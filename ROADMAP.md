@@ -88,6 +88,7 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 | Offline, no CDN | ✅ | |
 | Autosave (IndexedDB) and .scrim files | ✅ | |
 | Light / dark theme, reduced motion | ✅ | UI kit tokens |
+| Import PowerPoint (.pptx) | 🟡 | Text boxes (size, bold, colour, alignment, bullets), pictures, solid backgrounds, speaker notes; no charts, tables, groups or animations |
 | Import other authoring tools' files | ⬜ | The formats are proprietary; a best-effort importer is a stretch goal |
 | Collaboration / review comments | ⬜ | |
 | Rust → WebAssembly compute | ⬜ | Not needed yet; reserved for heavy work such as video export |

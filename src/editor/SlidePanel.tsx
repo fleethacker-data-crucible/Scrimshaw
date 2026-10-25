@@ -4,7 +4,8 @@ import { allSlides, findSlide, sceneOfSlide } from '../model/query.ts';
 import type { ID, QuestionKind, Slide } from '../model/types.ts';
 import { SlideThumb } from '../render/SlideView.tsx';
 import { addScene, copySlide, deleteScene, deleteSlide, insertSlideAfter, moveSlide } from '../store/ops.ts';
-import { CircleCheck, Copy, Ellipsis, Flag, ListChecks, Plus, Trash, Trophy } from '../ui/icons.tsx';
+import { CircleCheck, Copy, Ellipsis, Flag, ListChecks, Plus, Trash, Trophy, Upload } from '../ui/icons.tsx';
+import { pickFile, withAsset } from './assets.ts';
 import { Button, Dialog, Field, Menu, NumberInput, useUi, type MenuItem } from '../ui/kit.tsx';
 import { useEditor } from './context.tsx';
 
@@ -21,7 +22,8 @@ export const QUESTION_KINDS: { kind: QuestionKind; label: string }[] = [
 
 /** Items for "new slide" menus, shared with the ribbon. */
 export function useNewSlideItems(afterId: () => ID | null): MenuItem[] {
-  const { edit } = useEditor();
+  const { edit, course } = useEditor();
+  const { toast } = useUi();
   const add = (label: string, make: () => Slide) => edit(label, (c) => {
     const s = insertSlideAfter(c, afterId(), make());
     return { slideId: s.id, layerId: s.layers[0].id, objectIds: [] };
@@ -34,6 +36,22 @@ export function useNewSlideItems(afterId: () => ID | null): MenuItem[] {
     { label: 'Sequence (put in order)', icon: <ListChecks />, onSelect: () => add('New sequence question', () => newSequenceSlide()) },
     { label: 'Likert scale (survey)', icon: <ListChecks />, onSelect: () => add('New Likert scale', () => newLikertSlide()) },
     { label: 'Results slide', icon: <Trophy />, onSelect: () => add('New results slide', () => newResultsSlide()) },
+    { separator: true, label: '' },
+    { label: 'Import from PowerPoint (.pptx)…', icon: <Upload />, onSelect: async () => {
+      const f = await pickFile('.pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation');
+      if (!f) return;
+      try {
+        const { importPptx } = await import('../export/pptx-import.ts');
+        const res = await importPptx(await f.arrayBuffer(), course.size.w);
+        edit(`Import ${res.slides.length} slides`, (c) => {
+          for (const a of res.assets) withAsset(c, a);
+          let after = afterId();
+          for (const s of res.slides) { insertSlideAfter(c, after, s); after = s.id; }
+          return { slideId: res.slides[0].id, layerId: res.slides[0].layers[0].id, objectIds: [] };
+        });
+        toast(`Imported ${res.slides.length} slide${res.slides.length === 1 ? '' : 's'} from ${f.name}.${res.skipped ? ` ${res.skipped} item(s) such as charts or groups were skipped.` : ''}`, 'ok');
+      } catch (e) { toast((e as Error).message, 'err'); }
+    } },
   ];
 }
 
