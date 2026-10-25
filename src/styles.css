@@ -3,7 +3,39 @@
 @layer theme, base, kit, components, utilities;
 @import "tailwindcss";
 @import "../vendor/ui-kit/kit.css";
+@import "../vendor/fleet/fleet.css";
 @source "./";
+
+/* Fleet Unified UI (vendor/fleet/fleet.css, docs/UNIFIED-UI.md): the kit's tokens are pointed at the
+   shared Fleet tokens, so every kit component and Tailwind utility follows Night watch / Chart room.
+   <html data-app="scrimshaw"> sets the ivory / aged-bone accent. Unlayered, so it wins over @layer kit
+   for both kit themes; vendor/ui-kit/kit.css itself stays unmodified. */
+:root, :root[data-theme=dark], :root[data-theme=light], :root.light {
+  --sans: var(--fl-font-body); --mono: var(--fl-font-mono);
+  --fs: 14px; --fs-sm: 13px; --fs-xs: 12px; --radius: 6px; --ctl-h: 32px;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 24px;
+  --shadow: var(--fl-shadow); --backdrop: color-mix(in srgb, var(--fl-background) 70%, transparent); --speed: var(--fl-duration);
+  --bg: var(--fl-background); --panel: var(--fl-surface); --panel-2: var(--fl-muted);
+  --sel: color-mix(in srgb, var(--fl-accent) 16%, var(--fl-surface));
+  --border: var(--fl-border); --border-strong: var(--fl-control-border);
+  --text: var(--fl-foreground); --text-2: var(--fl-muted-foreground); --muted: var(--fl-muted-foreground);
+  --accent: var(--fl-accent); --on-accent: var(--fl-accent-ink); --link: var(--fl-info); --focus: var(--fl-brass);
+  --brand: var(--fl-brass); --on-brand: var(--fl-accent-ink);
+  --ok: var(--fl-success); --ok-bg: var(--fl-success); --warn: var(--fl-warning); --warn-bg: var(--fl-warning);
+  --err: var(--fl-danger); --err-bg: var(--fl-danger); --on-status: var(--fl-accent-ink);
+  --toast-info-bg: var(--fl-popover); --toast-info-fg: var(--fl-foreground); --badge-fg: var(--fl-muted-foreground);
+  /* Authored slide content keeps the kit's typeface; only the editor chrome follows the Fleet stack. */
+  --content-sans: "Exo 2", "Segoe UI", system-ui, sans-serif;
+}
+/* Fleet button roles (UNIFIED-UI 6): the accent fill is for the primary action only, and a plain kit
+   button is a secondary (bordered) button. In the components layer, so it beats the kit's button
+   rule; :where() keeps it at zero specificity so any app class (story cards, menus) still wins. */
+@layer components {
+  :where(button:not([class]), button[class=""], button.small, button.icon, .btn):where(:not(.primary, .ghost, .danger, .go)) { background: transparent; color: var(--fl-foreground); box-shadow: inset 0 0 0 1px var(--fl-control-border); }
+  :where(button:not([class]), button[class=""], button.small, button.icon, .btn):where(:not(.primary, .ghost, .danger, .go)):where(:not(:disabled)):hover { background: var(--fl-muted); filter: none; }
+  :where(button:not([class]), button[class=""], button.small, button.icon, .btn):where(:not(.primary, .ghost, .danger, .go)):where(:disabled) { color: var(--muted); box-shadow: inset 0 0 0 1px var(--fl-border); }
+  :where(button.primary, .btn.primary) { background: var(--fl-accent); color: var(--fl-accent-ink); }
+}
 
 /* Tailwind utilities read the kit's tokens, so bg-panel, text-muted, border-line etc. follow the theme. */
 @theme inline {
@@ -29,6 +61,15 @@
 @layer components {
   html, body, #root { height: 100%; }
   body { overflow: hidden; }
+
+  /* ---- welcome: the landing view when Scrimshaw opens ---- */
+  .welcome { height: 100vh; overflow-y: auto; display: grid; justify-items: center; align-content: center; gap: 12px; padding: 24px; text-align: center; background: var(--bg); color: var(--text-2); }
+  .welcome .welcome-logo { width: clamp(220px, 46vh, 400px); height: auto; }
+  .welcome h1 { font: 600 28px/1.25 var(--fl-font-display); color: var(--text); margin: 0; }
+  .welcome p { margin: 0; max-width: 58ch; }
+  .welcome-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 8px; }
+  .welcome-actions button { height: 36px; padding: 0 16px; }
+  :root[data-theme=light] .only-dark, :root[data-theme=dark] .only-light { display: none; }
 
   /* ---- app shell (review: 240px sidebar, 56px top bar) ---- */
   .shell { display: grid; grid-template-rows: auto auto minmax(0, 1fr); height: 100vh; }
@@ -125,7 +166,7 @@
   .player-notice { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); z-index: 50; }
 
   /* ---- slide objects (shared by canvas and player) ---- */
-  .slide { position: relative; overflow: hidden; transform-origin: 0 0; font-family: var(--sans); }
+  .slide { position: relative; overflow: hidden; transform-origin: 0 0; font-family: var(--content-sans); }
   .obj { position: absolute; box-sizing: border-box; }
   .obj-text { width: 100%; height: 100%; display: flex; flex-direction: column; white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; }
   .obj[role=button], .obj[role=radio], .obj[role=checkbox] { cursor: pointer; }
