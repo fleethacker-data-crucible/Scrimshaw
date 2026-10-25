@@ -102,6 +102,19 @@ function slide(v: unknown): Slide | null {
   };
 }
 
+function playerSettings(v: unknown, d: Course['player']): Course['player'] {
+  const p = isObj(v) ? v : {};
+  return {
+    ...d,
+    showMenu: bool(p.showMenu, d.showMenu), showNav: bool(p.showNav, d.showNav), showSeekbar: bool(p.showSeekbar, d.showSeekbar),
+    showTitle: bool(p.showTitle, d.showTitle), resume: bool(p.resume, d.resume),
+    navigation: p.navigation === 'restricted' ? 'restricted' : 'free',
+    accent: typeof p.accent === 'string' && /^#[0-9a-f]{3,8}$/i.test(p.accent) ? p.accent : '',
+    resources: arr(p.resources, (r) => (isObj(r) && typeof r.url === 'string' && /^(https?:|mailto:)/i.test(r.url) ? { title: str(r.title, r.url), url: r.url } : null)),
+    glossary: arr(p.glossary, (g) => (isObj(g) && typeof g.term === 'string' ? { term: g.term, definition: str(g.definition) } : null)),
+  };
+}
+
 export function normalizeCourse(input: unknown): Course {
   if (!isObj(input) || !Array.isArray(input.scenes)) throw new CourseFormatError('This file is not a Scrimshaw course.');
   const schema = num(input.schema, 1);
@@ -122,7 +135,7 @@ export function normalizeCourse(input: unknown): Course {
     variables: arr(input.variables, (v) => (isObj(v) && typeof v.id === 'string' && typeof v.name === 'string' && ['text', 'number', 'boolean'].includes(v.type as string)
       ? (v as unknown as Course['variables'][number]) : null)),
     startSlideId: typeof input.startSlideId === 'string' ? input.startSlideId : null,
-    player: { ...d.player, ...(isObj(input.player) ? input.player : {}) } as Course['player'],
+    player: playerSettings(input.player, d.player),
     quiz: { ...d.quiz, ...(isObj(input.quiz) ? input.quiz : {}) } as Course['quiz'],
     assets: Object.fromEntries(Object.entries(isObj(input.assets) ? input.assets : {}).filter(([, a]) =>
       isObj(a) && typeof a.id === 'string' && typeof a.data === 'string' && /^data:(image|video|audio)\/[\w.+-]+;base64,/.test(a.data))

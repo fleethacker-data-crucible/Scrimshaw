@@ -163,3 +163,12 @@ test('groups: selection expands to the group, copies get a fresh group id', asyn
   assert.equal(copies[0].groupId, copies[1].groupId);
   assert.notEqual(copies[0].groupId, 'g1');
 });
+
+test('history snapshots are independent for nested player lists', () => {
+  const c = newCourse('A');
+  c.player.glossary.push({ term: 'One', definition: '' });
+  let s = initEditor(c);
+  s = reduce(s, { type: 'edit', label: 'Term', fn: (d) => { d.player.glossary[0].term = 'Two'; } });
+  s = reduce(s, { type: 'undo' });
+  assert.equal(s.course.player.glossary[0].term, 'One');
+});
