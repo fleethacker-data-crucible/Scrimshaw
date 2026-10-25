@@ -152,7 +152,7 @@ function feedbackLayer(name: string, message: string, color: string, action: Act
 export function newQuestionSlide(kind: QuestionKind): Slide {
   const titles: Record<QuestionKind, string> = {
     'multiple-choice': 'Multiple choice', 'multiple-response': 'Multiple response',
-    'true-false': 'True / false', 'fill-in': 'Fill in the blank', 'drag-drop': 'Drag and drop',
+    'true-false': 'True / false', 'fill-in': 'Fill in the blank', 'drag-drop': 'Drag and drop', hotspot: 'Hotspot', numeric: 'Numeric',
   };
   const slide = newSlide(titles[kind]);
   const base = slide.layers[0];
@@ -160,11 +160,13 @@ export function newQuestionSlide(kind: QuestionKind): Slide {
     name: 'Question', x: 60, y: 40, w: 840, h: 80,
     text: kind === 'true-false' ? 'Enter a statement the learner judges true or false.'
       : kind === 'fill-in' ? 'Enter the question. The learner types the answer.'
-      : kind === 'drag-drop' ? 'Drag each item onto where it belongs.' : 'Enter the question.',
+      : kind === 'drag-drop' ? 'Drag each item onto where it belongs.'
+      : kind === 'hotspot' ? 'Click the correct part of the picture.'
+      : kind === 'numeric' ? 'Enter a question with a number for an answer.' : 'Enter the question.',
     style: baseStyle({ fontSize: 26, fontWeight: 600 }),
   }));
   const q: Question = {
-    kind, points: 10, attempts: 1, graded: true, shuffle: false, accepted: [], inputObjectId: null,
+    kind, points: 10, attempts: 1, graded: true, shuffle: false, accepted: [], numMin: 0, numMax: 0, inputObjectId: null,
     correctLayerId: null, incorrectLayerId: null, tryAgainLayerId: null,
   };
   if (kind === 'drag-drop') {
@@ -179,6 +181,17 @@ export function newQuestionSlide(kind: QuestionKind): Slide {
       });
       base.objects.push(target, item);
     });
+  } else if (kind === 'hotspot') {
+    base.objects.push(newObject('image', { name: 'Picture', x: 60, y: 130, w: 600, h: 340, alt: 'Replace with the picture the learner clicks on' }));
+    [[100, 180], [300, 260], [480, 170]].forEach(([x, y], i) => {
+      base.objects.push(newObject('hotspot', { name: `Area ${i + 1}`, x, y, w: 140, h: 110, correct: i === 0, alt: `Area ${i + 1}` }));
+    });
+  } else if (kind === 'numeric') {
+    const input = newObject('input', { name: 'Answer entry', x: 60, y: 160, w: 240, h: 52, text: 'Number' });
+    base.objects.push(input);
+    q.inputObjectId = input.id;
+    q.numMin = 10;
+    q.numMax = 10;
   } else if (kind === 'fill-in') {
     const input = newObject('input', { name: 'Answer entry', x: 60, y: 160, w: 480, h: 52 });
     base.objects.push(input);

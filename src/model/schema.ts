@@ -32,7 +32,7 @@ function anim(v: unknown, d: SlideObject['enter']): SlideObject['enter'] {
   return { type: v.type as SlideObject['enter']['type'], duration: Math.max(0.05, num(v.duration, d.duration)) };
 }
 
-const QUESTION_KINDS = ['multiple-choice', 'multiple-response', 'true-false', 'fill-in', 'drag-drop'];
+const QUESTION_KINDS = ['multiple-choice', 'multiple-response', 'true-false', 'fill-in', 'drag-drop', 'hotspot', 'numeric'];
 function question(v: unknown): Slide['question'] {
   if (!isObj(v) || typeof v.kind !== 'string' || !QUESTION_KINDS.includes(v.kind)) return null;
   const id = (x: unknown) => (typeof x === 'string' ? x : null);
@@ -42,6 +42,8 @@ function question(v: unknown): Slide['question'] {
     attempts: Math.max(0, Math.floor(num(v.attempts, 1))),
     graded: bool(v.graded, true),
     shuffle: bool(v.shuffle),
+    numMin: num(v.numMin, 0),
+    numMax: num(v.numMax, num(v.numMin, 0)),
     accepted: Array.isArray(v.accepted) ? v.accepted.filter((a): a is string => typeof a === 'string') : [],
     inputObjectId: id(v.inputObjectId),
     correctLayerId: id(v.correctLayerId),

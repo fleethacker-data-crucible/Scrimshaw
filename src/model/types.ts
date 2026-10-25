@@ -244,7 +244,7 @@ export interface Variable {
   initial: Value;
 }
 
-export type QuestionKind = 'multiple-choice' | 'multiple-response' | 'true-false' | 'fill-in' | 'drag-drop';
+export type QuestionKind = 'multiple-choice' | 'multiple-response' | 'true-false' | 'fill-in' | 'drag-drop' | 'hotspot' | 'numeric';
 
 export interface Question {
   kind: QuestionKind;
@@ -257,7 +257,10 @@ export interface Question {
   shuffle: boolean;
   /** fill-in: accepted answers, compared case-insensitively after trimming. */
   accepted: string[];
-  /** fill-in: the input object holding the learner's answer. */
+  /** numeric: the accepted range, inclusive. */
+  numMin: number;
+  numMax: number;
+  /** fill-in and numeric: the input object holding the learner's answer. */
   inputObjectId: ID | null;
   correctLayerId: ID | null;
   incorrectLayerId: ID | null;

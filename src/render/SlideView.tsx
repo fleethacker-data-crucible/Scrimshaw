@@ -149,6 +149,7 @@ function ObjectView({ course, o, mode, state, text, transient, onPointer, handle
     a11y.tabIndex = disabled ? -1 : 0;
     a11y.role = o.kind === 'choice' ? (o.choiceMode === 'radio' ? 'radio' : 'checkbox') : 'button';
     if (o.kind === 'choice') a11y['aria-checked'] = state === 'Selected';
+    if (o.kind === 'hotspot' && state === 'Selected') a11y['aria-pressed'] = true;
     if (o.kind === 'hotspot' || (o.kind !== 'button' && o.kind !== 'choice' && !content.trim())) a11y['aria-label'] = o.alt || o.name;
     a11y.onClick = () => handlers.onClick?.(o.id);
     a11y.onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handlers.onClick?.(o.id); } };
@@ -228,6 +229,10 @@ function ObjectView({ course, o, mode, state, text, transient, onPointer, handle
     }
     case 'hotspot':
       inner = null;
+      if (play && state === 'Selected' && !o.states.some((x) => x.name === 'Selected')) {
+        css.outline = '3px solid #e8c15a';
+        css.background = 'rgba(232,193,90,.18)';
+      }
       break;
     default:
       inner = (

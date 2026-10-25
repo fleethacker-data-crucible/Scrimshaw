@@ -561,16 +561,42 @@ function QuestionProps({ editSlide }: { editSlide: (label: string, fn: (s: Slide
   const choices = slide.layers.flatMap((l) => l.objects).filter((o) => o.kind === 'choice');
   return (
     <>
-      <p className="muted text-[13px]">{{ 'multiple-choice': 'Multiple choice', 'multiple-response': 'Multiple response', 'true-false': 'True / false', 'fill-in': 'Fill in the blank', 'drag-drop': 'Drag and drop' }[q.kind]} question. The Submit button runs “Submit interaction”.</p>
+      <p className="muted text-[13px]">{{ 'multiple-choice': 'Multiple choice', 'multiple-response': 'Multiple response', 'true-false': 'True / false', 'fill-in': 'Fill in the blank', 'drag-drop': 'Drag and drop', hotspot: 'Hotspot', numeric: 'Numeric' }[q.kind]} question. The Submit button runs “Submit interaction”.</p>
       <div className="grid-2">
         <Field label="Points"><NumberInput label="Points" min={0} max={1000} value={q.points} onChange={(v) => editSlide('Points', (s) => { s.question!.points = v; }, 'pts')} /></Field>
         <Field label="Attempts" hint="0 = unlimited"><NumberInput label="Attempts" min={0} max={99} value={q.attempts} onChange={(v) => editSlide('Attempts', (s) => { s.question!.attempts = v; }, 'att')} /></Field>
       </div>
       <label className="check"><input type="checkbox" checked={q.graded} onChange={(e) => editSlide('Graded', (s) => { s.question!.graded = e.target.checked; })} /> Graded (counts toward the score)</label>
-      {q.kind !== 'fill-in' && (
+      {q.kind !== 'fill-in' && q.kind !== 'numeric' && q.kind !== 'hotspot' && (
         <label className="check"><input type="checkbox" checked={q.shuffle} onChange={(e) => editSlide('Shuffle', (s) => { s.question!.shuffle = e.target.checked; })} /> Shuffle {q.kind === 'drag-drop' ? 'items' : 'answers'} each time</label>
       )}
-      {q.kind === 'drag-drop' ? (
+      {q.kind === 'numeric' ? (
+        <>
+          <Section title="Accepted range">
+            <div className="grid-2">
+              <Field label="From"><NumberInput label="Lowest accepted" value={q.numMin} onChange={(v) => editSlide('Numeric range', (s) => { s.question!.numMin = v; }, 'nmin')} /></Field>
+              <Field label="To"><NumberInput label="Highest accepted" value={q.numMax} onChange={(v) => editSlide('Numeric range', (s) => { s.question!.numMax = v; }, 'nmax')} /></Field>
+            </div>
+            <p className="hint">Set both to the same number for an exact answer.</p>
+          </Section>
+          <Field label="Answer box">
+            <select value={q.inputObjectId ?? ''} onChange={(e) => editSlide('Answer box', (s) => { s.question!.inputObjectId = e.target.value || null; })}>
+              <option value="">None</option>
+              {slide.layers.flatMap((l) => l.objects).filter((o) => o.kind === 'input').map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          </Field>
+        </>
+      ) : q.kind === 'hotspot' ? (
+        <Section title="Correct areas">
+          {slide.layers.flatMap((l) => l.objects).filter((o) => o.kind === 'hotspot').map((h) => (
+            <label key={h.id} className="check">
+              <input type="checkbox" checked={h.correct} onChange={(e) => editSlide('Mark correct', (s) => { for (const l of s.layers) for (const o of l.objects) if (o.id === h.id) o.correct = e.target.checked; })} />
+              {h.name}
+            </label>
+          ))}
+          <p className="hint">Learners pick one area. Insert more Hotspots to add areas; give each an accessible name in its Design tab.</p>
+        </Section>
+      ) : q.kind === 'drag-drop' ? (
         <Section title="Where each item belongs">
           {slide.layers.flatMap((l) => l.objects).filter((o) => o.draggable).map((item) => (
             <Field key={item.id} label={item.text || item.name}>
