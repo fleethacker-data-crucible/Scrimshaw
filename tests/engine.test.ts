@@ -446,3 +446,15 @@ test('Likert survey: any answer is accepted and nothing is scored', async () => 
   assert.equal(E.results(c, s).hasQuiz, false);
   assert.deepEqual(validateCourse(c), []);
 });
+
+test('sequence template grades the order', async () => {
+  const { newSequenceSlide } = await import('../src/model/factory.ts');
+  const c = newCourse('Seq');
+  const q = newSequenceSlide();
+  c.scenes[0].slides = [q];
+  const items = slideObjects(q).filter((o) => o.draggable);
+  let s = E.start(c);
+  for (const it of items) s = E.drop(c, s, it.id, it.correctTargetId!);
+  s = E.click(c, s, slideObjects(q).find((o) => o.name === 'Submit')!.id);
+  assert.equal(s.answers[q.id].correct, true);
+});

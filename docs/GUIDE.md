@@ -51,7 +51,7 @@ patterns from the sample course:
 ## Quizzes
 
 Insert a question slide from **Slide ▾**: multiple choice, multiple response, true/false, fill in the
-blank, drag and drop, hotspot, numeric, essay or a Likert scale. Each comes with a Submit button and
+blank, drag and drop, sequence, hotspot, numeric, essay or a Likert scale. Each comes with a Submit button and
 Correct, Incorrect and Try again layers. In the slide's **Question** tab set points, attempts, shuffling
 and the correct answers.
 

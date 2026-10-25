@@ -234,6 +234,27 @@ export function newQuestionSlide(kind: QuestionKind): Slide {
   return slide;
 }
 
+/** Sequence: drag the steps into numbered slots (a graded drag-and-drop question). */
+export function newSequenceSlide(): Slide {
+  const slide = newQuestionSlide('drag-drop');
+  slide.title = 'Sequence';
+  const base = slide.layers[0];
+  base.objects[0].text = 'Put the steps in order.';
+  base.objects = base.objects.filter((o) => !o.draggable && !o.dropTarget);
+  const steps = ['Clean and polish the tooth', 'Scratch the design with a needle', 'Rub soot into the lines', 'Wipe off the excess'];
+  const slots = steps.map((_, i) => newObject('shape', {
+    name: `Step ${i + 1}`, x: 500, y: 130 + i * 80, w: 400, h: 64, shape: 'round', text: `${i + 1}`, dropTarget: true,
+    style: baseStyle({ fill: '#f4f4f2', stroke: '#9a988f', strokeWidth: 2, radius: 8, color: '#52514e', fontSize: 20, fontWeight: 600, valign: 'middle', padding: 14 }),
+  }));
+  const order = [2, 0, 3, 1];
+  const items = order.map((k, i) => newObject('shape', {
+    name: steps[k], x: 60, y: 140 + i * 80, w: 320, h: 48, shape: 'round', text: steps[k], draggable: true, correctTargetId: slots[k].id,
+    style: baseStyle({ fill: '#2f74c8', color: '#ffffff', radius: 8, fontWeight: 600, fontSize: 15, align: 'center', valign: 'middle', padding: 6 }),
+  }));
+  base.objects.splice(1, 0, ...slots, ...items);
+  return slide;
+}
+
 /** Survey: a five-point Likert scale (an ungraded multiple choice laid out in a row). */
 export function newLikertSlide(): Slide {
   const slide = newQuestionSlide('multiple-choice');
