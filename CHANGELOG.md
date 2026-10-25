@@ -15,6 +15,8 @@
 - Hotspot and numeric question types.
 - Inline text formatting: bold, italic, underline, strike, links, bullets.
 - Player Resources and Glossary panels.
+- Lightbox slides.
+- Fix: a click that navigates away now still marks the object Visited for when the learner returns.
 
 ## 0.1.0 (2026-10-25)
 

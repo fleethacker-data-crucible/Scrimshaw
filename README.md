@@ -31,7 +31,7 @@ backup you can move between machines or share with another author.
 | Canvas | Select, marquee, multi-select, move, resize (Shift keeps aspect), rotate, snapping guides, grid, zoom, inline text editing, align and distribute, z-order, copy/paste/duplicate, lock, hide while editing |
 | Layers | Per-slide layers, hide other layers, modal (dim and block the base layer), layer triggers |
 | States | Normal, Hover, Down, Selected, Visited, Disabled, Hidden and custom states, with preview in the editor |
-| Triggers | 17 actions × 9 events, AND/OR conditions on variables and object states, reorder, enable/disable, plain-English descriptions |
+| Triggers | 19 actions × 10 events (including lightbox slides and drag-and-drop drops), AND/OR conditions on variables and object states, reorder, enable/disable, plain-English descriptions |
 | Variables | Text, number and true/false variables, `%Name%` in any text, built-ins such as `%Results.ScorePercent%` and `%Project.SlideNumber%` |
 | Timeline | Per-object appear/disappear times, drag bars, slide length, entrance and exit animations (fade, fly, grow, wipe), cue-point triggers, auto-advance |
 | Quizzes | Multiple choice, multiple response, true/false, fill-in-the-blank, drag and drop, hotspot, numeric; points, attempts, try-again/correct/incorrect feedback layers, shuffled answers, question banks (shuffle and draw per scene), results slide, retry |

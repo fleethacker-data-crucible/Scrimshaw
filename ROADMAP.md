@@ -64,7 +64,7 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 | Player theming (colours, logo) | 🟡 | Accent colour with contrast check; no logo or layout options |
 | Glossary, resources, notes tab | 🟡 | Resources and Glossary panels; no learner-facing notes tab |
 | Responsive / mobile layout | 🟡 | Scales to fit; no mobile-specific player layout |
-| Lightbox slides | ⬜ | |
+| Lightbox slides | ✅ | Open a slide as a pop-up over the current one; close, Next or Prev returns |
 
 ## Publishing and reporting
 

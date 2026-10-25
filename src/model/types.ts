@@ -211,6 +211,8 @@ export type Action =
   | { type: 'next-slide' }
   | { type: 'prev-slide' }
   | { type: 'jump-scene'; sceneId: ID }
+  | { type: 'lightbox-slide'; slideId: ID }
+  | { type: 'close-lightbox' }
   | { type: 'show-layer'; layerId: ID }
   | { type: 'hide-layer'; layerId: ID | 'this' }
   | { type: 'set-state'; objectId: ID | 'this'; state: string }

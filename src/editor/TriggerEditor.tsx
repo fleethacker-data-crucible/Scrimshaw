@@ -11,7 +11,7 @@ export type TriggerOwner = { kind: 'slide' } | { kind: 'layer'; layerId: ID } | 
 
 const ACTION_GROUPS: { label: string; types: Action['type'][] }[] = [
   { label: 'Common', types: ['set-state', 'show-layer', 'hide-layer', 'next-slide', 'prev-slide', 'jump-slide', 'adjust-variable'] },
-  { label: 'Navigation', types: ['jump-scene', 'restart-course', 'exit-course'] },
+  { label: 'Navigation', types: ['jump-scene', 'lightbox-slide', 'close-lightbox', 'restart-course', 'exit-course'] },
   { label: 'Media and timeline', types: ['play-media', 'pause-media', 'pause-timeline', 'resume-timeline'] },
   { label: 'Quiz', types: ['submit-interaction', 'reset-results'] },
   { label: 'More', types: ['open-url'] },
@@ -23,6 +23,7 @@ function defaultAction(type: Action['type'], course: Course, slide: Slide, owner
   switch (type) {
     case 'jump-slide': return { type, slideId: allSlides(course)[0].id };
     case 'jump-scene': return { type, sceneId: course.scenes[0].id };
+    case 'lightbox-slide': return { type, slideId: allSlides(course).find((s) => s.id !== slide.id)?.id ?? allSlides(course)[0].id };
     case 'show-layer': return { type, layerId: layers[0]?.id ?? '' };
     case 'hide-layer': return { type, layerId: 'this' };
     case 'set-state': return { type, objectId: owner ? 'this' : (objs[0]?.id ?? ''), state: 'Normal' };
@@ -115,7 +116,7 @@ export function TriggerEditor({ course, slide, owner, trigger, onSave, onClose }
           </select>
         </Field>
         <div className="grid gap-1">
-          {a.type === 'jump-slide' && (
+          {(a.type === 'jump-slide' || a.type === 'lightbox-slide') && (
             <Field label="Slide">
               <select value={a.slideId} onChange={(ev) => setAction({ ...a, slideId: ev.target.value })}>
                 {course.scenes.map((sc) => <optgroup key={sc.id} label={sc.name}>{sc.slides.map((s) => <option key={s.id} value={s.id}>{slides.indexOf(s) + 1}. {s.title}</option>)}</optgroup>)}

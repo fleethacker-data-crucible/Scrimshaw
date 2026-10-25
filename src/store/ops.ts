@@ -98,7 +98,7 @@ export function deleteSlide(c: Course, slideId: ID): ID | null {
   scene.slides = scene.slides.filter((s) => s.id !== slideId);
   if (c.startSlideId === slideId) c.startSlideId = null;
   if (c.quiz.completionSlideId === slideId) c.quiz.completionSlideId = null;
-  forEachTriggerList(c, (list) => list.filter((t) => !(t.action.type === 'jump-slide' && t.action.slideId === slideId)));
+  forEachTriggerList(c, (list) => list.filter((t) => !((t.action.type === 'jump-slide' || t.action.type === 'lightbox-slide') && t.action.slideId === slideId)));
   return (flat[i + 1] ?? flat[i - 1])?.id ?? null;
 }
 
@@ -127,7 +127,7 @@ export function deleteScene(c: Course, sceneId: ID): boolean {
   }
   const ids = new Set(scene.slides.map((s) => s.id));
   c.scenes = c.scenes.filter((s) => s.id !== sceneId);
-  forEachTriggerList(c, (list) => list.filter((t) => !((t.action.type === 'jump-slide' && ids.has(t.action.slideId)) || (t.action.type === 'jump-scene' && t.action.sceneId === sceneId))));
+  forEachTriggerList(c, (list) => list.filter((t) => !(((t.action.type === 'jump-slide' || t.action.type === 'lightbox-slide') && ids.has(t.action.slideId)) || (t.action.type === 'jump-scene' && t.action.sceneId === sceneId))));
   return true;
 }
 
