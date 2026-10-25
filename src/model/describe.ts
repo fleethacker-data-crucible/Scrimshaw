@@ -137,6 +137,7 @@ export function validateCourse(course: Course): string[] {
     const q = sl.question;
     const answerKind = q?.kind === 'hotspot' ? 'hotspot' : 'choice';
     if (q && ['multiple-choice', 'multiple-response', 'true-false', 'hotspot'].includes(q.kind) && !sl.layers.some((l) => l.objects.some((o) => o.kind === answerKind && o.correct))) problems.push(`${sl.title}: the question has no correct answer marked.`);
+    if (q && q.kind === 'essay' && !(q.inputObjectId && findObject(sl, q.inputObjectId))) problems.push(`${sl.title}: the essay question has no text entry box linked.`);
     if (q && q.kind === 'numeric' && !(q.inputObjectId && findObject(sl, q.inputObjectId))) problems.push(`${sl.title}: the numeric question has no text entry box linked.`);
     if (q && q.kind === 'fill-in' && q.accepted.filter((a) => a.trim()).length === 0) problems.push(`${sl.title}: the fill-in question has no accepted answers.`);
     if (q && q.kind === 'fill-in' && !(q.inputObjectId && findObject(sl, q.inputObjectId))) problems.push(`${sl.title}: the fill-in question has no text entry box linked.`);

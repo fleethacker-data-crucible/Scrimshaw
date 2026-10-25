@@ -153,6 +153,8 @@ export interface SlideObject {
   triggers: Trigger[];
   /** input: the text or number variable it writes to. slider: the number variable it controls. */
   variableId: ID | null;
+  /** input: a multi-line box (essays). */
+  multiline: boolean;
   /** slider: range and step. */
   min: number;
   max: number;
@@ -250,7 +252,7 @@ export interface Variable {
   initial: Value;
 }
 
-export type QuestionKind = 'multiple-choice' | 'multiple-response' | 'true-false' | 'fill-in' | 'drag-drop' | 'hotspot' | 'numeric';
+export type QuestionKind = 'multiple-choice' | 'multiple-response' | 'true-false' | 'fill-in' | 'drag-drop' | 'hotspot' | 'numeric' | 'essay';
 
 export interface Question {
   kind: QuestionKind;

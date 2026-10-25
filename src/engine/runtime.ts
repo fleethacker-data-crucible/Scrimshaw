@@ -408,7 +408,14 @@ function submit(ctx: Ctx) {
 
   let correct = false;
   let response = '';
-  if (q.kind === 'numeric') {
+  if (q.kind === 'essay') {
+    const inputId = q.inputObjectId;
+    const input = inputId ? findObject(slide, inputId) : undefined;
+    response = inputId ? (ctx.s.inputs[inputId] ?? '') : '';
+    if (!response && input?.variableId) response = formatValue(ctx.s.vars[input.variableId]);
+    if (response.trim() === '') { ctx.s.effects.push({ type: 'notice', message: 'Type an answer before you submit.' }); return; }
+    correct = true;
+  } else if (q.kind === 'numeric') {
     const inputId = q.inputObjectId;
     const input = inputId ? findObject(slide, inputId) : undefined;
     response = inputId ? (ctx.s.inputs[inputId] ?? '') : '';

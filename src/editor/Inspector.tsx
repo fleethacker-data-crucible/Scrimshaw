@@ -287,6 +287,7 @@ function InputVariable({ o, numberOnly }: { o: SlideObject; numberOnly?: boolean
   const vars = course.variables.filter((v) => (numberOnly ? v.type === 'number' : v.type !== 'boolean'));
   return (
     <Section title="Stores the answer in">
+      {!numberOnly && <label className="check"><input type="checkbox" checked={o.multiline} onChange={(e) => editSelected('Multi-line', (x) => { x.multiline = e.target.checked; })} /> Multi-line</label>}
       <div className="flex gap-1">
         <select aria-label="Variable" className="flex-1" value={o.variableId ?? ''} onChange={(e) => editSelected('Input variable', (x) => { x.variableId = e.target.value || null; })}>
           <option value="">No variable</option>
@@ -561,16 +562,26 @@ function QuestionProps({ editSlide }: { editSlide: (label: string, fn: (s: Slide
   const choices = slide.layers.flatMap((l) => l.objects).filter((o) => o.kind === 'choice');
   return (
     <>
-      <p className="muted text-[13px]">{{ 'multiple-choice': 'Multiple choice', 'multiple-response': 'Multiple response', 'true-false': 'True / false', 'fill-in': 'Fill in the blank', 'drag-drop': 'Drag and drop', hotspot: 'Hotspot', numeric: 'Numeric' }[q.kind]} question. The Submit button runs “Submit interaction”.</p>
+      <p className="muted text-[13px]">{{ 'multiple-choice': 'Multiple choice', 'multiple-response': 'Multiple response', 'true-false': 'True / false', 'fill-in': 'Fill in the blank', 'drag-drop': 'Drag and drop', hotspot: 'Hotspot', numeric: 'Numeric', essay: 'Essay' }[q.kind]} question. The Submit button runs “Submit interaction”.</p>
       <div className="grid-2">
         <Field label="Points"><NumberInput label="Points" min={0} max={1000} value={q.points} onChange={(v) => editSlide('Points', (s) => { s.question!.points = v; }, 'pts')} /></Field>
         <Field label="Attempts" hint="0 = unlimited"><NumberInput label="Attempts" min={0} max={99} value={q.attempts} onChange={(v) => editSlide('Attempts', (s) => { s.question!.attempts = v; }, 'att')} /></Field>
       </div>
       <label className="check"><input type="checkbox" checked={q.graded} onChange={(e) => editSlide('Graded', (s) => { s.question!.graded = e.target.checked; })} /> Graded (counts toward the score)</label>
-      {q.kind !== 'fill-in' && q.kind !== 'numeric' && q.kind !== 'hotspot' && (
+      {q.kind !== 'fill-in' && q.kind !== 'numeric' && q.kind !== 'hotspot' && q.kind !== 'essay' && (
         <label className="check"><input type="checkbox" checked={q.shuffle} onChange={(e) => editSlide('Shuffle', (s) => { s.question!.shuffle = e.target.checked; })} /> Shuffle {q.kind === 'drag-drop' ? 'items' : 'answers'} each time</label>
       )}
-      {q.kind === 'numeric' ? (
+      {q.kind === 'essay' ? (
+        <>
+          <p className="hint">Essay answers are never scored. They are sent to the LRS in xAPI packages; SCORM packages do not store the text.</p>
+          <Field label="Answer box">
+            <select value={q.inputObjectId ?? ''} onChange={(e) => editSlide('Answer box', (s) => { s.question!.inputObjectId = e.target.value || null; })}>
+              <option value="">None</option>
+              {slide.layers.flatMap((l) => l.objects).filter((o) => o.kind === 'input').map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          </Field>
+        </>
+      ) : q.kind === 'numeric' ? (
         <>
           <Section title="Accepted range">
             <div className="grid-2">
