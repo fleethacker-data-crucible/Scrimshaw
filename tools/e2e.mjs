@@ -7,6 +7,23 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import JSZip from 'jszip';
 import http from 'node:http';
+import { createRequire } from 'node:module';
+
+// Accessibility scan (UI kit rule): runs when axe-core is installed (npm install), skipped otherwise.
+const require = createRequire(import.meta.url);
+let axeSource = null;
+try { axeSource = readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8'); } catch { /* not installed */ }
+async function axe(page, label, frame) {
+  if (!axeSource) return;
+  const target = frame ?? page;
+  await target.evaluate(axeSource);
+  const res = await target.evaluate(async () => {
+    const r = await window.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] } });
+    return r.violations.map((v) => `${v.id} (${v.impact}): ${v.nodes.length} node(s) - ${v.help}`);
+  });
+  if (res.length) fail(`axe found WCAG 2.1 AA issues in ${label}:\n    ${res.join('\n    ')}`);
+  else ok(`axe: no WCAG 2.1 AA violations in ${label}`);
+}
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = path.join(root, '.build', 'e2e');
@@ -36,6 +53,7 @@ try {
   ok('editor loads from file://');
   await page.getByText('Saved', { exact: true }).waitFor({ timeout: 5000 }).then(() => ok('autosaves to IndexedDB'), () => fail('no Saved status'));
   await page.screenshot({ path: path.join(out, '01-editor-dark.png') });
+  await axe(page, 'the editor (dark)');
 
   // Select the title text on the canvas and change it through the inspector.
   const canvas = page.getByRole('application', { name: /Slide canvas/ });
@@ -102,6 +120,7 @@ try {
   await page.getByRole('button', { name: 'Next', exact: true }).first().waitFor();
   ok('preview: states, layers and variable-change trigger');
   await page.screenshot({ path: path.join(out, '06-preview-tools.png') });
+  await axe(page, 'the player preview');
   await page.locator('.player-stage').getByRole('button', { name: 'Next', exact: true }).click();
   await page.getByRole('radio', { name: /Whale teeth/ }).click();
   await page.getByRole('button', { name: 'Submit' }).click();
@@ -209,4 +228,5 @@ try {
 const real = errors.filter((e) => !/favicon/i.test(e));
 if (real.length) { console.error('Browser errors:\n' + real.map((e) => '  ' + e).join('\n')); process.exitCode = 1; }
 else console.log(`  ok - no browser errors`);
+if (!axeSource) console.log('  # skipped the axe accessibility scan: install axe-core (npm install) to run it');
 console.log(process.exitCode ? 'E2E FAILED' : `E2E passed (${step} checks). Screenshots in .build/e2e/`);
