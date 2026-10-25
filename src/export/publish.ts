@@ -5,7 +5,7 @@ import JSZip from 'jszip';
 import { pruneAssets } from '../store/ops.ts';
 import type { Course } from '../model/types.ts';
 import { manifest12, manifest2004 } from './scorm.ts';
-import { tincanXml } from './xapi.ts';
+import { cmi5Xml, tincanXml } from './xapi.ts';
 
 export const COURSE_SCRIPT_ID = 'scrimshaw-course';
 
@@ -58,11 +58,12 @@ export async function buildScormZip(course: Course, template: string | null = sh
 }
 
 /** xAPI package: the player must reach the LRS, so its CSP allows connections (http/https only). */
-export async function buildXapiZip(course: Course, template: string | null = shell): Promise<Blob> {
+export async function buildXapiZip(course: Course, template: string | null = shell, profile: 'tincan' | 'cmi5' = 'tincan'): Promise<Blob> {
   const zip = new JSZip();
   const html = buildPlayerHtml(course, template).replace("connect-src 'none'", () => 'connect-src https: http:');
   zip.file('index.html', html);
-  zip.file('tincan.xml', tincanXml(course));
+  if (profile === 'cmi5') zip.file('cmi5.xml', cmi5Xml(course));
+  else zip.file('tincan.xml', tincanXml(course));
   return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 }, mimeType: 'application/zip' });
 }
 

@@ -36,7 +36,7 @@ backup you can move between machines or share with another author.
 | Timeline | Per-object appear/disappear times, drag bars, slide length, entrance and exit animations (fade, fly, grow, wipe), motion paths, cue-point triggers, auto-advance |
 | Quizzes | Multiple choice, multiple response, true/false, fill-in-the-blank, drag and drop, hotspot, numeric, essay (survey); points, attempts, try-again/correct/incorrect feedback layers, shuffled answers, question banks (shuffle and draw per scene), results slide, retry |
 | Player | Menu, prev/next, seekbar, pause, Resources and Glossary panels, resume where you left off, restricted or free navigation, accent colour (with an AA contrast check), keyboard-accessible objects |
-| Publish | SCORM 1.2 and SCORM 2004 3rd Edition zips (status, success, score, location, suspend data, session time), xAPI (Tin Can) zip with State API resume, standalone HTML, printable storyboard, `.scrim` project file; publish-time checks for broken references and missing alt text |
+| Publish | SCORM 1.2 and SCORM 2004 3rd Edition zips (status, success, score, location, suspend data, session time), xAPI (Tin Can) and cmi5 zips with State API resume, standalone HTML, printable storyboard, `.scrim` project file; publish-time checks for broken references and missing alt text |
 | Editor | Undo/redo (200 steps, coalesced drags and typing), autosave, find and replace, translation export/import (CSV), keyboard shortcuts (`?`), light and dark themes, reduced motion |
 
 See [ROADMAP.md](ROADMAP.md) for the full feature checklist and what is next.
