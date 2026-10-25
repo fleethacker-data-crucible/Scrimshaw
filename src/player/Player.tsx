@@ -136,7 +136,8 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
         c.t = Math.min(slide.duration, c.t + dt);
         for (const m of marks) if (c.t >= m && !c.reached.has(m)) { c.reached.add(m); apply((s) => E.timelineReached(course, s, m)); }
         if (c.t >= slide.duration) { c.ended = true; apply((s) => E.timelineEnded(course, s)); }
-        setTime(c.t);
+        // 50 ms steps: React skips renders when the value is unchanged, so the slide redraws at most 20 times a second.
+        setTime(Math.round(c.t * 20) / 20);
       }
       raf = requestAnimationFrame(tick);
     };
