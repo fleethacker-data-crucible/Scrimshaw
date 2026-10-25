@@ -87,7 +87,8 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
   const [preview, setPreview] = useState<{ from: ID | null } | null>(null);
   const [dialog, setDialog] = useState<DialogName>(null);
   const [previewStates, setPreviewStates] = useState<Record<ID, string>>({});
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | 'unsaved'>('saved');
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | 'full' | 'unsaved'>('saved');
+  const warnedFull = useRef(false);
   const newSlideItems = useNewSlideItems(() => state.sel.slideId);
 
   // ---- autosave to IndexedDB ----
@@ -95,7 +96,15 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
   latest.current = course;
   const saveNow = useCallback(async () => {
     setSaveStatus('saving');
-    try { await saveProject(latest.current); setSaveStatus('saved'); } catch { setSaveStatus('error'); }
+    try { await saveProject(latest.current); setSaveStatus('saved'); }
+    catch (e) {
+      const full = e instanceof DOMException && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED');
+      setSaveStatus(full ? 'full' : 'error');
+      if (full && !warnedFull.current) {
+        warnedFull.current = true;
+        toast('Browser storage is full, so changes are not being saved here. Use File › Save to file now, then remove unused media or old projects.', 'err');
+      }
+    }
   }, []);
   useEffect(() => {
     if (state.revision === 0) { void saveNow(); setSettings((s) => (s.lastProjectId === course.id ? s : { ...s, lastProjectId: course.id })); return; }
@@ -299,14 +308,14 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
   const dark = document.documentElement.dataset.theme !== 'light';
   const undo = undoLabel(state);
   const redo = redoLabel(state);
-  const statusText = { saved: 'Saved', saving: 'Saving…', unsaved: 'Unsaved changes', error: 'Not saved: browser storage unavailable' }[saveStatus];
+  const statusText = { saved: 'Saved', saving: 'Saving…', unsaved: 'Unsaved changes', error: 'Not saved: browser storage unavailable. Use File › Save to file', full: 'Not saved: browser storage is full. Use File › Save to file' }[saveStatus];
   const multi = selected.length > 1;
 
   return (
     <div className="shell">
       <a className="skip" href="#main">Skip to canvas</a>
       <header className="topbar">
-        <span className="brand"><Logo /><span><h1>Scrimshaw</h1><span className="sub">{course.title || 'Untitled'} · <span role="status" className={saveStatus === 'error' ? 'err' : undefined}>{statusText}</span></span></span></span>
+        <span className="brand"><Logo /><span><h1>Scrimshaw</h1><span className="sub">{course.title || 'Untitled'} · <span role="status" className={saveStatus === 'error' || saveStatus === 'full' ? 'err' : undefined}>{statusText}</span></span></span></span>
         <Menu label="File" items={[
           { label: 'Projects…', icon: <FolderOpen />, onSelect: () => setDialog('projects') },
           { label: 'New course', onSelect: () => openNew(newCourse()) },
