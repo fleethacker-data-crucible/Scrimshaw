@@ -2,6 +2,22 @@
 
 ## 0.2.0 (2026-10-25)
 
+Fixes from an independent code review:
+
+- LMS completion waits for the last question to be answered, and a changed result (after a retry) is reported again.
+- Copied slides, layers and objects keep working drag-and-drop targets.
+- Autoplay audio and video now start on every slide, not only the first.
+- Each layer has its own running timeline: delayed layer objects appear and layer timeline triggers fire.
+- Undo restores theme colours.
+- Malformed or hand-edited course files load safely instead of crashing.
+- Dragging a slide later in the same scene lands where it was dropped.
+- A "pause timeline" trigger no longer leaves the next slide paused.
+- Drag and drop works by touch.
+- Hovers no longer commit to the LMS; progress is sent only when it changes.
+- Deleting objects or layers removes the triggers, conditions and answers that pointed at them.
+- Player: no `role=application` (screen-reader browse mode works); focus moves to the new slide on navigation.
+- Local server: idle browser preconnect sockets no longer stall page loads.
+
 - Drag and drop: draggable objects, drop targets, keyboard support, `drop` trigger event, graded question type.
 - Question banks per scene (shuffle and/or draw N, redrawn on retry) and shuffled answers.
 - SCORM 2004 3rd Edition publishing; session time reported for 1.2 and 2004.

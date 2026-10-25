@@ -40,6 +40,7 @@ export function cloneCourse(c: Course): Course {
     size: { ...c.size },
     scenes: structuredClone(c.scenes),
     master: structuredClone(c.master),
+    theme: [...c.theme],
     variables: structuredClone(c.variables),
     player: structuredClone(c.player),
     quiz: { ...c.quiz },

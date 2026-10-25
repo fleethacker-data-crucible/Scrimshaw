@@ -56,6 +56,10 @@ export interface PlayerState {
   /** Play order for this attempt: every slide, with question banks shuffled and drawn. */
   sequence: ID[];
   completed: boolean;
+  /** The learner has reached the completion slide at least once. */
+  reachedEnd: boolean;
+  /** Last result sent to the LMS ("status:score"), so a changed result is reported again. */
+  reported: string | null;
   /** Increments on every slide entry, so the UI can restart the slide timeline. */
   entry: number;
   effects: Effect[];
@@ -386,16 +390,25 @@ export function shuffledPositions(slide: Slide, random: () => number = Math.rand
   return out;
 }
 
+/** Reports completion once the learner has reached the completion slide (and answered it, when it is
+ *  a question). Reports again whenever the result changes afterwards, e.g. after a retry. */
 function checkCompletion(ctx: Ctx) {
   const { course, s } = ctx;
-  if (s.completed) return;
   const slides = playSlides(course, s);
   const target = course.quiz.completionSlideId ?? slides[slides.length - 1]?.id;
-  if (s.slideId !== target) return;
-  s.completed = true;
+  if (!target) return;
+  if (s.slideId === target) s.reachedEnd = true;
+  if (!s.reachedEnd) return;
+  const targetSlide = findSlide(course, target);
+  if (targetSlide?.question && !s.answers[target]?.final) return;
   const r = results(course, s);
   const status = course.quiz.reporting === 'passed-failed' && r.hasQuiz ? (r.passed ? 'passed' : 'failed') : 'completed';
-  s.effects.push({ type: 'completed', status, scorePercent: r.hasQuiz ? r.percent : null });
+  const scorePercent = r.hasQuiz ? r.percent : null;
+  const key = `${status}:${scorePercent}`;
+  if (s.reported === key) return;
+  s.completed = true;
+  s.reported = key;
+  s.effects.push({ type: 'completed', status, scorePercent });
 }
 
 function submit(ctx: Ctx) {
@@ -457,6 +470,7 @@ function submit(ctx: Ctx) {
   if (final) for (const o of slideObjects(slide)) if (o.kind === 'choice' || o.kind === 'input' || o.draggable || (q.kind === 'hotspot' && o.kind === 'hotspot')) {
     if (stateOf(ctx.s, o) !== 'Selected') setObjectState(ctx, o, 'Disabled');
   }
+  if (final) checkCompletion(ctx);
   feedback(correct, !final);
 }
 
@@ -543,6 +557,7 @@ function run(ctx: Ctx, a: Action, where: { layerId: ID | null; self: SlideObject
       ctx.s.lightboxFrom = null;
       const first = playSlides(ctx.course, ctx.s).find((sl) => sl.question)?.id ?? null;
       ctx.s.completed = false;
+      ctx.s.reachedEnd = false;
       if (first) enter(ctx, first, { pushHistory: true });
       break;
     }
@@ -573,7 +588,7 @@ export function start(course: Course, resume?: Partial<Pick<PlayerState, 'slideI
   if (!first) throw new Error('The course has no slides.');
   const s: PlayerState = {
     slideId: first.id, layers: [], vars: initialVars(course), states: {}, inputs: {}, drops: {}, positions: {}, motion: {}, visited: {}, visitedSlides: {},
-    saved: {}, answers: {}, attempts: {}, history: [], sequence: [], lightboxFrom: null, completed: false, entry: 0, effects: [],
+    saved: {}, answers: {}, attempts: {}, history: [], sequence: [], lightboxFrom: null, completed: false, reachedEnd: false, reported: null, entry: 0, effects: [],
   };
   const all = new Set(allSlides(course).map((x) => x.id));
   s.sequence = resume?.sequence?.length && resume.sequence.every((id) => all.has(id)) ? [...resume.sequence] : buildSequence(course);
@@ -626,11 +641,24 @@ export function click(course: Course, state: PlayerState, objectId: ID): PlayerS
   return s;
 }
 
+const sameMap = (a: Record<string, unknown>, b: Record<string, unknown>) => {
+  const ka = Object.keys(a);
+  return ka.length === Object.keys(b).length && ka.every((k) => a[k] === b[k]);
+};
+
+/** True when an event left the state as it was, so callers can keep the old object (no re-render, no LMS write). */
+function unchanged(a: PlayerState, b: PlayerState): boolean {
+  return a.slideId === b.slideId && a.entry === b.entry && a.effects.length === b.effects.length && a.lightboxFrom === b.lightboxFrom &&
+    a.layers.join() === b.layers.join() && a.completed === b.completed &&
+    sameMap(a.vars, b.vars) && sameMap(a.states, b.states) && sameMap(a.inputs, b.inputs) && sameMap(a.drops, b.drops) &&
+    sameMap(a.motion, b.motion) && sameMap(a.answers, b.answers) && sameMap(a.visited, b.visited);
+}
+
 export function hover(course: Course, state: PlayerState, objectId: ID, entering: boolean): PlayerState {
   const s = clone(state);
   const ctx: Ctx = { course, s, depth: 0, navigated: false };
   fire(ctx, { type: entering ? 'hover-enter' : 'hover-leave' }, { objectId });
-  return s;
+  return unchanged(state, s) ? state : s;
 }
 
 /** Learner typed into an input object. Writes its variable and fires variable-change triggers. */
@@ -668,7 +696,7 @@ export function key(course: Course, state: PlayerState, keyName: string): Player
   const s = clone(state);
   const ctx: Ctx = { course, s, depth: 0, navigated: false };
   fire(ctx, { type: 'key', key: keyName }, { anywhere: true });
-  return s;
+  return unchanged(state, s) ? state : s;
 }
 
 /** The slide's timeline (or a layer's) passed a time mark. */
@@ -677,7 +705,7 @@ export function timelineReached(course: Course, state: PlayerState, time: number
   const ctx: Ctx = { course, s, depth: 0, navigated: false };
   const slide = currentSlide(ctx);
   fire(ctx, { type: 'timeline-reaches', time }, layerId ? { layerId } : { slideLevel: true, layerId: slide.layers[0].id });
-  return s;
+  return unchanged(state, s) ? state : s;
 }
 
 /** The slide's timeline (or a layer's) ended. Auto-advances when the slide is set to. */

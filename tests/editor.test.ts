@@ -180,3 +180,58 @@ test('recolor swaps a theme colour everywhere it is used', async () => {
   assert.ok(n > 5);
   assert.equal(JSON.stringify(c).toLowerCase().includes('#2f74c8'), JSON.stringify(c.theme).toLowerCase().includes('#2f74c8'));
 });
+
+test('review fixes: copies remap drop targets; deletes clear dangling drag-drop and state references', async () => {
+  const E = await import('../src/engine/runtime.ts');
+  const q = newQuestionSlide('drag-drop');
+  const items = slideObjects(q).filter((o) => o.draggable);
+  items[0].triggers.push(newTrigger({ type: 'drop', targetId: items[0].correctTargetId! }, { type: 'next-slide' }));
+  const copy = copySlide(q);
+  const cItems = slideObjects(copy).filter((o) => o.draggable);
+  const cTargets = new Set(slideObjects(copy).filter((o) => o.dropTarget).map((o) => o.id));
+  assert.ok(cItems.every((o) => cTargets.has(o.correctTargetId!)), 'targets point inside the copy');
+  assert.ok(cTargets.has((cItems[0].triggers[0].event as { targetId: string }).targetId));
+  const c = newCourse('C');
+  c.scenes[0].slides = [copy];
+  let s = E.start(c);
+  for (const it of cItems) s = E.drop(c, s, it.id, it.correctTargetId!);
+  s = E.click(c, s, slideObjects(copy).find((o) => o.name === 'Submit')!.id);
+  assert.equal(s.answers[copy.id].correct, true, 'a copied drag-and-drop question can be answered');
+
+  const t0 = items[0].correctTargetId!;
+  deleteObjects(q, [t0]);
+  assert.equal(items[0].correctTargetId, null);
+  assert.equal(items[0].triggers.length, 0, 'drop trigger on the deleted target removed');
+
+  const sl = newSlide();
+  const layer = newLayer('L');
+  const inLayer = newObject('button');
+  layer.objects.push(inLayer);
+  sl.layers.push(layer);
+  const watcher = newObject('button');
+  watcher.triggers.push(newTrigger({ type: 'click' }, { type: 'next-slide' }, { conditions: [{ kind: 'state', objectId: inLayer.id, is: false, state: 'Visited' }] }));
+  watcher.triggers.push(newTrigger({ type: 'state-change', objectId: inLayer.id, state: 'Visited' }, { type: 'next-slide' }));
+  sl.layers[0].objects.push(watcher);
+  deleteLayer(sl, layer.id);
+  assert.equal(watcher.triggers.length, 1);
+  assert.equal(watcher.triggers[0].conditions.length, 0);
+});
+
+test('moveSlide uses pre-removal indexes; theme colours undo', async () => {
+  const { moveSlide } = await import('../src/store/ops.ts');
+  const c = newCourse('M');
+  const [a] = c.scenes[0].slides;
+  const b = newSlide('B'); const cc = newSlide('C'); const d = newSlide('D');
+  c.scenes[0].slides.push(b, cc, d);
+  const names = () => c.scenes[0].slides.map((s) => s.title).join('');
+  a.title = 'A';
+  moveSlide(c, a.id, c.scenes[0].id, 3);
+  assert.equal(names(), 'BCAD', 'dropped before D');
+  moveSlide(c, a.id, c.scenes[0].id, 1);
+  assert.equal(names(), 'BACD', 'moved up');
+  let s = initEditor(newCourse('T'));
+  const before = s.course.theme[0];
+  s = reduce(s, { type: 'edit', label: 'Theme', fn: (x) => { x.theme[0] = '#123456'; } });
+  s = reduce(s, { type: 'undo' });
+  assert.equal(s.course.theme[0], before);
+});

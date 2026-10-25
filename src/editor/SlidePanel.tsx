@@ -76,7 +76,7 @@ export function SlidePanel() {
         return { slideId: s.id, layerId: s.layers[0].id, objectIds: [] };
       }) },
       { label: 'Move up', disabled: i === 0, onSelect: () => edit('Move slide', (c) => moveSlide(c, sl.id, scene.id, i - 1)) },
-      { label: 'Move down', disabled: i === scene.slides.length - 1, onSelect: () => edit('Move slide', (c) => moveSlide(c, sl.id, scene.id, i + 1)) },
+      { label: 'Move down', disabled: i === scene.slides.length - 1, onSelect: () => edit('Move slide', (c) => moveSlide(c, sl.id, scene.id, i + 2)) },
       ...course.scenes.filter((s) => s.id !== scene.id).map((s) => ({ label: `Move to ${s.name}`, onSelect: () => edit('Move slide', (c) => moveSlide(c, sl.id, s.id, 999)) })),
       { separator: true, label: '' },
       { label: 'Start course here', icon: <Flag />, disabled: sl.id === startId, onSelect: () => edit('Set start slide', (c) => { c.startSlideId = sl.id; }) },

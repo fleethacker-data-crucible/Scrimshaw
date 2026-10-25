@@ -478,3 +478,33 @@ test('word bank: the distractor cannot satisfy a blank', async () => {
   s = E.click(c, s, submit);
   assert.equal(s.answers[q.id].correct, true);
 });
+
+test('completion waits for an unanswered last question, and a changed result is reported again', () => {
+  const c = newCourse('Last');
+  const q = newQuestionSlide('multiple-choice');
+  q.question!.attempts = 0;
+  c.scenes[0].slides.push(q);
+  const ch = slideObjects(q).filter((o) => o.kind === 'choice');
+  const submit = slideObjects(q).find((o) => o.name === 'Submit')!.id;
+  const completed = (s: E.PlayerState) => E.takeEffects(s)[1].filter((f) => f.type === 'completed');
+  let s = E.navigate(c, E.start(c), 'next');
+  assert.deepEqual(completed(s), [], 'nothing reported on arrival');
+  s = E.takeEffects(s)[0];
+  s = E.click(c, s, ch[1].id);
+  s = E.click(c, s, submit);
+  assert.deepEqual(completed(s), [], 'a retryable wrong answer is not final');
+  s = E.takeEffects(s)[0];
+  s = E.click(c, s, ch[0].id);
+  s = E.click(c, s, submit);
+  assert.deepEqual(completed(s), [{ type: 'completed', status: 'passed', scorePercent: 100 }]);
+});
+
+test('no-op events return the same state object', () => {
+  const { c, s1 } = twoSlides();
+  const b = newObject('button');
+  s1.layers[0].objects.push(b);
+  const s = E.start(c);
+  assert.equal(E.hover(c, s, b.id, true), s);
+  assert.equal(E.key(c, s, 'x'), s);
+  assert.equal(E.timelineReached(c, s, 1), s);
+});
