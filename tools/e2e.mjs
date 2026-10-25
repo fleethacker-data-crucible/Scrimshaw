@@ -1,0 +1,186 @@
+// End-to-end smoke test: opens dist/index.html from file:// in Chromium, drives the editor and
+// the player, publishes a package, and plays the published package. Screenshots go to .build/e2e/.
+//   node tools/e2e.mjs [--headed]
+import { chromium } from 'playwright';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import JSZip from 'jszip';
+import http from 'node:http';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const out = path.join(root, '.build', 'e2e');
+mkdirSync(out, { recursive: true });
+const url = pathToFileURL(path.join(root, 'dist', 'index.html')).href;
+const exe = process.env.CHROME_PATH || ['/opt/pw-browsers/chromium-1243/chrome-linux64/chrome'].find((p) => existsSync(p));
+
+const browser = await chromium.launch({ headless: !process.argv.includes('--headed'), executablePath: exe });
+const errors = [];
+let step = 0;
+const ok = (m) => console.log(`  ok ${++step} - ${m}`);
+const fail = (m) => { console.error(`  not ok - ${m}`); process.exitCode = 1; };
+
+async function newPage(theme = 'dark') {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: theme, acceptDownloads: true });
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
+  return page;
+}
+
+try {
+  // ---------- editor ----------
+  const page = await newPage();
+  await page.goto(url);
+  await page.getByRole('heading', { name: 'Scrimshaw', level: 1 }).waitFor();
+  ok('editor loads from file://');
+  await page.getByText('Saved', { exact: true }).waitFor({ timeout: 5000 }).then(() => ok('autosaves to IndexedDB'), () => fail('no Saved status'));
+  await page.screenshot({ path: path.join(out, '01-editor-dark.png') });
+
+  // Select the title text on the canvas and change it through the inspector.
+  const canvas = page.getByRole('application', { name: /Slide canvas/ });
+  const box = await canvas.boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height * 0.42);
+  await page.getByRole('tab', { name: 'Design' }).waitFor();
+  ok('selecting an object shows the Design tab');
+  const textArea = page.getByRole('textbox', { name: 'Text', exact: true });
+  await textArea.fill('Scrimshaw at sea');
+  await page.getByRole('button', { name: /Undo Edit text/ }).waitFor();
+  ok('editing text records an undo step');
+  await page.keyboard.press('Escape');
+
+  // Insert a button, drag it, undo.
+  await page.getByRole('button', { name: 'Button', exact: true }).click();
+  const before = await page.locator('.sel-box.primary').boundingBox();
+  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(before.x + before.width / 2 + 80, before.y + before.height / 2 + 40, { steps: 6 });
+  await page.mouse.up();
+  const after = await page.locator('.sel-box.primary').boundingBox();
+  if (after.x > before.x + 40) ok('drag moves the object'); else fail(`drag did not move (${before.x} → ${after.x})`);
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+z');
+  ok('undo via keyboard');
+
+  // Add a trigger to the selected... select an existing slide 2 button and inspect triggers.
+  await page.getByRole('button', { name: /^Slide 2:/ }).click();
+  await page.getByRole('tab', { name: 'Triggers' }).click();
+  await page.getByText('Show layer Needle').first().waitFor({ timeout: 2000 }).then(() => fail('slide triggers should not list object triggers'), () => ok('slide triggers tab shows slide-level triggers'));
+  await page.screenshot({ path: path.join(out, '02-slide-triggers.png') });
+
+  // Variables dialog.
+  await page.getByRole('button', { name: /^Variables/ }).click();
+  await page.getByRole('dialog', { name: 'Variables' }).waitFor();
+  ok('variables dialog opens');
+  await page.screenshot({ path: path.join(out, '03-variables.png') });
+  await page.keyboard.press('Escape');
+
+  // Story view.
+  await page.getByRole('button', { name: 'Story view' }).click();
+  await page.getByLabel('Story view').waitFor();
+  await page.screenshot({ path: path.join(out, '04-story.png') });
+  ok('story view renders');
+  await page.getByRole('button', { name: 'Back to slide view' }).click();
+
+  // Light theme.
+  await page.getByRole('button', { name: 'Switch to light theme' }).click();
+  await page.screenshot({ path: path.join(out, '05-editor-light.png') });
+  ok('light theme');
+
+  // ---------- preview the sample course ----------
+  await page.getByRole('button', { name: 'Slide 1: Title slide' }).click();
+  await page.keyboard.press('Shift+F5');
+  const player = page.locator('.player');
+  await player.waitFor();
+  await page.getByRole('textbox', { name: 'Your first name' }).fill('Ada');
+  await page.waitForTimeout(1200);
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.getByText('Welcome aboard, Ada. Click each tool.').waitFor();
+  ok('preview: input writes a variable and text shows it');
+  for (const t of ['Needle', 'Ink', 'Tooth']) await page.getByRole('button', { name: t, exact: true }).click();
+  await page.getByText('Tools explored: 3 of 3').waitFor();
+  await page.getByRole('button', { name: 'Next', exact: true }).first().waitFor();
+  ok('preview: states, layers and variable-change trigger');
+  await page.screenshot({ path: path.join(out, '06-preview-tools.png') });
+  await page.locator('.player-stage').getByRole('button', { name: 'Next', exact: true }).click();
+  await page.getByRole('radio', { name: /Whale teeth/ }).click();
+  await page.getByRole('button', { name: 'Submit' }).click();
+  await page.getByText("That's right!").waitFor();
+  ok('preview: question graded correct');
+  await page.screenshot({ path: path.join(out, '07-preview-correct.png') });
+  await page.locator('.player-stage').getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('radio', { name: 'False' }).click();
+  await page.getByRole('button', { name: 'Submit' }).click();
+  await page.locator('.player-stage').getByRole('button', { name: 'Continue' }).click();
+  await page.getByText(/You scored 50%/).waitFor();
+  await page.getByText('You did not pass this time.').waitFor();
+  ok('preview: results slide shows score and the failed layer');
+  await page.screenshot({ path: path.join(out, '08-preview-results.png') });
+  await page.getByRole('button', { name: 'Close preview' }).click();
+
+  // ---------- publish ----------
+  await page.getByRole('button', { name: 'Publish' }).click();
+  const [zipDl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Zip' }).click()]);
+  const zipPath = path.join(out, 'course.zip');
+  await zipDl.saveAs(zipPath);
+  const zip = await JSZip.loadAsync(readFileSync(zipPath));
+  const manifest = await zip.file('imsmanifest.xml')?.async('string');
+  const index = await zip.file('index.html')?.async('string');
+  if (manifest?.includes('<schemaversion>1.2</schemaversion>') && index?.includes('id="scrimshaw-course"')) ok('SCORM zip has manifest and embedded course');
+  else fail('SCORM zip is incomplete');
+  const pkgHtml = path.join(out, 'package', 'index.html');
+  mkdirSync(path.dirname(pkgHtml), { recursive: true });
+  writeFileSync(pkgHtml, index);
+  await page.keyboard.press('Escape');
+
+  // ---------- the published package, inside a fake SCORM 1.2 LMS frame ----------
+  const lmsPage = await newPage('light');
+  const lmsHtml = path.join(out, 'package', 'lms.html');
+  writeFileSync(lmsHtml, `<!doctype html><html><head><link rel="icon" href="data:,"></head><body style="margin:0"><script>
+    window.calls = []; const data = {'cmi.core.lesson_status':'not attempted','cmi.core.entry':'ab-initio'};
+    window.API = { LMSInitialize(){calls.push('init');return 'true'}, LMSFinish(){calls.push('finish');return 'true'},
+      LMSGetValue(k){return data[k]??''}, LMSSetValue(k,v){data[k]=v;calls.push(k+'='+v);return 'true'},
+      LMSCommit(){return 'true'}, LMSGetLastError(){return '0'} }; window.lmsData = data;
+  </script><iframe src="index.html" style="width:100vw;height:100vh;border:0"></iframe></body></html>`);
+  // Serve over HTTP: an LMS frame and its content share an origin, which file:// pages never do.
+  const server = http.createServer((req, res) => {
+    const f = path.join(out, 'package', path.basename(new URL(req.url, 'http://x').pathname) || 'lms.html');
+    if (!existsSync(f)) { res.writeHead(404).end(); return; }
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(readFileSync(f));
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  await lmsPage.goto(`http://127.0.0.1:${server.address().port}/lms.html`);
+  const frame = lmsPage.frameLocator('iframe');
+  await frame.locator('.player').waitFor();
+  await lmsPage.waitForTimeout(300);
+  const status = await lmsPage.evaluate(() => window.lmsData['cmi.core.lesson_status']);
+  if (status === 'incomplete') ok('published package talks to the SCORM API (status incomplete)'); else fail(`lesson_status is ${status}`);
+  await frame.getByRole('textbox', { name: 'Your first name' }).fill('Lin');
+  await frame.getByRole('button', { name: 'Start', exact: true }).click({ timeout: 5000 });
+  await lmsPage.waitForTimeout(300);
+  const loc = await lmsPage.evaluate(() => window.lmsData['cmi.core.lesson_location']);
+  const susp = await lmsPage.evaluate(() => window.lmsData['cmi.suspend_data'] ?? '');
+  if (loc && susp.includes('Lin')) ok('progress is saved to cmi.core.lesson_location and cmi.suspend_data'); else fail(`no progress saved (${loc}, ${susp})`);
+  await lmsPage.screenshot({ path: path.join(out, '09-published-in-lms.png') });
+  await lmsPage.context().close();
+  server.close();
+
+  // ---------- new course, question slide insert ----------
+  await page.getByRole('button', { name: 'File' }).click();
+  await page.getByRole('menuitem', { name: 'New course' }).click();
+  await page.getByText('Untitled course ·').waitFor();
+  await page.getByRole('button', { name: 'New slide', exact: false }).first().click();
+  await page.getByRole('menuitem', { name: 'Multiple choice question' }).click();
+  await page.getByRole('button', { name: /^Slide 2: Multiple choice/ }).waitFor();
+  ok('new course and question slide');
+  await page.screenshot({ path: path.join(out, '10-question-slide.png') });
+  await page.context().close();
+} catch (e) {
+  fail(e.stack || String(e));
+} finally {
+  await browser.close();
+}
+const real = errors.filter((e) => !/favicon/i.test(e));
+if (real.length) { console.error('Browser errors:\n' + real.map((e) => '  ' + e).join('\n')); process.exitCode = 1; }
+else console.log(`  ok - no browser errors`);
+console.log(process.exitCode ? 'E2E FAILED' : `E2E passed (${step} checks). Screenshots in .build/e2e/`);

@@ -1,0 +1,36 @@
+{
+  "name": "scrimshaw",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Scrimshaw: an open-source e-learning authoring tool (slides, layers, states, triggers, variables, quizzes, SCORM 1.2). React 19 + TypeScript, Tailwind CSS 4, FleetHacker UI Kit. Built off-workstation into dist/.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "watch": "node tools/build.mjs --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test --experimental-strip-types tests/*.test.ts",
+    "test:e2e": "node tools/e2e.mjs",
+    "icons": "node tools/gen-icons.mjs"
+  },
+  "dependencies": {
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "jszip": "3.10.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "tailwind-merge": "3.6.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.3.3",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "esbuild": "0.28.2",
+    "playwright": "1.63.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3"
+  }
+}

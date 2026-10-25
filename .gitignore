@@ -1,0 +1,21 @@
+# Node
+node_modules/
+
+# Build scratch (dist/ IS committed: built off-workstation so a workstation never needs Node)
+.build/
+
+# OS / editor
+Thumbs.db
+Desktop.ini
+.DS_Store
+.vs/
+.vscode/*
+!.vscode/extensions.json
+
+# Logs and temp
+*.log
+*.tmp
+*~
+
+# Course exports made while testing
+*.scorm12.zip
