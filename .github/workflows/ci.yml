@@ -1,5 +1,5 @@
 name: CI
-# Runs on the self-hosted Windows build PC (same runner labels as Arc). It needs Node 22.18+ and
+# Runs on the self-hosted Windows build PC (same runner labels as the other Fleet apps). It needs Node 22.18+ and
 # Windows PowerShell 5.1, which every Windows build PC has.
 on:
   pull_request:
