@@ -1,6 +1,6 @@
 {
   "name": "scrimshaw",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Scrimshaw: an open-source e-learning authoring tool (slides, layers, states, triggers, variables, quizzes, SCORM 1.2). React 19 + TypeScript, Tailwind CSS 4, FleetHacker UI Kit. Built off-workstation into dist/.",
   "license": "MIT",

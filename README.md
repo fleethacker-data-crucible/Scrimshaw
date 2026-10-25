@@ -2,7 +2,7 @@
 
 An open-source e-learning authoring tool in the spirit of Articulate Storyline. Build interactive
 courses from slides, layers, object states, triggers and variables, add graded quizzes, preview
-them in the editor, and publish a SCORM 1.2 package or a standalone web page.
+them in the editor, and publish a SCORM 1.2 or 2004 package or a standalone web page.
 
 Scrimshaw follows the FleetHacker Edge-Ops conventions: the **TechStack** (PowerShell 5.1 local
 server on 127.0.0.1, React 19 + TypeScript, Tailwind CSS 4 with CVA and Lucide, IndexedDB for
@@ -26,17 +26,18 @@ backup you can move between machines or share with another author.
 | Area | Features |
 | --- | --- |
 | Slides | Scenes, slides, drag-to-reorder, duplicate, start slide, completion slide, story view with trigger links |
-| Objects | Text, shapes (rectangle, rounded, oval, triangle, arrow, line), images, video, buttons, hotspots, text entry, choices |
+| Objects | Text, shapes (rectangle, rounded, oval, triangle, arrow, line), images, video, audio, buttons, hotspots, text entry, choices, sliders |
+| Drag and drop | Any object can be draggable or a drop target; snap to target, one item per target, keyboard pick-up and drop, `drop` trigger event |
 | Canvas | Select, marquee, multi-select, move, resize (Shift keeps aspect), rotate, snapping guides, grid, zoom, inline text editing, align and distribute, z-order, copy/paste/duplicate, lock, hide while editing |
 | Layers | Per-slide layers, hide other layers, modal (dim and block the base layer), layer triggers |
 | States | Normal, Hover, Down, Selected, Visited, Disabled, Hidden and custom states, with preview in the editor |
 | Triggers | 17 actions × 9 events, AND/OR conditions on variables and object states, reorder, enable/disable, plain-English descriptions |
 | Variables | Text, number and true/false variables, `%Name%` in any text, built-ins such as `%Results.ScorePercent%` and `%Project.SlideNumber%` |
-| Timeline | Per-object appear/disappear times, drag bars, slide length, entrance animations (fade, fly, grow, wipe), auto-advance |
-| Quizzes | Multiple choice, multiple response, true/false, fill-in-the-blank; points, attempts, try-again/correct/incorrect feedback layers, results slide, retry |
-| Player | Menu, prev/next, seekbar, pause, resume where you left off, restricted or free navigation, keyboard-accessible objects |
-| Publish | SCORM 1.2 zip (status, score, suspend data, location), standalone HTML, `.scrim` project file; publish-time checks for broken references and missing alt text |
-| Editor | Undo/redo (200 steps, coalesced drags and typing), autosave, keyboard shortcuts (`?`), light and dark themes, reduced motion |
+| Timeline | Per-object appear/disappear times, drag bars, slide length, entrance and exit animations (fade, fly, grow, wipe), cue-point triggers, auto-advance |
+| Quizzes | Multiple choice, multiple response, true/false, fill-in-the-blank, drag and drop; points, attempts, try-again/correct/incorrect feedback layers, shuffled answers, question banks (shuffle and draw per scene), results slide, retry |
+| Player | Menu, prev/next, seekbar, pause, resume where you left off, restricted or free navigation, accent colour (with an AA contrast check), keyboard-accessible objects |
+| Publish | SCORM 1.2 and SCORM 2004 3rd Edition zips (status, success, score, location, suspend data, session time), standalone HTML, `.scrim` project file; publish-time checks for broken references and missing alt text |
+| Editor | Undo/redo (200 steps, coalesced drags and typing), autosave, find and replace, translation export/import (CSV), keyboard shortcuts (`?`), light and dark themes, reduced motion |
 
 See [ROADMAP.md](ROADMAP.md) for the full Storyline parity checklist and what is next.
 

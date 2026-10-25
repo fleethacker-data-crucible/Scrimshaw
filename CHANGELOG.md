@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0 (2026-10-25)
+
+- Drag and drop: draggable objects, drop targets, keyboard support, `drop` trigger event, graded question type.
+- Question banks per scene (shuffle and/or draw N, redrawn on retry) and shuffled answers.
+- SCORM 2004 3rd Edition publishing; session time reported for 1.2 and 2004.
+- Audio objects, media looping, exit animations.
+- Sliders bound to number variables.
+- Find and replace; translation export/import as CSV.
+- Player accent colour with an AA contrast check.
+- Objects list in the inspector for keyboard selection.
+
 ## 0.1.0 (2026-10-25)
 
 First version.
