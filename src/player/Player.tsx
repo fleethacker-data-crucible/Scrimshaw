@@ -215,7 +215,7 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
         {course.player.showMenu && (
           <IconButton label={menuOpen ? 'Hide menu' : 'Show menu'} aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)}><MenuIcon /></IconButton>
         )}
-        {showTitle && <h1 className="flex-1 text-[15px] truncate">{course.title}</h1>}
+        {showTitle && <h1 className="flex-1 min-w-0 text-[15px] truncate">{course.title}</h1>}
         {!showTitle && <span className="flex-1" />}
         {r.hasQuiz && <span className="badge blue" title="Questions answered">{r.answered}/{slides.filter((s) => s.question?.graded).length} answered</span>}
         {course.player.resources.length > 0 && (
@@ -305,7 +305,7 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
             <input className="seek" type="range" min={0} max={slide.duration} step={0.05} value={time} aria-label="Slide timeline"
               aria-valuetext={`${time.toFixed(1)} of ${slide.duration} seconds`} onChange={(e) => seek(Number(e.target.value))} />
           ) : <span className="flex-1" />}
-          <span className="text-[12px] muted tabular-nums" aria-label={index >= 0 ? `Slide ${index + 1} of ${slides.length}` : 'Extra slide'}>{index >= 0 ? `${index + 1} / ${slides.length}` : '–'}</span>
+          <span className="count text-[12px] muted tabular-nums" aria-label={index >= 0 ? `Slide ${index + 1} of ${slides.length}` : 'Extra slide'}>{index >= 0 ? `${index + 1} / ${slides.length}` : '–'}</span>
           <Button onClick={() => apply((s) => E.navigate(course, s, 'next'))} disabled={!E.canGoNext(course, state)}>Next<ChevronRight /></Button>
         </div>
       )}
