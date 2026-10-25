@@ -49,6 +49,7 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
   const [scale, setScale] = useState(1);
 
   const slide = findSlide(course, state.slideId)!;
+  const underneath = state.lightboxFrom ? findSlide(course, state.lightboxFrom) ?? null : null;
   const slides = E.playSlides(course, state);
   const inPlay = new Set(slides.map((s) => s.id));
   const index = slides.findIndex((s) => s.id === state.slideId);
@@ -252,6 +253,14 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
         ) : <div />}
         <main className="player-stage" ref={stage}>
           <div style={{ width: course.size.w * scale, height: course.size.h * scale, position: 'relative' }}>
+            {underneath && (
+              <div aria-hidden="true" inert style={{ position: 'absolute', inset: 0 }}>
+                <SlideView course={course} slide={underneath} mode="thumb" layerIds={[]} style={{ transform: `scale(${scale})`, position: 'absolute', left: 0, top: 0 }} />
+                <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.55)' }} />
+              </div>
+            )}
+            <div role={underneath ? 'dialog' : undefined} aria-modal={underneath ? true : undefined} aria-label={underneath ? slide.title : undefined}
+              style={underneath ? { position: 'absolute', inset: 0, transform: 'scale(.86)', transformOrigin: 'center', boxShadow: '0 20px 60px rgba(0,0,0,.5)', borderRadius: 6, overflow: 'hidden' } : { position: 'absolute', inset: 0 }}>
             <SlideView key={state.entry} course={course} slide={slide} mode="play" layerIds={state.layers} state={state} times={times}
               style={{ transform: `scale(${scale})`, position: 'absolute', left: 0, top: 0 }}
               onClick={(id) => apply((s) => E.click(course, s, id))}
@@ -259,6 +268,10 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
               onInput={(id, text) => apply((s) => E.input(course, s, id, text))}
               onDrop={(id, target) => apply((s) => E.drop(course, s, id, target))}
               mediaRef={(id, el) => { if (el) media.current.set(id, el); else media.current.delete(id); }} />
+            {underneath && (
+              <IconButton label="Close lightbox" variant="default" className="absolute top-2 right-2 z-10" onClick={() => apply((s) => E.perform(course, s, { type: 'close-lightbox' }))}><X /></IconButton>
+            )}
+            </div>
           </div>
           <h2 className="sr-only" aria-live="polite">{slide.title}</h2>
           {notice && <div className="player-notice notice warn" role="alert" style={{ background: 'var(--panel)' }}><b>!</b>{notice}</div>}

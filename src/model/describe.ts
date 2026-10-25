@@ -20,6 +20,8 @@ export const ACTION_LABELS: Record<Action['type'], string> = {
   'next-slide': 'Jump to next slide',
   'prev-slide': 'Jump to previous slide',
   'jump-scene': 'Jump to scene',
+  'lightbox-slide': 'Open slide as a lightbox',
+  'close-lightbox': 'Close lightbox',
   'show-layer': 'Show layer',
   'hide-layer': 'Hide layer',
   'set-state': 'Change state of',
@@ -59,6 +61,7 @@ export function describeAction(course: Course, slide: Slide, a: Action, self: Sl
   switch (a.type) {
     case 'jump-slide': return `Jump to ${slides.find((s) => s.id === a.slideId)?.title ?? 'missing slide'}`;
     case 'jump-scene': return `Jump to scene ${course.scenes.find((s) => s.id === a.sceneId)?.name ?? 'missing scene'}`;
+    case 'lightbox-slide': return `Open ${slides.find((s) => s.id === a.slideId)?.title ?? 'missing slide'} as a lightbox`;
     case 'show-layer': return `Show layer ${findLayer(slide, a.layerId)?.name ?? 'missing layer'}`;
     case 'hide-layer': return a.layerId === 'this' ? 'Hide this layer' : `Hide layer ${findLayer(slide, a.layerId)?.name ?? 'missing layer'}`;
     case 'set-state': return `Change state of ${objName(slide, a.objectId, self)} to ${a.state}`;
@@ -119,7 +122,7 @@ export function validateCourse(course: Course): string[] {
     const check = (t: Trigger, where: string) => {
       const a = t.action;
       const missing = (what: string) => problems.push(`${sl.title} › ${where}: the trigger "${ACTION_LABELS[a.type]}" points at a ${what} that no longer exists.`);
-      if (a.type === 'jump-slide' && !allSlides(course).some((s) => s.id === a.slideId)) missing('slide');
+      if ((a.type === 'jump-slide' || a.type === 'lightbox-slide') && !allSlides(course).some((s) => s.id === a.slideId)) missing('slide');
       if (a.type === 'jump-scene' && !course.scenes.some((s) => s.id === a.sceneId)) missing('scene');
       if ((a.type === 'show-layer' || (a.type === 'hide-layer' && a.layerId !== 'this')) && !findLayer(sl, a.layerId)) missing('layer');
       if ((a.type === 'set-state' || a.type === 'play-media' || a.type === 'pause-media') && a.objectId !== 'this' && !findObject(sl, a.objectId)) missing('object');

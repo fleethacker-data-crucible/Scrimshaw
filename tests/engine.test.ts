@@ -369,3 +369,32 @@ test('hotspot and numeric questions', () => {
   s = E.click(c, s, submit(nu));
   assert.equal(s.answers[nu.id].correct, true, 'decimal comma accepted');
 });
+
+test('lightbox slides open over the current slide and close back to it', () => {
+  const c = newCourse('L');
+  const a = c.scenes[0].slides[0];
+  const b = newSlide('Box');
+  const z = newSlide('Z');
+  c.scenes[0].slides.push(z, b);
+  const open = newObject('button');
+  open.states.push({ id: 'v', name: 'Visited', style: {}, text: null });
+  open.triggers.push(newTrigger({ type: 'click' }, { type: 'lightbox-slide', slideId: b.id }));
+  a.layers[0].objects.push(open);
+  const close = newObject('button');
+  close.triggers.push(newTrigger({ type: 'click' }, { type: 'close-lightbox' }));
+  b.layers[0].objects.push(close);
+  let s = E.start(c);
+  s = E.click(c, s, open.id);
+  assert.equal(s.slideId, b.id);
+  assert.equal(s.lightboxFrom, a.id);
+  s = E.click(c, s, close.id);
+  assert.equal(s.slideId, a.id);
+  assert.equal(s.lightboxFrom, null);
+  assert.equal(E.stateOf(s, open), 'Visited', 'the slide underneath keeps its state');
+  s = E.click(c, s, open.id);
+  s = E.navigate(c, s, 'next');
+  assert.equal(s.slideId, a.id, 'Next from a lightbox closes it');
+  s = E.click(c, s, open.id);
+  s = E.navigate(c, s, z.id);
+  assert.equal(s.lightboxFrom, null, 'menu navigation leaves the lightbox');
+});

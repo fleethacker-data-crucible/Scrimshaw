@@ -64,6 +64,7 @@ export function slideLinks(course: Course, slide: Slide): { to: ID; label: strin
     const a = trigger.action;
     const from = object ? object.name : 'Slide';
     if (a.type === 'jump-slide') links.push({ to: a.slideId, label: from });
+    else if (a.type === 'lightbox-slide') links.push({ to: a.slideId, label: `${from} (lightbox)` });
     else if (a.type === 'next-slide' && slides[i + 1]) links.push({ to: slides[i + 1].id, label: from });
     else if (a.type === 'prev-slide' && slides[i - 1]) links.push({ to: slides[i - 1].id, label: from });
     else if (a.type === 'jump-scene') {
