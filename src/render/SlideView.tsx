@@ -1,6 +1,6 @@
 // Renders one slide at its native size. The same component draws the editor canvas, thumbnails
 // and the player, so authoring and playback cannot drift apart.
-import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
+import { memo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
 import { interpolate, stateOf, type PlayerState } from '../engine/runtime.ts';
 import type { Course, ID, Layer, Slide, SlideObject, Style } from '../model/types.ts';
 import { RichText } from './inline.tsx';
@@ -411,8 +411,15 @@ export function SlideView(p: SlideViewProps) {
   );
 }
 
-/** A slide drawn at a fixed width (thumbnails, story view). */
-export function SlideThumb({ course, slide, width }: { course: Course; slide: Slide; width: number }) {
+/** A slide drawn at a fixed width (thumbnails, story view). Re-renders only when that slide's
+ *  content, the media it can use, or the slide size changes: every edit clones the course, so
+ *  identity alone would redraw every thumbnail on every keystroke. */
+export const SlideThumb = memo(SlideThumbInner, (a, b) =>
+  a.width === b.width && a.course.assets === b.course.assets &&
+  a.course.size.w === b.course.size.w && a.course.size.h === b.course.size.h &&
+  (a.slide === b.slide || JSON.stringify(a.slide) === JSON.stringify(b.slide)));
+
+function SlideThumbInner({ course, slide, width }: { course: Course; slide: Slide; width: number }) {
   const scale = width / course.size.w;
   return (
     <div style={{ width, height: course.size.h * scale, overflow: 'hidden', position: 'relative' }} aria-hidden="true">
