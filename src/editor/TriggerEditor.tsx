@@ -12,7 +12,7 @@ export type TriggerOwner = { kind: 'slide' } | { kind: 'layer'; layerId: ID } | 
 const ACTION_GROUPS: { label: string; types: Action['type'][] }[] = [
   { label: 'Common', types: ['set-state', 'show-layer', 'hide-layer', 'next-slide', 'prev-slide', 'jump-slide', 'adjust-variable'] },
   { label: 'Navigation', types: ['jump-scene', 'lightbox-slide', 'close-lightbox', 'restart-course', 'exit-course'] },
-  { label: 'Media and timeline', types: ['play-media', 'pause-media', 'pause-timeline', 'resume-timeline'] },
+  { label: 'Media and motion', types: ['play-motion', 'reverse-motion', 'play-media', 'pause-media', 'pause-timeline', 'resume-timeline'] },
   { label: 'Quiz', types: ['submit-interaction', 'reset-results'] },
   { label: 'More', types: ['open-url'] },
 ];
@@ -29,6 +29,7 @@ function defaultAction(type: Action['type'], course: Course, slide: Slide, owner
     case 'set-state': return { type, objectId: owner ? 'this' : (objs[0]?.id ?? ''), state: 'Normal' };
     case 'adjust-variable': return { type, variableId: course.variables[0]?.id ?? '', op: 'set', value: '' };
     case 'open-url': return { type, url: 'https://' };
+    case 'play-motion': case 'reverse-motion': return { type, objectId: owner?.motion ? 'this' : (objs.find((o) => o.motion)?.id ?? 'this') };
     case 'play-media': case 'pause-media': return { type, objectId: objs.find((o) => o.kind === 'video' || o.kind === 'audio')?.id ?? '' };
     default: return { type } as Action;
   }
@@ -148,6 +149,9 @@ export function TriggerEditor({ course, slide, owner, trigger, onSave, onClose }
                 </select>
               </Field>
             </>
+          )}
+          {(a.type === 'play-motion' || a.type === 'reverse-motion') && (
+            <Field label="Object" hint="Only objects with a motion path in their Timing tab move.">{objectSelect(a.objectId, (id) => setAction({ ...a, objectId: id }), (o) => !!o.motion)}</Field>
           )}
           {(a.type === 'play-media' || a.type === 'pause-media') && (
             <Field label="Media">{objectSelect(a.objectId, (id) => setAction({ ...a, objectId: id }), (o) => o.kind === 'video' || o.kind === 'audio', false)}</Field>

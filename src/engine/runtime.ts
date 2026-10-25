@@ -40,6 +40,8 @@ export interface PlayerState {
   inputs: Record<ID, string>;
   /** Drag and drop on the current slide: draggable object id → drop target id it sits on. */
   drops: Record<ID, ID>;
+  /** Motion paths on the current slide that have been played forward by a trigger (true) or reversed (false). */
+  motion: Record<ID, boolean>;
   /** Positions overridden at runtime on the current slide (shuffled answers). */
   positions: Record<ID, { x: number; y: number }>;
   visited: Record<ID, true>;
@@ -244,7 +246,7 @@ function clone(s: PlayerState): PlayerState {
   return {
     ...s,
     layers: [...s.layers], vars: { ...s.vars }, states: { ...s.states }, inputs: { ...s.inputs },
-    drops: { ...s.drops }, positions: { ...s.positions },
+    drops: { ...s.drops }, positions: { ...s.positions }, motion: { ...s.motion },
     visited: { ...s.visited }, visitedSlides: { ...s.visitedSlides }, saved: { ...s.saved },
     answers: { ...s.answers }, attempts: { ...s.attempts }, history: [...s.history], effects: [...s.effects],
   };
@@ -352,11 +354,13 @@ function enter(ctx: Ctx, slideId: ID, opts: { pushHistory: boolean }) {
     s.states = { ...restored.states };
     s.inputs = { ...restored.inputs };
     s.drops = { ...(restored.drops ?? {}) };
+    s.motion = {};
     s.positions = { ...(restored.positions ?? {}) };
   } else {
     s.states = {};
     s.inputs = {};
     s.drops = {};
+    s.motion = {};
     s.positions = target.question?.shuffle ? shuffledPositions(target) : {};
     for (const o of slideObjects(target)) if (o.initiallyHidden) s.states[o.id] = 'Hidden';
   }
@@ -542,6 +546,11 @@ function run(ctx: Ctx, a: Action, where: { layerId: ID | null; self: SlideObject
       break;
     }
     case 'open-url': if (/^(https?:|mailto:)/i.test(a.url.trim())) ctx.s.effects.push({ type: 'open-url', url: a.url.trim() }); break;
+    case 'play-motion': case 'reverse-motion': {
+      const obj = a.objectId === 'this' ? where.self : findObject(slide, a.objectId);
+      if (obj?.motion) ctx.s.motion[obj.id] = a.type === 'play-motion';
+      break;
+    }
     case 'play-media': ctx.s.effects.push({ type: 'media', objectId: a.objectId, op: 'play' }); break;
     case 'pause-media': ctx.s.effects.push({ type: 'media', objectId: a.objectId, op: 'pause' }); break;
     case 'pause-timeline': ctx.s.effects.push({ type: 'timeline', op: 'pause' }); break;
@@ -562,7 +571,7 @@ export function start(course: Course, resume?: Partial<Pick<PlayerState, 'slideI
   const first = startSlide(course);
   if (!first) throw new Error('The course has no slides.');
   const s: PlayerState = {
-    slideId: first.id, layers: [], vars: initialVars(course), states: {}, inputs: {}, drops: {}, positions: {}, visited: {}, visitedSlides: {},
+    slideId: first.id, layers: [], vars: initialVars(course), states: {}, inputs: {}, drops: {}, positions: {}, motion: {}, visited: {}, visitedSlides: {},
     saved: {}, answers: {}, attempts: {}, history: [], sequence: [], lightboxFrom: null, completed: false, entry: 0, effects: [],
   };
   const all = new Set(allSlides(course).map((x) => x.id));

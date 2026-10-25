@@ -29,6 +29,8 @@ export const ACTION_LABELS: Record<Action['type'], string> = {
   'submit-interaction': 'Submit interaction',
   'reset-results': 'Reset results (retry quiz)',
   'open-url': 'Open URL',
+  'play-motion': 'Move along motion path',
+  'reverse-motion': 'Move back along motion path',
   'play-media': 'Play media',
   'pause-media': 'Pause media',
   'pause-timeline': 'Pause timeline',
@@ -80,6 +82,8 @@ export function describeAction(course: Course, slide: Slide, a: Action, self: Sl
     }
     case 'open-url': return `Open ${a.url || 'URL'}`;
     case 'play-media': return `Play ${objName(slide, a.objectId, self)}`;
+    case 'play-motion': return `Move ${objName(slide, a.objectId, self)} along its motion path`;
+    case 'reverse-motion': return `Move ${objName(slide, a.objectId, self)} back along its motion path`;
     case 'pause-media': return `Pause ${objName(slide, a.objectId, self)}`;
     default: return ACTION_LABELS[a.type];
   }
