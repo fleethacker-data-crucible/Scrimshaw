@@ -139,7 +139,7 @@ function DesignTab() {
         <Section title={o.kind === 'input' ? 'Placeholder' : 'Text'}>
           <textarea aria-label="Text" className="!font-sans !text-[13px]" rows={3} value={o.text}
             onChange={(e) => set('Edit text', (x) => { x.text = e.target.value; }, `text-${o.id}`)} />
-          <p className="hint">Insert a variable with %Name%, for example %Results.ScorePercent%.</p>
+          <p className="hint">Insert a variable with %Name%, for example %Results.ScorePercent%. Format with **bold**, *italic*, __underline__, [link](https://…), and “- ” for bullets.</p>
         </Section>
       )}
 
