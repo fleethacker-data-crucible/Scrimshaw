@@ -38,10 +38,14 @@ export interface PlayerState {
   states: Record<ID, string>;
   /** Text typed into input objects on the current slide. */
   inputs: Record<ID, string>;
+  /** Drag and drop on the current slide: draggable object id → drop target id it sits on. */
+  drops: Record<ID, ID>;
+  /** Positions overridden at runtime on the current slide (shuffled answers). */
+  positions: Record<ID, { x: number; y: number }>;
   visited: Record<ID, true>;
   visitedSlides: Record<ID, true>;
   /** Object states saved per slide when the learner leaves it. */
-  saved: Record<ID, { states: Record<ID, string>; inputs: Record<ID, string> }>;
+  saved: Record<ID, { states: Record<ID, string>; inputs: Record<ID, string>; drops: Record<ID, ID>; positions: Record<ID, { x: number; y: number }> }>;
   answers: Record<ID, Answer>;
   attempts: Record<ID, number>;
   history: ID[];
@@ -200,6 +204,7 @@ function clone(s: PlayerState): PlayerState {
   return {
     ...s,
     layers: [...s.layers], vars: { ...s.vars }, states: { ...s.states }, inputs: { ...s.inputs },
+    drops: { ...s.drops }, positions: { ...s.positions },
     visited: { ...s.visited }, visitedSlides: { ...s.visitedSlides }, saved: { ...s.saved },
     answers: { ...s.answers }, attempts: { ...s.attempts }, history: [...s.history], effects: [...s.effects],
   };
@@ -212,6 +217,7 @@ function eventMatches(a: TriggerEvent, b: TriggerEvent): boolean {
     case 'key': return a.key.toLowerCase() === (b as typeof a).key.toLowerCase();
     case 'state-change': return a.objectId === (b as typeof a).objectId && a.state === (b as typeof a).state;
     case 'timeline-reaches': return Math.abs(a.time - (b as typeof a).time) < 1e-6;
+    case 'drop': return a.targetId === 'any' || a.targetId === (b as typeof a).targetId;
     default: return true;
   }
 }
@@ -294,7 +300,7 @@ function enter(ctx: Ctx, slideId: ID, opts: { pushHistory: boolean }) {
   if (!target) return;
   const s = ctx.s;
   // Save the slide being left.
-  if (s.slideId) s.saved[s.slideId] = { states: { ...s.states }, inputs: { ...s.inputs } };
+  if (s.slideId) s.saved[s.slideId] = { states: { ...s.states }, inputs: { ...s.inputs }, drops: { ...s.drops }, positions: { ...s.positions } };
   if (opts.pushHistory && s.slideId && s.slideId !== slideId) s.history.push(s.slideId);
   s.slideId = slideId;
   s.layers = [];
@@ -303,9 +309,13 @@ function enter(ctx: Ctx, slideId: ID, opts: { pushHistory: boolean }) {
   if (restored && ctx.course.player.resume) {
     s.states = { ...restored.states };
     s.inputs = { ...restored.inputs };
+    s.drops = { ...(restored.drops ?? {}) };
+    s.positions = { ...(restored.positions ?? {}) };
   } else {
     s.states = {};
     s.inputs = {};
+    s.drops = {};
+    s.positions = target.question?.shuffle ? shuffledPositions(target) : {};
     for (const o of slideObjects(target)) if (o.initiallyHidden) s.states[o.id] = 'Hidden';
   }
   s.visitedSlides[slideId] = true;
@@ -315,6 +325,19 @@ function enter(ctx: Ctx, slideId: ID, opts: { pushHistory: boolean }) {
   // A fresh context so the new slide's timeline-start triggers run.
   const inner: Ctx = { course: ctx.course, s, depth: ctx.depth, navigated: false };
   fire(inner, { type: 'timeline-start' }, { slideLevel: true, layerId: target.layers[0].id });
+}
+
+/** Shuffles choice objects among their own positions (Fisher-Yates on the slots). */
+export function shuffledPositions(slide: Slide, random: () => number = Math.random): Record<ID, { x: number; y: number }> {
+  const choices = slideObjects(slide).filter((o) => o.kind === 'choice' || (slide.question?.kind === 'drag-drop' && o.draggable));
+  const slots = choices.map((o) => ({ x: o.x, y: o.y }));
+  for (let i = slots.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [slots[i], slots[j]] = [slots[j], slots[i]];
+  }
+  const out: Record<ID, { x: number; y: number }> = {};
+  choices.forEach((o, i) => { if (slots[i].x !== o.x || slots[i].y !== o.y) out[o.id] = slots[i]; });
+  return out;
 }
 
 function checkCompletion(ctx: Ctx) {
@@ -350,6 +373,13 @@ function submit(ctx: Ctx) {
     if (!response && input?.variableId) response = formatValue(ctx.s.vars[input.variableId]);
     if (response.trim() === '') { ctx.s.effects.push({ type: 'notice', message: 'Type an answer before you submit.' }); return; }
     correct = q.accepted.some((a) => lower(a) === lower(response));
+  } else if (q.kind === 'drag-drop') {
+    const items = slideObjects(slide).filter((o) => o.draggable && o.correctTargetId);
+    const placed = items.filter((o) => ctx.s.drops[o.id]);
+    if (placed.length === 0) { ctx.s.effects.push({ type: 'notice', message: 'Drag at least one item before you submit.' }); return; }
+    const name = (id: ID) => findObject(slide, id)?.name ?? '?';
+    response = placed.map((o) => `${o.name} → ${name(ctx.s.drops[o.id])}`).join('; ');
+    correct = items.every((o) => ctx.s.drops[o.id] === o.correctTargetId);
   } else {
     const choices = slideObjects(slide).filter((o) => o.kind === 'choice');
     const selected = choices.filter((o) => stateOf(ctx.s, o) === 'Selected');
@@ -362,7 +392,7 @@ function submit(ctx: Ctx) {
   const outOfAttempts = q.attempts > 0 && attempt >= q.attempts;
   const final = correct || outOfAttempts;
   ctx.s.answers[slide.id] = { correct, points: correct ? q.points : 0, max: q.points, response, graded: q.graded, final };
-  if (final) for (const o of slideObjects(slide)) if (o.kind === 'choice' || o.kind === 'input') {
+  if (final) for (const o of slideObjects(slide)) if (o.kind === 'choice' || o.kind === 'input' || o.draggable) {
     if (stateOf(ctx.s, o) !== 'Selected') setObjectState(ctx, o, 'Disabled');
   }
   feedback(correct, !final);
@@ -457,7 +487,7 @@ export function start(course: Course, resume?: Partial<Pick<PlayerState, 'slideI
   const first = startSlide(course);
   if (!first) throw new Error('The course has no slides.');
   const s: PlayerState = {
-    slideId: first.id, layers: [], vars: initialVars(course), states: {}, inputs: {}, visited: {}, visitedSlides: {},
+    slideId: first.id, layers: [], vars: initialVars(course), states: {}, inputs: {}, drops: {}, positions: {}, visited: {}, visitedSlides: {},
     saved: {}, answers: {}, attempts: {}, history: [], completed: false, entry: 0, effects: [],
   };
   if (resume) {
@@ -514,6 +544,26 @@ export function input(course: Course, state: PlayerState, objectId: ID, text: st
   if (!obj) return state;
   s.inputs[objectId] = text;
   if (obj.variableId) setVar(ctx, obj.variableId, text);
+  return s;
+}
+
+/** Learner dropped a draggable object on a drop target (or outside any: null returns it to its start). */
+export function drop(course: Course, state: PlayerState, objectId: ID, targetId: ID | null): PlayerState {
+  const s = clone(state);
+  const ctx: Ctx = { course, s, depth: 0, navigated: false };
+  const slide = currentSlide(ctx);
+  const obj = findObject(slide, objectId);
+  if (!obj || !obj.draggable || !isVisible(s, obj) || stateOf(s, obj) === 'Disabled') return state;
+  const target = targetId ? findObject(slide, targetId) : undefined;
+  if (!target || !target.dropTarget || !isVisible(s, target)) {
+    if (!(objectId in s.drops)) return state;
+    delete s.drops[objectId];
+    return s;
+  }
+  // One item per drop target (Storyline's default): an item already there goes back to its start.
+  for (const [other, t] of Object.entries(s.drops)) if (t === target.id && other !== objectId) delete s.drops[other];
+  s.drops[objectId] = target.id;
+  fire(ctx, { type: 'drop', targetId: target.id }, { objectId });
   return s;
 }
 

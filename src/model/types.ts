@@ -149,6 +149,12 @@ export interface SlideObject {
   correct: boolean;
   /** choice: 'radio' = one answer in the group, 'check' = many. */
   choiceMode: 'radio' | 'check';
+  /** Drag and drop: the learner can drag this object onto a drop target. */
+  draggable: boolean;
+  /** Drag and drop: draggable objects snap onto this one when dropped over it. */
+  dropTarget: boolean;
+  /** Drag and drop: the drop target this object belongs on, for grading. */
+  correctTargetId: ID | null;
   /** video */
   autoplay: boolean;
   controls: boolean;
@@ -178,7 +184,8 @@ export type TriggerEvent =
   | { type: 'timeline-reaches'; time: number }
   | { type: 'variable-change'; variableId: ID }
   | { type: 'key'; key: string }
-  | { type: 'state-change'; objectId: ID; state: string };
+  | { type: 'state-change'; objectId: ID; state: string }
+  | { type: 'drop'; targetId: ID | 'any' };
 
 export type VariableOp = 'set' | 'add' | 'subtract' | 'multiply' | 'divide' | 'toggle' | 'assign';
 
@@ -224,7 +231,7 @@ export interface Variable {
   initial: Value;
 }
 
-export type QuestionKind = 'multiple-choice' | 'multiple-response' | 'true-false' | 'fill-in';
+export type QuestionKind = 'multiple-choice' | 'multiple-response' | 'true-false' | 'fill-in' | 'drag-drop';
 
 export interface Question {
   kind: QuestionKind;
@@ -233,6 +240,8 @@ export interface Question {
   attempts: number;
   /** Graded questions count toward the result; survey questions do not. */
   graded: boolean;
+  /** Shuffle the order of choice objects each time the slide opens (choice questions). */
+  shuffle: boolean;
   /** fill-in: accepted answers, compared case-insensitively after trimming. */
   accepted: string[];
   /** fill-in: the input object holding the learner's answer. */

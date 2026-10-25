@@ -112,8 +112,34 @@ try {
   await page.getByRole('radio', { name: 'False' }).click();
   await page.getByRole('button', { name: 'Submit' }).click();
   await page.locator('.player-stage').getByRole('button', { name: 'Continue' }).click();
-  await page.getByText(/You scored 50%/).waitFor();
-  await page.getByText('You did not pass this time.').waitFor();
+  // Drag and drop: Needle with the mouse, Ink with the keyboard, Tooth onto the wrong job.
+  const stage = page.locator('.player-stage');
+  await stage.getByText('Drag each tool onto its job.').waitFor();
+  const dragTo = async (item, target) => {
+    const a = await stage.getByRole('button', { name: new RegExp(`^${item}\\.`) }).boundingBox();
+    const b = await stage.getByText(target, { exact: true }).boundingBox();
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 8 });
+    await page.mouse.up();
+  };
+  await dragTo('Needle', 'Carves the design');
+  await page.getByRole('button', { name: /^Needle, on Carves the design/ }).waitFor();
+  ok('drag and drop with the mouse snaps onto the target');
+  await page.getByRole('button', { name: /^Ink\./ }).focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: 'Drop Ink on Darkens the lines' }).focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: /^Ink, on Darkens the lines/ }).waitFor();
+  ok('drag and drop with the keyboard');
+  await dragTo('Tooth', 'Carves the design');
+  await page.screenshot({ path: path.join(out, '07b-drag-drop.png') });
+  await page.getByRole('button', { name: 'Submit' }).click();
+  await stage.getByText("That's not quite right.").waitFor();
+  ok('drag-and-drop question graded wrong when one item is misplaced');
+  await page.locator('.player-stage').getByRole('button', { name: 'Continue' }).click();
+  await stage.getByText(/You scored 33%/).waitFor();
+  await page.locator('.player-stage').getByText('You did not pass this time.').waitFor();
   ok('preview: results slide shows score and the failed layer');
   await page.screenshot({ path: path.join(out, '08-preview-results.png') });
   await page.getByRole('button', { name: 'Close preview' }).click();

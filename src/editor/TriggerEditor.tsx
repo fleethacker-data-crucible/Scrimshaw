@@ -35,7 +35,7 @@ function defaultAction(type: Action['type'], course: Course, slide: Slide, owner
 
 function eventChoices(owner: TriggerOwner): TriggerEvent['type'][] {
   return owner.kind === 'object'
-    ? ['click', 'hover-enter', 'hover-leave', 'variable-change', 'state-change']
+    ? ['click', 'hover-enter', 'hover-leave', 'drop', 'variable-change', 'state-change']
     : ['timeline-start', 'timeline-end', 'timeline-reaches', 'variable-change', 'key', 'state-change'];
 }
 
@@ -44,6 +44,7 @@ function defaultEvent(type: TriggerEvent['type'], course: Course, slide: Slide):
     case 'variable-change': return { type, variableId: course.variables[0]?.id ?? '' };
     case 'key': return { type, key: 'Enter' };
     case 'timeline-reaches': return { type, time: 1 };
+    case 'drop': return { type, targetId: 'any' };
     case 'state-change': return { type, objectId: slideObjects(slide)[0]?.id ?? '', state: 'Selected' };
     default: return { type } as TriggerEvent;
   }
@@ -182,6 +183,14 @@ export function TriggerEditor({ course, slide, owner, trigger, onSave, onClose }
             </>
           )}
           {(e.type === 'click' || e.type === 'hover-enter' || e.type === 'hover-leave') && <p className="muted text-[12px] mt-6">Object: {self?.name}</p>}
+          {e.type === 'drop' && (
+            <Field label="Drop target" hint={self?.draggable ? undefined : 'Turn on “Learner can drag this” in the Design tab.'}>
+              <select value={e.targetId} onChange={(ev) => setEvent({ ...e, targetId: ev.target.value })}>
+                <option value="any">Any drop target</option>
+                {objs.filter((o) => o.dropTarget).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            </Field>
+          )}
         </div>
       </div>
 

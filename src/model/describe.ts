@@ -12,6 +12,7 @@ export const EVENT_LABELS: Record<TriggerEvent['type'], string> = {
   'variable-change': 'Variable changes',
   key: 'User presses a key',
   'state-change': 'State of an object changes',
+  drop: 'User drops this object on',
 };
 
 export const ACTION_LABELS: Record<Action['type'], string> = {
@@ -92,6 +93,7 @@ export function describeEvent(course: Course, slide: Slide, e: TriggerEvent, own
     case 'variable-change': return `${varName(course, e.variableId)} changes`;
     case 'key': return `user presses ${e.key}`;
     case 'state-change': return `${objName(slide, e.objectId, owner)} changes to ${e.state}`;
+    case 'drop': return `user drops ${owner?.name ?? 'object'} on ${e.targetId === 'any' ? 'any drop target' : objName(slide, e.targetId, owner)}`;
   }
 }
 
@@ -130,9 +132,10 @@ export function validateCourse(course: Course): string[] {
       for (const o of l.objects) for (const t of o.triggers) check(t, o.name);
     }
     const q = sl.question;
-    if (q && q.kind !== 'fill-in' && !sl.layers.some((l) => l.objects.some((o) => o.kind === 'choice' && o.correct))) problems.push(`${sl.title}: the question has no correct answer marked.`);
+    if (q && q.kind !== 'fill-in' && q.kind !== 'drag-drop' && !sl.layers.some((l) => l.objects.some((o) => o.kind === 'choice' && o.correct))) problems.push(`${sl.title}: the question has no correct answer marked.`);
     if (q && q.kind === 'fill-in' && q.accepted.filter((a) => a.trim()).length === 0) problems.push(`${sl.title}: the fill-in question has no accepted answers.`);
     if (q && q.kind === 'fill-in' && !(q.inputObjectId && findObject(sl, q.inputObjectId))) problems.push(`${sl.title}: the fill-in question has no text entry box linked.`);
+    if (q && q.kind === 'drag-drop' && !sl.layers.some((l) => l.objects.some((o) => o.draggable && o.correctTargetId && findObject(sl, o.correctTargetId)?.dropTarget))) problems.push(`${sl.title}: the drag-and-drop question has no item with a correct drop target.`);
     for (const l of sl.layers) for (const o of l.objects) {
       if (o.kind === 'image' && !o.decorative && !o.alt.trim()) problems.push(`${sl.title} › ${o.name}: add alt text or mark the image decorative.`);
     }

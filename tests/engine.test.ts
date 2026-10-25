@@ -139,7 +139,7 @@ test('interpolation of user and built-in variables', () => {
   const input = slideObjects(allSlides(c)[0]).find((o) => o.kind === 'input')!;
   s = E.input(c, s, input.id, 'Ada');
   assert.equal(s.vars[name.id], 'Ada');
-  assert.equal(E.interpolate('Hi %learnername%, slide %Project.SlideNumber% of %Project.TotalSlides%. %Unknown%', c, s), 'Hi Ada, slide 1 of 5. %Unknown%');
+  assert.equal(E.interpolate('Hi %learnername%, slide %Project.SlideNumber% of %Project.TotalSlides%. %Unknown%', c, s), 'Hi Ada, slide 1 of 6. %Unknown%');
 });
 
 test('multiple choice: grading, try-again, attempts, and results', () => {
@@ -268,4 +268,49 @@ test('suspend and resume round-trip', () => {
   assert.equal(r.vars[name.id], 'Grace');
   assert.ok(findSlide(c, r.slideId));
   assert.equal(E.resumeFrom(c, 'not json'), null);
+});
+
+test('drag and drop: drops, drop triggers, returning, and grading', () => {
+  const c = newCourse('DnD');
+  const q = newQuestionSlide('drag-drop');
+  c.scenes[0].slides = [q];
+  const items = slideObjects(q).filter((o) => o.draggable);
+  const targets = slideObjects(q).filter((o) => o.dropTarget);
+  const v = newVariable('Drops', 'number', 0);
+  c.variables.push(v);
+  items[0].triggers.push(newTrigger({ type: 'drop', targetId: targets[0].id }, { type: 'adjust-variable', variableId: v.id, op: 'add', value: 1 }));
+  const submitBtn = slideObjects(q).find((o) => o.name === 'Submit')!;
+  let s = E.start(c);
+  s = E.click(c, s, submitBtn.id);
+  assert.ok(E.takeEffects(s)[1].some((f) => f.type === 'notice'), 'nothing dropped yet');
+  s = E.drop(c, s, items[0].id, targets[1].id);
+  assert.equal(s.drops[items[0].id], targets[1].id);
+  assert.equal(s.vars[v.id], 0, 'trigger only fires for its target');
+  s = E.drop(c, s, items[0].id, null);
+  assert.equal(s.drops[items[0].id], undefined, 'dropping outside returns the item');
+  assert.equal(E.drop(c, s, items[0].id, items[1].id), s, 'a non-target is not a drop target');
+  s = E.drop(c, s, items[1].id, targets[0].id);
+  s = E.drop(c, s, items[2].id, targets[0].id);
+  assert.equal(s.drops[items[1].id], undefined, 'one item per target: the earlier one goes back');
+  items.forEach((it, i) => { s = E.drop(c, s, it.id, targets[i].id); });
+  assert.equal(s.vars[v.id], 1);
+  s = E.click(c, s, submitBtn.id);
+  assert.equal(s.answers[q.id].correct, true);
+  assert.equal(E.stateOf(s, items[0]), 'Disabled', 'items lock after a final answer');
+  assert.equal(E.drop(c, s, items[0].id, targets[2].id), s);
+});
+
+test('shuffle permutes answer positions within their own slots', () => {
+  const q = newQuestionSlide('multiple-choice');
+  q.question!.shuffle = true;
+  const choices = slideObjects(q).filter((o) => o.kind === 'choice');
+  const pos = E.shuffledPositions(q, () => 0);
+  const final = choices.map((o) => pos[o.id] ?? { x: o.x, y: o.y });
+  assert.deepEqual(final.map((p) => p.y).sort((a, b) => a - b), choices.map((o) => o.y).sort((a, b) => a - b));
+  assert.ok(Object.keys(pos).length > 0, 'something moved');
+  const c = newCourse('S');
+  c.scenes[0].slides = [q];
+  const s = E.start(c);
+  const ys = choices.map((o) => (s.positions[o.id] ?? o).y).sort((a, b) => a - b);
+  assert.deepEqual(ys, choices.map((o) => o.y).sort((a, b) => a - b));
 });

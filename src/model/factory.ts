@@ -65,6 +65,7 @@ export function newObject(kind: ObjectKind, over: Partial<SlideObject> = {}): Sl
     initiallyHidden: false, start: 0, end: null,
     enter: { type: 'none', duration: 0.5 }, exit: { type: 'none', duration: 0.5 },
     states: [], triggers: [], variableId: null, correct: false, choiceMode: 'radio',
+    draggable: false, dropTarget: false, correctTargetId: null,
     autoplay: false, controls: true, locked: false, editorHidden: false,
     ...d,
     ...over,
@@ -149,20 +150,34 @@ function feedbackLayer(name: string, message: string, color: string, action: Act
 export function newQuestionSlide(kind: QuestionKind): Slide {
   const titles: Record<QuestionKind, string> = {
     'multiple-choice': 'Multiple choice', 'multiple-response': 'Multiple response',
-    'true-false': 'True / false', 'fill-in': 'Fill in the blank',
+    'true-false': 'True / false', 'fill-in': 'Fill in the blank', 'drag-drop': 'Drag and drop',
   };
   const slide = newSlide(titles[kind]);
   const base = slide.layers[0];
   base.objects.push(newObject('text', {
     name: 'Question', x: 60, y: 40, w: 840, h: 80,
-    text: kind === 'true-false' ? 'Enter a statement the learner judges true or false.' : kind === 'fill-in' ? 'Enter the question. The learner types the answer.' : 'Enter the question.',
+    text: kind === 'true-false' ? 'Enter a statement the learner judges true or false.'
+      : kind === 'fill-in' ? 'Enter the question. The learner types the answer.'
+      : kind === 'drag-drop' ? 'Drag each item onto where it belongs.' : 'Enter the question.',
     style: baseStyle({ fontSize: 26, fontWeight: 600 }),
   }));
   const q: Question = {
-    kind, points: 10, attempts: 1, graded: true, accepted: [], inputObjectId: null,
+    kind, points: 10, attempts: 1, graded: true, shuffle: false, accepted: [], inputObjectId: null,
     correctLayerId: null, incorrectLayerId: null, tryAgainLayerId: null,
   };
-  if (kind === 'fill-in') {
+  if (kind === 'drag-drop') {
+    ['Item A', 'Item B', 'Item C'].forEach((label, i) => {
+      const target = newObject('shape', {
+        name: `Target ${i + 1}`, x: 400, y: 140 + i * 100, w: 500, h: 80, shape: 'round', text: `Target ${i + 1}`, dropTarget: true,
+        style: baseStyle({ fill: '#f4f4f2', stroke: '#9a988f', strokeWidth: 2, radius: 8, color: '#52514e', align: 'left', valign: 'middle', padding: 14, fontSize: 18 }),
+      });
+      const item = newObject('shape', {
+        name: label, x: 60, y: 150 + i * 100, w: 180, h: 60, shape: 'round', text: label, draggable: true, correctTargetId: target.id,
+        style: baseStyle({ fill: '#2f74c8', color: '#ffffff', radius: 8, fontWeight: 600, align: 'center', valign: 'middle' }),
+      });
+      base.objects.push(target, item);
+    });
+  } else if (kind === 'fill-in') {
     const input = newObject('input', { name: 'Answer entry', x: 60, y: 160, w: 480, h: 52 });
     base.objects.push(input);
     q.inputObjectId = input.id;
@@ -290,8 +305,18 @@ export function sampleCourse(): Course {
   const q2 = newQuestionSlide('true-false');
   q2.title = 'Ink in the lines';
   q2.layers[0].objects[0].text = 'Sailors rubbed soot or ink into the carved lines to make them visible.';
+  const q3 = newQuestionSlide('drag-drop');
+  q3.title = 'Match each tool';
+  q3.layers[0].objects[0].text = 'Drag each tool onto its job.';
+  const jobs = ['Carves the design', 'Darkens the lines', 'The surface it is carved on'];
+  const tools3 = ['Needle', 'Ink', 'Tooth'];
+  const t3 = q3.layers[0].objects.filter((o) => o.dropTarget);
+  const i3 = q3.layers[0].objects.filter((o) => o.draggable);
+  t3.forEach((t, i) => { t.text = jobs[i]; t.name = `Job: ${jobs[i]}`; });
+  i3.forEach((it, i) => { it.text = tools3[i]; it.name = `Tool: ${tools3[i]}`; });
+  q3.question!.shuffle = true;
   const results = newResultsSlide();
-  quizScene.slides.push(q1, q2, results);
+  quizScene.slides.push(q1, q2, q3, results);
   c.scenes[0].slides.push(tools);
   c.scenes.push(quizScene);
   c.quiz.completionSlideId = results.id;

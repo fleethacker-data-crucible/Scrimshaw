@@ -236,6 +236,7 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
               onClick={(id) => apply((s) => E.click(course, s, id))}
               onHover={(id, entering) => apply((s) => E.hover(course, s, id, entering))}
               onInput={(id, text) => apply((s) => E.input(course, s, id, text))}
+              onDrop={(id, target) => apply((s) => E.drop(course, s, id, target))}
               mediaRef={(id, el) => { if (el) media.current.set(id, el); else media.current.delete(id); }} />
           </div>
           <h2 className="sr-only" aria-live="polite">{slide.title}</h2>
