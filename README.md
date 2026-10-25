@@ -39,7 +39,7 @@ backup you can move between machines or share with another author.
 | Publish | SCORM 1.2 and SCORM 2004 3rd Edition zips (status, success, score, location, suspend data, session time), xAPI (Tin Can) and cmi5 zips with State API resume, standalone HTML, printable storyboard, `.scrim` project file; publish-time checks for broken references and missing alt text |
 | Editor | Undo/redo (200 steps, coalesced drags and typing), autosave, find and replace, translation export/import (CSV), keyboard shortcuts (`?`), light and dark themes, reduced motion |
 
-See [ROADMAP.md](ROADMAP.md) for the full feature checklist and what is next.
+New to it? Start with the [author guide](docs/GUIDE.md). See [ROADMAP.md](ROADMAP.md) for the full feature checklist and what is next.
 
 ## Develop
 
