@@ -20,6 +20,7 @@ import { Canvas } from './Canvas.tsx';
 import { EditorProvider, useEditor } from './context.tsx';
 import { CourseDialog, FindReplaceDialog, ProjectsDialog, PublishDialog, ShortcutsDialog, VariablesDialog } from './Dialogs.tsx';
 import { applyTexts, csvToTexts, textsToCsv } from '../model/texts.ts';
+import { buildStoryboard, currentCss } from '../export/storyboard.tsx';
 import { Inspector } from './Inspector.tsx';
 import { LayersPanel } from './LayersPanel.tsx';
 import { Logo } from './Logo.tsx';
@@ -295,6 +296,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
           { label: 'Course settings…', icon: <SettingsIcon />, onSelect: () => setDialog('course') },
           { separator: true, label: '' },
           { label: 'Find and replace…', shortcut: 'Ctrl+H', onSelect: () => setDialog('find') },
+          { label: 'Storyboard for review (printable HTML)', onSelect: () => download(fileName(course.title, 'storyboard.html'), buildStoryboard(course, currentCss(document)), 'text/html') },
           { label: 'Export text for translation (.csv)', onSelect: () => download(fileName(course.title, 'translation.csv'), textsToCsv(course), 'text/csv') },
           { label: 'Import translated text (.csv)…', onSelect: importTranslation },
         ]}>File<ChevronDown size={14} /></Menu>
