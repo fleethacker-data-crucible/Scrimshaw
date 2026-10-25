@@ -73,7 +73,8 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 | Web (standalone HTML) | ✅ | One self-contained file |
 | SCORM 1.2 | ✅ | Status, score, location, suspend data |
 | SCORM 2004 | ✅ | 3rd Edition manifest, completion and success status, scaled score, session time |
-| xAPI (Tin Can), cmi5 | ⬜ | |
+| xAPI (Tin Can) | ✅ | Tin Can launch, initialized/answered/passed/failed/completed/terminated statements, State API resume |
+| cmi5 | ⬜ | |
 | AICC | ⬜ | |
 | Word / PDF handout export | ⬜ | |
 | Video (MP4) export | ⬜ | |
@@ -94,7 +95,7 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 
 ## Suggested order
 
-1. xAPI / cmi5 publishing
+1. cmi5 publishing
 2. Captions (WebVTT) for video and audio
 3. Motion paths
 4. Rich text runs (bold/italic/links per word)

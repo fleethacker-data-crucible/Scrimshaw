@@ -2,7 +2,8 @@
 // the published player.
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { connectLms } from './export/scorm.ts';
+import { connectLms, type Lms } from './export/scorm.ts';
+import { connectXapi } from './export/xapi.ts';
 import { captureShell, embeddedCourseJson } from './export/publish.ts';
 import { normalizeCourse } from './model/schema.ts';
 import { Player } from './player/Player.tsx';
@@ -33,12 +34,15 @@ if (embedded !== null) {
     const course = normalizeCourse(JSON.parse(embedded));
     applyTheme('system', false);
     document.title = course.title;
-    const lms = connectLms(window);
-    root.render(
-      <StrictMode>
-        <UiProvider><Player course={course} lms={lms} /></UiProvider>
-      </StrictMode>,
-    );
+    const transport = (url: string, init: RequestInit) => fetch(url, { ...init, credentials: 'omit' });
+    void connectXapi(course, location.search, transport).catch(() => null).then((x) => {
+      const lms: Lms = x ?? connectLms(window);
+      root.render(
+        <StrictMode>
+          <UiProvider><Player course={course} lms={lms} /></UiProvider>
+        </StrictMode>,
+      );
+    });
   } catch (e) {
     fatal(`This course could not be loaded: ${(e as Error).message}`);
   }

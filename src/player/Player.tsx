@@ -92,6 +92,18 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
     return () => window.removeEventListener('pagehide', bye);
   }, [lms]);
 
+  // ---- per-question reporting (xAPI) ----
+  const lastAnswers = useRef(state.answers);
+  useEffect(() => {
+    const prev = lastAnswers.current;
+    lastAnswers.current = state.answers;
+    if (embedded || !lms?.answered) return;
+    for (const [id, a] of Object.entries(state.answers)) {
+      if (prev[id] === a) continue;
+      lms.answered({ id, title: findSlide(course, id)?.title ?? id, correct: a.correct, response: a.response, points: a.points, max: a.max });
+    }
+  }, [state.answers, lms, embedded, course]);
+
   // ---- layer timelines: remember when each layer appeared ----
   const layersKey = state.layers.join(',');
   useEffect(() => {

@@ -5,6 +5,7 @@
 - Drag and drop: draggable objects, drop targets, keyboard support, `drop` trigger event, graded question type.
 - Question banks per scene (shuffle and/or draw N, redrawn on retry) and shuffled answers.
 - SCORM 2004 3rd Edition publishing; session time reported for 1.2 and 2004.
+- xAPI (Tin Can) publishing: statements per attempt, answer and result; resume through the State API.
 - Audio objects, media looping, exit animations.
 - Sliders bound to number variables.
 - Find and replace; translation export/import as CSV.
