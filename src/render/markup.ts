@@ -55,3 +55,16 @@ export function hasMarkup(text: string): boolean {
   return /\*|__|~~|\[[^\]]+\]\(|^\s*[-•] /m.test(text);
 }
 
+
+/** Wraps (or unwraps) the selected range in a formatting marker. Returns the new text and selection. */
+export function toggleMarker(text: string, start: number, end: number, marker: '**' | '*' | '__'): { text: string; start: number; end: number } {
+  const m = marker.length;
+  const before = text.slice(Math.max(0, start - m), start);
+  const after = text.slice(end, end + m);
+  if (before === marker && after === marker && !(marker === '*' && (text[start - m - 1] === '*' || text[end + m] === '*'))) {
+    return { text: text.slice(0, start - m) + text.slice(start, end) + text.slice(end + m), start: start - m, end: end - m };
+  }
+  return { text: text.slice(0, start) + marker + text.slice(start, end) + marker + text.slice(end), start: start + m, end: end + m };
+}
+
+export const MARKER_KEYS: Record<string, '**' | '*' | '__'> = { b: '**', i: '*', u: '__' };

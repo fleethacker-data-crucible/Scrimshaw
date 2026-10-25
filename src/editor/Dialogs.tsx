@@ -303,7 +303,7 @@ export const SHORTCUTS: [string, string][] = [
   ['Ctrl+C / X / V', 'Copy, cut, paste objects'], ['Ctrl+D', 'Duplicate objects'], ['Ctrl+G / Ctrl+Shift+G', 'Group / ungroup'], ['Ctrl+Alt+C / Ctrl+Alt+V', 'Copy / paste formatting'], ['Ctrl+wheel', 'Zoom the canvas'], ['Alt+click', 'Pick one object out of a group'], ['Ctrl+A', 'Select all on the layer'],
   ['Delete', 'Delete selection'], ['Arrows', 'Nudge 1 px (Shift: 10 px)'], ['Ctrl+] / Ctrl+[', 'Bring forward / send backward'],
   ['Ctrl+Shift+] / [', 'Bring to front / send to back'], ['Page Up / Page Down', 'Previous / next slide'], ['Escape', 'Clear selection'],
-  ['Shift while dragging', 'Constrain move, keep aspect, snap rotation'], ['Double-click', 'Edit text in place'], ['?', 'This list'],
+  ['Shift while dragging', 'Constrain move, keep aspect, snap rotation'], ['Double-click', 'Edit text in place'], ['Ctrl+B / I / U (in text)', 'Bold, italic, underline'], ['?', 'This list'],
 ];
 
 export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
