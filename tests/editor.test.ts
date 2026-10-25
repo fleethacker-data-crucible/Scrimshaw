@@ -235,3 +235,28 @@ test('moveSlide uses pre-removal indexes; theme colours undo', async () => {
   s = reduce(s, { type: 'undo' });
   assert.equal(s.course.theme[0], before);
 });
+
+test('duplicateLayer points the copy\'s layer triggers at the copied objects', async () => {
+  const { duplicateLayer } = await import('../src/store/ops.ts');
+  const { newCourse, newLayer, newObject, newTrigger } = await import('../src/model/factory.ts');
+  const c = newCourse('D');
+  const sl = c.scenes[0].slides[0];
+  const l = newLayer('Pop');
+  const o = newObject('shape');
+  l.objects.push(o);
+  l.triggers.push(newTrigger({ type: 'timeline-start' }, { type: 'set-state', objectId: o.id, state: 'Hidden' }));
+  sl.layers.push(l);
+  const copy = duplicateLayer(sl, l.id)!;
+  const action = copy.triggers[0].action as { objectId: string };
+  assert.equal(action.objectId, copy.objects[0].id);
+  assert.notEqual(action.objectId, o.id);
+});
+
+test('insertSlideAfter appends when the anchor is the master or missing', async () => {
+  const { insertSlideAfter } = await import('../src/store/ops.ts');
+  const { newCourse, newSlide } = await import('../src/model/factory.ts');
+  const c = newCourse('I');
+  c.scenes[0].slides.push(newSlide('Two'));
+  const n = insertSlideAfter(c, c.master.id, newSlide('New'));
+  assert.equal(c.scenes[0].slides.at(-1), n);
+});
