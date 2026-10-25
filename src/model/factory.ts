@@ -256,6 +256,33 @@ export function newSequenceSlide(): Slide {
   return slide;
 }
 
+/** Word bank: drag words into the blanks of a sentence (graded drag and drop with a distractor). */
+export function newWordBankSlide(): Slide {
+  const slide = newQuestionSlide('drag-drop');
+  slide.title = 'Word bank';
+  const base = slide.layers[0];
+  base.objects[0].text = 'Drag the words into the blanks.';
+  base.objects = base.objects.filter((o) => !o.draggable && !o.dropTarget);
+  const words = (t: string, x: number, y: number, w: number) => newObject('text', { name: t, x, y, w, h: 56, text: t, style: baseStyle({ fontSize: 22, valign: 'middle', padding: 4 }) });
+  const blank = (n: number, x: number, y: number) => newObject('shape', {
+    name: `Blank ${n}`, x, y, w: 170, h: 56, shape: 'round', dropTarget: true,
+    style: baseStyle({ fill: '#f4f4f2', stroke: '#9a988f', strokeWidth: 2, radius: 6 }),
+  });
+  const b1 = blank(1, 252, 140);
+  const b2 = blank(2, 238, 220);
+  const chip = (t: string, x: number, target: string | null) => newObject('shape', {
+    name: `Word: ${t}`, x, y: 370, w: 150, h: 48, shape: 'round', text: t, draggable: true, correctTargetId: target,
+    style: baseStyle({ fill: '#2f74c8', color: '#ffffff', radius: 24, fontWeight: 600, fontSize: 18, align: 'center', valign: 'middle' }),
+  });
+  base.objects.splice(1, 0,
+    words('Sailors carved', 60, 140, 190), b1, words('into whale teeth,', 430, 140, 300),
+    words('then rubbed in', 60, 220, 175), b2, words('so the lines stood out.', 416, 220, 340),
+    chip('designs', 60, b1.id), chip('soot', 225, b2.id), chip('paint', 390, null),
+  );
+  slide.question!.shuffle = true;
+  return slide;
+}
+
 /** Survey: a five-point Likert scale (an ungraded multiple choice laid out in a row). */
 export function newLikertSlide(): Slide {
   const slide = newQuestionSlide('multiple-choice');

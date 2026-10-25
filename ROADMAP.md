@@ -44,7 +44,7 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 | --- | --- | --- |
 | Multiple choice, multiple response, true/false | ✅ | |
 | Fill in the blank | ✅ | Multiple accepted answers, case-insensitive |
-| Matching, sequence, hotspot, numeric, word bank | 🟡 | Hotspot, numeric (range) and sequence; matching via drag and drop; no word bank yet |
+| Matching, sequence, hotspot, numeric, word bank | ✅ | Hotspot, numeric (range), sequence and word bank; matching via drag and drop |
 | Freeform questions (any object as an answer) | 🟡 | Choice objects can sit on any slide; grading needs a question slide |
 | Survey questions (Likert, essay, ranking) | 🟡 | Likert scale and essay templates; any question can be ungraded; no ranking type |
 | Attempts, try again, feedback layers | ✅ | |
@@ -98,5 +98,5 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 1. Curved and freeform motion paths
 2. WYSIWYG rich text editing (formatting already works inline)
 3. Multiple slide masters and theme fonts
-4. Word bank and ranking question types
+4. Ranking (survey) question type
 5. Player layout options
