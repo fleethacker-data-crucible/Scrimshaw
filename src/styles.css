@@ -104,8 +104,8 @@
   .story { position: absolute; inset: 0; overflow: auto; background: var(--bg); padding: 24px; }
   .story-scene { border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); padding: 12px; margin-bottom: 20px; }
   .story-grid { display: flex; flex-wrap: wrap; gap: 18px; }
-  .story-card { width: 176px; cursor: pointer; border-radius: var(--radius); padding: 6px; border: 1px solid transparent; background: none; color: inherit; text-align: left; }
-  .story-card:hover { border-color: var(--border-strong); }
+  .story-card { display: block; width: 176px; height: auto; cursor: pointer; border-radius: var(--radius); padding: 6px; border: 1px solid transparent; background: var(--panel); color: var(--text); text-align: left; white-space: normal; font-weight: 400; line-height: 1.4; position: relative; z-index: 1; }
+  .story-card:hover { border-color: var(--border-strong); filter: none; }
   .story-card[aria-current=true] { border-color: var(--focus); }
 
   /* ---- player ---- */
