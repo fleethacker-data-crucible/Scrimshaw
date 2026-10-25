@@ -18,6 +18,7 @@
 - Lightbox slides.
 - Essay (survey) question type, multi-line text entry.
 - Copy and paste formatting (Ctrl+Alt+C / V), Ctrl+wheel zoom.
+- WebVTT captions for video and audio.
 - Fix: a click that navigates away now still marks the object Visited for when the learner returns.
 
 ## 0.1.0 (2026-10-25)

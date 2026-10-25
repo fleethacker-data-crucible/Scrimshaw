@@ -266,7 +266,10 @@ export function pruneAssets(c: Course): Course['assets'] {
   const used = new Set<string>();
   for (const sl of allSlides(c)) {
     if (sl.background.startsWith('asset:')) used.add(sl.background.slice(6));
-    for (const o of slideObjects(sl)) if (o.src.startsWith('asset:')) used.add(o.src.slice(6));
+    for (const o of slideObjects(sl)) {
+      if (o.src.startsWith('asset:')) used.add(o.src.slice(6));
+      if (o.captions.startsWith('asset:')) used.add(o.captions.slice(6));
+    }
   }
   return Object.fromEntries(Object.entries(c.assets).filter(([id]) => used.has(id)));
 }

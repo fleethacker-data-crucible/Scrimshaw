@@ -68,7 +68,7 @@ export function newObject(kind: ObjectKind, over: Partial<SlideObject> = {}): Sl
     enter: { type: 'none', duration: 0.5 }, exit: { type: 'none', duration: 0.5 },
     states: [], triggers: [], variableId: null, multiline: false, min: 0, max: 10, step: 1, correct: false, choiceMode: 'radio',
     draggable: false, dropTarget: false, correctTargetId: null,
-    autoplay: false, controls: true, loop: false, locked: false, groupId: null, editorHidden: false,
+    autoplay: false, controls: true, loop: false, captions: '', locked: false, groupId: null, editorHidden: false,
     ...d,
     ...over,
   };

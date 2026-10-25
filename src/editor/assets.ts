@@ -1,5 +1,6 @@
 import { uid } from '../model/factory.ts';
 import type { Asset, Course } from '../model/types.ts';
+import { vttToDataUrl } from '../render/vtt.ts';
 
 export const MAX_MEDIA_BYTES = 25 * 1024 * 1024;
 
@@ -46,4 +47,13 @@ export function pickFile(accept: string): Promise<File | null> {
     input.addEventListener('cancel', () => resolve(null));
     input.click();
   });
+}
+
+/** Reads a WebVTT captions file into an asset. */
+export async function captionsToAsset(file: File): Promise<Asset> {
+  if (!/\.vtt$/i.test(file.name) && file.type !== 'text/vtt') throw new Error(`“${file.name}” is not a WebVTT (.vtt) captions file.`);
+  if (file.size > 2 * 1024 * 1024) throw new Error(`“${file.name}” is larger than 2 MB.`);
+  const text = await file.text();
+  if (!/^\ufeff?WEBVTT/.test(text)) throw new Error(`“${file.name}” does not start with WEBVTT, so it is not a valid captions file.`);
+  return { id: uid('a'), name: file.name, mime: 'text/vtt', data: vttToDataUrl(text) };
 }

@@ -73,6 +73,7 @@ function object(v: unknown): SlideObject | null {
     draggable: bool(v.draggable), dropTarget: bool(v.dropTarget),
     groupId: typeof v.groupId === 'string' ? v.groupId : null,
     multiline: bool(v.multiline),
+    captions: typeof v.captions === 'string' ? v.captions : '',
     correctTargetId: typeof v.correctTargetId === 'string' ? v.correctTargetId : null,
     end: typeof v.end === 'number' ? v.end : null,
   };
@@ -139,7 +140,7 @@ export function normalizeCourse(input: unknown): Course {
     player: playerSettings(input.player, d.player),
     quiz: { ...d.quiz, ...(isObj(input.quiz) ? input.quiz : {}) } as Course['quiz'],
     assets: Object.fromEntries(Object.entries(isObj(input.assets) ? input.assets : {}).filter(([, a]) =>
-      isObj(a) && typeof a.id === 'string' && typeof a.data === 'string' && /^data:(image|video|audio)\/[\w.+-]+;base64,/.test(a.data))
+      isObj(a) && typeof a.id === 'string' && typeof a.data === 'string' && /^data:((image|video|audio)\/[\w.+-]+|text\/vtt);base64,/.test(a.data))
       .map(([k, a]) => { const x = a as Record<string, string>; return [k, { id: x.id, name: str(x.name, 'media'), mime: str(x.mime), data: x.data }]; })),
     created: str(input.created, d.created), modified: str(input.modified, d.modified),
   };

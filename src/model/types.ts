@@ -175,6 +175,8 @@ export interface SlideObject {
   controls: boolean;
   /** video and audio: start again from the beginning when finished. */
   loop: boolean;
+  /** video and audio: WebVTT captions, "asset:<id>" or a URL ('' for none). */
+  captions: string;
   locked: boolean;
   /** Objects sharing a group id select and move together in the editor. */
   groupId: ID | null;

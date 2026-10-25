@@ -144,6 +144,7 @@ export function validateCourse(course: Course): string[] {
     if (q && q.kind === 'drag-drop' && !sl.layers.some((l) => l.objects.some((o) => o.draggable && o.correctTargetId && findObject(sl, o.correctTargetId)?.dropTarget))) problems.push(`${sl.title}: the drag-and-drop question has no item with a correct drop target.`);
     for (const l of sl.layers) for (const o of l.objects) {
       if (o.kind === 'image' && !o.decorative && !o.alt.trim()) problems.push(`${sl.title} › ${o.name}: add alt text or mark the image decorative.`);
+      if ((o.kind === 'video' || o.kind === 'audio') && o.src && !o.captions && !o.decorative) problems.push(`${sl.title} › ${o.name}: add captions, or mark it decorative if it has no speech.`);
     }
   }
   return problems;

@@ -1,9 +1,10 @@
 // Renders one slide at its native size. The same component draws the editor canvas, thumbnails
 // and the player, so authoring and playback cannot drift apart.
-import { memo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
 import { interpolate, stateOf, type PlayerState } from '../engine/runtime.ts';
 import type { Course, ID, Layer, Slide, SlideObject, Style } from '../model/types.ts';
 import { RichText } from './inline.tsx';
+import { cueAt, parseVtt, vttFromDataUrl } from './vtt.ts';
 
 export type ViewMode = 'edit' | 'play' | 'thumb';
 
@@ -89,16 +90,51 @@ function SpeakerGlyph({ color, playing }: { color: string; playing?: boolean }) 
   );
 }
 
-/** Audio in the player: an <audio> element, plus a play/pause button when the author asked for one. */
-function AudioObject({ o, src, css, s, mediaRef, label }: { o: SlideObject; src: string; css: CSSProperties; s: Style; mediaRef?: (id: ID, el: HTMLMediaElement | null) => void; label: string }) {
+/** A <track> needs a same-origin URL, so embedded captions become a blob: URL. */
+function useTrackUrl(course: Course, ref: string): string | null {
+  const src = ref ? resolveSrc(course, ref) : '';
+  const url = useMemo(() => {
+    if (!src) return null;
+    const text = vttFromDataUrl(src);
+    if (text === null) return src;
+    try { return URL.createObjectURL(new Blob([text], { type: 'text/vtt' })); } catch { return null; }
+  }, [src]);
+  useEffect(() => () => { if (url?.startsWith('blob:')) URL.revokeObjectURL(url); }, [url]);
+  return url;
+}
+
+function VideoView({ course, o, src, play, mediaRef }: { course: Course; o: SlideObject; src: string; play: boolean; mediaRef?: (id: ID, el: HTMLMediaElement | null) => void }) {
+  const track = useTrackUrl(course, o.captions);
+  return (
+    <video ref={(el) => mediaRef?.(o.id, el)} src={src} controls={o.controls && play} autoPlay={play && o.autoplay} loop={o.loop} playsInline preload="metadata"
+      className="block w-full h-full" style={{ pointerEvents: play ? undefined : 'none' }} aria-label={o.alt || o.name}>
+      {track && <track kind="captions" src={track} srcLang="en" label="Captions" default />}
+    </video>
+  );
+}
+
+/** Audio in the player: an <audio> element, plus a play/pause button when the author asked for one,
+ *  plus a caption bar at the foot of the slide while captions are available and the audio plays. */
+function AudioObject({ course, o, src, css, s, mediaRef, label }: { course: Course; o: SlideObject; src: string; css: CSSProperties; s: Style; mediaRef?: (id: ID, el: HTMLMediaElement | null) => void; label: string }) {
   const ref = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
+  const [caption, setCaption] = useState('');
+  const cues = useMemo(() => {
+    const text = o.captions ? vttFromDataUrl(resolveSrc(course, o.captions)) : null;
+    return text ? parseVtt(text) : [];
+  }, [course, o.captions]);
   const audio = src ? (
     <audio ref={(el) => { ref.current = el; mediaRef?.(o.id, el); }} src={src} autoPlay={o.autoplay} loop={o.loop} preload="auto"
-      onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} />
+      onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => { setPlaying(false); setCaption(''); }}
+      onTimeUpdate={(e) => { if (cues.length) setCaption(cueAt(cues, (e.target as HTMLAudioElement).currentTime)); }} />
   ) : null;
-  if (!o.controls) return <>{audio}</>;
+  const bar = caption ? (
+    <div className="absolute left-1/2 -translate-x-1/2 bottom-4 max-w-[80%] px-3 py-1.5 rounded text-center whitespace-pre-line"
+      style={{ background: 'rgba(0,0,0,.78)', color: '#fff', fontSize: 22, lineHeight: 1.3, zIndex: 30, pointerEvents: 'none' }} aria-live="off">{caption}</div>
+  ) : null;
+  if (!o.controls) return <>{audio}{bar}</>;
   return (
+    <>
     <div className="obj obj-audio" style={{ ...css, pointerEvents: 'auto' }} role="button" tabIndex={0} aria-pressed={playing}
       aria-label={`${playing ? 'Pause' : 'Play'} ${label}`}
       onClick={() => { const a = ref.current; if (a) { if (a.paused) void a.play().catch(() => {}); else a.pause(); } }}
@@ -106,6 +142,8 @@ function AudioObject({ o, src, css, s, mediaRef, label }: { o: SlideObject; src:
       <div className="w-full h-full grid place-items-center"><SpeakerGlyph color={s.color} playing={playing} /></div>
       {audio}
     </div>
+    {bar}
+    </>
   );
 }
 
@@ -175,15 +213,14 @@ function ObjectView({ course, o, mode, state, text, transient, onPointer, handle
     case 'video': {
       const src = resolveSrc(course, o.src);
       inner = src && mode !== 'thumb'
-        ? <video ref={(el) => mediaRef?.(o.id, el)} src={src} controls={o.controls && play} autoPlay={play && o.autoplay} loop={o.loop} playsInline preload="metadata"
-            className="block w-full h-full" style={{ pointerEvents: play ? undefined : 'none' }} aria-label={o.alt || o.name} />
+        ? <VideoView course={course} o={o} src={src} play={play} mediaRef={mediaRef} />
         : <div className="w-full h-full grid place-items-center text-[13px]" style={{ color: '#aaa' }}>Video</div>;
       break;
     }
     case 'audio': {
       const src = resolveSrc(course, o.src);
       if (play) {
-        return <AudioObject o={o} src={src} css={css} s={s} mediaRef={mediaRef} label={o.alt || o.name} />;
+        return <AudioObject course={course} o={o} src={src} css={css} s={s} mediaRef={mediaRef} label={o.alt || o.name} />;
       }
       inner = (
         <div className="w-full h-full grid place-items-center" title={`${o.name}${o.controls ? '' : ' (invisible to learners)'}`}>
