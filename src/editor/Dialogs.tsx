@@ -195,13 +195,14 @@ export function PublishDialog({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const problems = validateCourse(course);
   const ready = canPublish();
-  const run = async (kind: 'html' | 'scorm' | 'json') => {
+  const run = async (kind: 'html' | 'scorm' | 'scorm2004' | 'json') => {
     setBusy(true);
     try {
       if (kind === 'json') download(fileName(course.title, 'scrim'), serializeCourse(course), 'application/json');
       if (kind === 'html') download(fileName(course.title, 'html'), buildPlayerHtml(course), 'text/html');
       if (kind === 'scorm') download(fileName(course.title, 'scorm12.zip'), await buildScormZip(course));
-      toast(kind === 'scorm' ? 'SCORM 1.2 package downloaded. Upload the zip to your LMS.' : 'Downloaded.', 'ok');
+      if (kind === 'scorm2004') download(fileName(course.title, 'scorm2004.zip'), await buildScormZip(course, undefined, '2004'));
+      toast(kind.startsWith('scorm') ? 'SCORM package downloaded. Upload the zip to your LMS.' : 'Downloaded.', 'ok');
     } catch (e) {
       toast(`Publishing failed: ${(e as Error).message}`, 'err');
     } finally { setBusy(false); }
@@ -221,8 +222,9 @@ export function PublishDialog({ onClose }: { onClose: () => void }) {
       <div className="grid gap-2">
         <div className="box flex items-center gap-3">
           <Package size={22} />
-          <div className="flex-1"><b>SCORM 1.2 package</b><p className="muted text-[12px] !m-0">A zip for any SCORM 1.2 LMS. Reports completion, pass/fail and score, and resumes where the learner left off.</p></div>
-          <Button disabled={!ready || busy} onClick={() => run('scorm')}><Download />Zip</Button>
+          <div className="flex-1"><b>SCORM package</b><p className="muted text-[12px] !m-0">A zip for your LMS: SCORM 1.2 (widest support) or SCORM 2004 3rd Edition. Reports completion, pass/fail, score and time, and resumes where the learner left off.</p></div>
+          <Button disabled={!ready || busy} onClick={() => run('scorm')} aria-label="Download SCORM 1.2 zip"><Download />1.2</Button>
+          <Button disabled={!ready || busy} onClick={() => run('scorm2004')} aria-label="Download SCORM 2004 zip"><Download />2004</Button>
         </div>
         <div className="box flex items-center gap-3">
           <Globe size={22} />

@@ -12,7 +12,7 @@ import {
   AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignStartHorizontal, AlignStartVertical,
   BringToFront, ChevronDown, Circle, Copy, FileBraces, FolderOpen, Grid3x3, Image, Keyboard, Magnet, MonitorPlay, MousePointerClick, Moon,
   Package, Play, Redo2, Save, Scan, SendToBack, Settings as SettingsIcon, Square, SquareCheck, SquareDashed, Sun, TextCursorInput, Trash, Type, Undo2,
-  Variable, Video, Workflow, ZoomIn, ZoomOut, Clock,
+  Variable, Video, Volume2, Workflow, ZoomIn, ZoomOut, Clock,
 } from '../ui/icons.tsx';
 import { Button, IconButton, Menu, useUi } from '../ui/kit.tsx';
 import { fileToAsset, imageSize, pickFile, withAsset } from './assets.ts';
@@ -118,12 +118,12 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
       return { objectIds: [o.id] };
     });
   }, [edit]);
-  const insertMedia = async (kind: 'image' | 'video') => {
-    const f = await pickFile(kind === 'image' ? 'image/*' : 'video/*');
+  const insertMedia = async (kind: 'image' | 'video' | 'audio') => {
+    const f = await pickFile(`${kind}/*`);
     if (!f) return;
     try {
       const a = await fileToAsset(f, kind);
-      const size = kind === 'image' ? await imageSize(a.data, course.size.w * 0.8, course.size.h * 0.8) : { w: 480, h: 270 };
+      const size = kind === 'image' ? await imageSize(a.data, course.size.w * 0.8, course.size.h * 0.8) : kind === 'audio' ? { w: 48, h: 48 } : { w: 480, h: 270 };
       edit(`Insert ${kind}`, (c, sel) => {
         withAsset(c, a);
         const l = findLayer(findSlide(c, sel.slideId)!, sel.layerId)!;
@@ -282,6 +282,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
         ]}><Square size={14} /><span className="lbl">Shape</span><ChevronDown size={12} /></Menu>
         <RB icon={<Image size={14} />} label="Image" onClick={() => insertMedia('image')} />
         <RB icon={<Video size={14} />} label="Video" onClick={() => insertMedia('video')} />
+        <RB icon={<Volume2 size={14} />} label="Audio" onClick={() => insertMedia('audio')} />
         <RB icon={<MousePointerClick size={14} />} label="Button" onClick={() => insert('button')} />
         <RB icon={<SquareDashed size={14} />} label="Hotspot" onClick={() => insert('hotspot')} />
         <RB icon={<TextCursorInput size={14} />} label="Text entry" onClick={() => insert('input')} />

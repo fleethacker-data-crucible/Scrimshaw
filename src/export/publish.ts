@@ -4,7 +4,7 @@
 import JSZip from 'jszip';
 import { pruneAssets } from '../store/ops.ts';
 import type { Course } from '../model/types.ts';
-import { manifest12 } from './scorm.ts';
+import { manifest12, manifest2004 } from './scorm.ts';
 
 export const COURSE_SCRIPT_ID = 'scrimshaw-course';
 
@@ -49,10 +49,10 @@ export function buildPlayerHtml(course: Course, template: string | null = shell)
   return html;
 }
 
-export async function buildScormZip(course: Course, template: string | null = shell): Promise<Blob> {
+export async function buildScormZip(course: Course, template: string | null = shell, version: '1.2' | '2004' = '1.2'): Promise<Blob> {
   const zip = new JSZip();
   zip.file('index.html', buildPlayerHtml(course, template));
-  zip.file('imsmanifest.xml', manifest12(course));
+  zip.file('imsmanifest.xml', version === '2004' ? manifest2004(course) : manifest12(course));
   return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 }, mimeType: 'application/zip' });
 }
 

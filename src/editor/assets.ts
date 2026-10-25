@@ -13,8 +13,8 @@ export function readFileAsDataUrl(file: File): Promise<string> {
 }
 
 /** Reads a media file into an asset. Throws a readable error for the wrong type or size. */
-export async function fileToAsset(file: File, kind: 'image' | 'video'): Promise<Asset> {
-  if (!file.type.startsWith(`${kind}/`)) throw new Error(`“${file.name}” is not ${kind === 'image' ? 'an image' : 'a video'}.`);
+export async function fileToAsset(file: File, kind: 'image' | 'video' | 'audio'): Promise<Asset> {
+  if (!file.type.startsWith(`${kind}/`)) throw new Error(`“${file.name}” is not ${kind === 'image' ? 'an image' : kind === 'video' ? 'a video' : 'an audio file'}.`);
   if (file.size > MAX_MEDIA_BYTES) throw new Error(`“${file.name}” is ${(file.size / 1048576).toFixed(1)} MB. The limit is ${MAX_MEDIA_BYTES / 1048576} MB per file.`);
   return { id: uid('a'), name: file.name, mime: file.type, data: await readFileAsDataUrl(file) };
 }

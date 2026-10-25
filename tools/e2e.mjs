@@ -146,7 +146,7 @@ try {
 
   // ---------- publish ----------
   await page.getByRole('button', { name: 'Publish' }).click();
-  const [zipDl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Zip' }).click()]);
+  const [zipDl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download SCORM 1.2 zip' }).click()]);
   const zipPath = path.join(out, 'course.zip');
   await zipDl.saveAs(zipPath);
   const zip = await JSZip.loadAsync(readFileSync(zipPath));

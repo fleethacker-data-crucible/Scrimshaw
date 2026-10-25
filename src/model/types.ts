@@ -90,7 +90,7 @@ export interface Layer {
   triggers: Trigger[];
 }
 
-export type ObjectKind = 'text' | 'shape' | 'image' | 'button' | 'hotspot' | 'input' | 'choice' | 'video';
+export type ObjectKind = 'text' | 'shape' | 'image' | 'button' | 'hotspot' | 'input' | 'choice' | 'video' | 'audio';
 export type ShapeKind = 'rect' | 'round' | 'ellipse' | 'triangle' | 'arrow' | 'line';
 
 export interface Style {
@@ -155,9 +155,12 @@ export interface SlideObject {
   dropTarget: boolean;
   /** Drag and drop: the drop target this object belongs on, for grading. */
   correctTargetId: ID | null;
-  /** video */
+  /** video and audio: play when the object appears on the timeline. */
   autoplay: boolean;
+  /** video: show the browser controls. audio: show a play/pause button to learners. */
   controls: boolean;
+  /** video and audio: start again from the beginning when finished. */
+  loop: boolean;
   locked: boolean;
   /** Editor only: hidden on the canvas while editing. Ignored by the player. */
   editorHidden: boolean;

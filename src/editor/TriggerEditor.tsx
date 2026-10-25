@@ -28,7 +28,7 @@ function defaultAction(type: Action['type'], course: Course, slide: Slide, owner
     case 'set-state': return { type, objectId: owner ? 'this' : (objs[0]?.id ?? ''), state: 'Normal' };
     case 'adjust-variable': return { type, variableId: course.variables[0]?.id ?? '', op: 'set', value: '' };
     case 'open-url': return { type, url: 'https://' };
-    case 'play-media': case 'pause-media': return { type, objectId: objs.find((o) => o.kind === 'video')?.id ?? '' };
+    case 'play-media': case 'pause-media': return { type, objectId: objs.find((o) => o.kind === 'video' || o.kind === 'audio')?.id ?? '' };
     default: return { type } as Action;
   }
 }
@@ -149,7 +149,7 @@ export function TriggerEditor({ course, slide, owner, trigger, onSave, onClose }
             </>
           )}
           {(a.type === 'play-media' || a.type === 'pause-media') && (
-            <Field label="Media">{objectSelect(a.objectId, (id) => setAction({ ...a, objectId: id }), (o) => o.kind === 'video', false)}</Field>
+            <Field label="Media">{objectSelect(a.objectId, (id) => setAction({ ...a, objectId: id }), (o) => o.kind === 'video' || o.kind === 'audio', false)}</Field>
           )}
           {a.type === 'open-url' && (
             <Field label="URL" hint="Opens in a new window.">
