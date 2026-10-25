@@ -7,7 +7,7 @@ import { findLayer, findObject, findSlide } from '../model/query.ts';
 import { BUILTIN_STATES, type AnimationType, type ID, type ObjectState, type ShapeKind, type Slide, type SlideObject, type Style, type Trigger } from '../model/types.ts';
 import { ArrowDown, ArrowUp, Eye, EyeOff, Image as ImageIcon, Lock, LockOpen, Pencil, Plus, Trash, Zap } from '../ui/icons.tsx';
 import { Button, Field, IconButton, NumberInput, Select, Tabs, useUi } from '../ui/kit.tsx';
-import { fileToAsset, imageSize, pickFile, withAsset } from './assets.ts';
+import { captionsToAsset, fileToAsset, imageSize, pickFile, withAsset } from './assets.ts';
 import { useEditor } from './context.tsx';
 import { TriggerEditor, type TriggerOwner } from './TriggerEditor.tsx';
 
@@ -224,6 +224,7 @@ function DesignTab() {
           <p className="hint">Without a play button the audio is invisible to learners. Set when it starts in the Timing tab; triggers can play and pause it.</p>
         </Section>
       )}
+      {!multi && (o.kind === 'video' || o.kind === 'audio') && <CaptionsPicker o={o} />}
       {!multi && o.kind === 'input' && <InputVariable o={o} />}
       {!multi && o.kind === 'slider' && (
         <>
@@ -265,6 +266,29 @@ function DesignTab() {
         <label className="check"><input type="checkbox" checked={o.decorative} onChange={(e) => set('Decorative', (x) => { x.decorative = e.target.checked; })} /> Decorative (hidden from screen readers)</label>
       </Section>
     </>
+  );
+}
+
+function CaptionsPicker({ o }: { o: SlideObject }) {
+  const { edit, editSelected, course } = useEditor();
+  const { toast } = useUi();
+  const name = o.captions.startsWith('asset:') ? course.assets[o.captions.slice(6)]?.name : o.captions;
+  return (
+    <Section title="Captions">
+      <div className="row">
+        <Button size="small" variant="ghost" onClick={async () => {
+          const f = await pickFile('.vtt,text/vtt');
+          if (!f) return;
+          try {
+            const a = await captionsToAsset(f);
+            edit('Captions', (c, sel) => { withAsset(c, a); findObject(findSlide(c, sel.slideId)!, o.id)!.captions = `asset:${a.id}`; });
+          } catch (e) { toast((e as Error).message, 'err'); }
+        }}>{o.captions ? 'Replace captions…' : 'Add captions (.vtt)…'}</Button>
+        {o.captions && <Button size="small" variant="ghost" onClick={() => editSelected('Remove captions', (x) => { x.captions = ''; })}>Remove</Button>}
+      </div>
+      {name && <p className="hint">Using {name}.</p>}
+      {!o.captions && <p className="hint">Captions make speech available to learners who are deaf or hard of hearing (WCAG 1.2.2).</p>}
+    </Section>
   );
 }
 

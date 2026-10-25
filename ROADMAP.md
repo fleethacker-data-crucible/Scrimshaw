@@ -21,7 +21,7 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 | Images | ✅ | Embedded, alt text, decorative flag |
 | Video | 🟡 | Embedded file or URL, autoplay, controls, loop, play/pause triggers. No captions, no timeline sync |
 | Audio / narration | 🟡 | Audio objects that start on the timeline, optional play button, loop, play/pause triggers. No waveform editing or per-slide narration track |
-| Text-to-speech, closed captions | ⬜ | |
+| Text-to-speech, closed captions | 🟡 | WebVTT captions for video (native track) and audio (caption bar); publish check warns when media has none. No text-to-speech |
 | Buttons, hotspots | ✅ | |
 | Text entry | ✅ | Writes to a variable |
 | Sliders, dials | 🟡 | Sliders bound to a number variable; no dials |
@@ -96,7 +96,6 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 ## Suggested order
 
 1. cmi5 publishing
-2. Captions (WebVTT) for video and audio
 3. Motion paths
 4. WYSIWYG rich text editing (formatting already works inline)
 5. Slide masters
