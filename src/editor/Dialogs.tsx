@@ -6,6 +6,7 @@ import type { Course, ID, VariableType } from '../model/types.ts';
 import { buildPlayerHtml, buildScormZip, buildXapiZip, canPublish, download, fileName } from '../export/publish.ts';
 import { serializeCourse } from '../model/schema.ts';
 import { contrast, findTexts, replaceAll } from '../model/texts.ts';
+import { recolor } from '../store/ops.ts';
 import { deleteProject, listProjects, type ProjectMeta } from '../store/persist.ts';
 import { Download, FileBraces, Globe, Package, Plus, Trash, TriangleAlert } from '../ui/icons.tsx';
 import { Button, Dialog, Field, IconButton, NumberInput, Select, useUi } from '../ui/kit.tsx';
@@ -111,6 +112,16 @@ export function CourseDialog({ onClose }: { onClose: () => void }) {
         </Field>
         <Field label="Description" className="col-span-2"><textarea className="!font-sans !text-[13px]" rows={2} value={course.description} onChange={(e) => set('Description', (c) => { c.description = e.target.value; }, 'cdesc')} /></Field>
       </div>
+      <fieldset>
+        <legend>Theme colours</legend>
+        <p className="hint !mb-2">These are the swatches under every colour picker. Changing one recolours every object that uses it.</p>
+        <div className="flex flex-wrap gap-2">
+          {course.theme.map((c, i) => (
+            <input key={i} type="color" aria-label={`Theme colour ${i + 1}: ${c}`} title={c} value={c} className="!w-10 !h-8 !p-0.5"
+              onChange={(e) => { const to = e.target.value; set('Theme colour', (d) => { recolor(d, d.theme[i], to); d.theme[i] = to; }, `theme-${i}`); }} />
+          ))}
+        </div>
+      </fieldset>
       <fieldset>
         <legend>Player</legend>
         <div className="grid grid-cols-2 gap-2">

@@ -1,7 +1,7 @@
 // Right-hand inspector: design, states, triggers and timing for the selection; slide, triggers
 // and question settings when nothing is selected.
 import { useState, type ReactNode } from 'react';
-import { newVariable, PALETTE, uid } from '../model/factory.ts';
+import { newVariable, uid } from '../model/factory.ts';
 import { describeTrigger } from '../model/describe.ts';
 import { findLayer, findObject, findSlide } from '../model/query.ts';
 import { BUILTIN_STATES, type AnimationType, type ID, type ObjectState, type ShapeKind, type Slide, type SlideObject, type Style, type Trigger } from '../model/types.ts';
@@ -23,6 +23,7 @@ const SHAPES: { value: ShapeKind; label: string }[] = [
 ];
 
 export function ColorInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const { course } = useEditor();
   const none = value === 'transparent';
   return (
     <div className="grid gap-1">
@@ -35,7 +36,7 @@ export function ColorInput({ label, value, onChange }: { label: string; value: s
         </IconButton>
       </div>
       <div className="flex gap-1" role="group" aria-label={`${label} swatches`}>
-        {PALETTE.map((c) => (
+        {course.theme.map((c) => (
           <button key={c} type="button" title={c} aria-label={`${label} ${c}`} onClick={() => onChange(c)}
             className="!h-4 !w-4 !p-0 rounded-sm border border-line-strong" style={{ background: c }} />
         ))}

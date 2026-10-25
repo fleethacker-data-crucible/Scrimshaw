@@ -280,3 +280,18 @@ export function withGroups(objs: SlideObject[], ids: ID[]): ID[] {
   const groups = new Set(objs.filter((o) => ids.includes(o.id) && o.groupId).map((o) => o.groupId));
   return objs.filter((o) => ids.includes(o.id) || (o.groupId && groups.has(o.groupId))).map((o) => o.id);
 }
+
+/** Replaces one colour with another everywhere it is used (objects, states, backgrounds). Returns how many uses changed. */
+export function recolor(c: Course, from: string, to: string): number {
+  const f = from.toLowerCase();
+  let n = 0;
+  const keys = ['fill', 'stroke', 'color'] as const;
+  for (const sl of [...allSlides(c), c.master]) {
+    if (sl.background.toLowerCase() === f) { sl.background = to; n++; }
+    for (const l of sl.layers) for (const o of l.objects) {
+      for (const k of keys) if (o.style[k].toLowerCase() === f) { o.style[k] = to; n++; }
+      for (const st of o.states) for (const k of keys) if (st.style[k]?.toLowerCase() === f) { st.style[k] = to; n++; }
+    }
+  }
+  return n;
+}

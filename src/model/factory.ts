@@ -126,6 +126,7 @@ export function newCourse(title = 'Untitled course'): Course {
     size: { w: SLIDE_W, h: SLIDE_H },
     scenes: [newScene('Scene 1', [first])],
     master: newMaster(),
+    theme: [...PALETTE],
     variables: [],
     startSlideId: null,
     player: { showMenu: true, showNav: true, showSeekbar: true, showTitle: true, showNotes: false, resources: [], glossary: [], logo: '', accent: '', navigation: 'free', resume: true },

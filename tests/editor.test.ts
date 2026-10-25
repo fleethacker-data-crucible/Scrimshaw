@@ -172,3 +172,11 @@ test('history snapshots are independent for nested player lists', () => {
   s = reduce(s, { type: 'undo' });
   assert.equal(s.course.player.glossary[0].term, 'One');
 });
+
+test('recolor swaps a theme colour everywhere it is used', async () => {
+  const { recolor } = await import('../src/store/ops.ts');
+  const c = sampleCourse();
+  const n = recolor(c, '#2F74C8', '#0b5cad');
+  assert.ok(n > 5);
+  assert.equal(JSON.stringify(c).toLowerCase().includes('#2f74c8'), JSON.stringify(c.theme).toLowerCase().includes('#2f74c8'));
+});
