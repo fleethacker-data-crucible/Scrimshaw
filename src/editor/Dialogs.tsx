@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import emblem from '../assets/emblem.webp';
 import { newVariable } from '../model/factory.ts';
 import { validateCourse } from '../model/describe.ts';
 import { allSlides, slideTriggers } from '../model/query.ts';
@@ -214,7 +215,10 @@ export function ProjectsDialog({ currentId, onOpen, onNew, onImport, onSample, o
         <Button onClick={onNew}><Plus />New course</Button>
       </>
     }>
-      <p className="muted text-[13px]">Projects save automatically in this browser. Use File › Save to file for a backup you can move or share.</p>
+      <div className="flex items-center gap-3 mb-2">
+        <img src={emblem} alt="" width={72} height={72} className="rounded-full shrink-0" />
+        <p className="muted text-[13px] !m-0">Projects save automatically in this browser. Use File › Save to file for a backup you can move or share.</p>
+      </div>
       {error && <div className="notice warn"><b>!</b>{error}</div>}
       <div className="table-wrap" role="region" tabIndex={0} aria-label="Saved projects">
         <table className="grid">

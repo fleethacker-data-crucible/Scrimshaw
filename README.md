@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/brand/scrimshaw-logo-640.png" alt="Scrimshaw: a carved whale tooth showing a tall ship under a compass star" width="320"></p>
+
 # Scrimshaw
 
 An open-source e-learning authoring tool. Build interactive

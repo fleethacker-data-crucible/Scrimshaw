@@ -49,6 +49,8 @@ Fixes from an independent code review:
 - Fix: find and replace and translation import now report the right count.
 - Fix: a click that navigates away now still marks the object Visited for when the learner returns.
 
+- Logo: brand files in `docs/brand/`, the emblem as the browser-tab icon and in the Projects dialog, and the full logo on the README.
+
 ### Fixes from the second review
 
 - Layer timelines start with the layer when a slide's timeline-start triggers show it.
