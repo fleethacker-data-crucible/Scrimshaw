@@ -3,6 +3,7 @@
 import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
 import { interpolate, stateOf, type PlayerState } from '../engine/runtime.ts';
 import type { Course, ID, Layer, Slide, SlideObject, Style } from '../model/types.ts';
+import { RichText } from './inline.tsx';
 
 export type ViewMode = 'edit' | 'play' | 'thumb';
 
@@ -222,7 +223,7 @@ function ObjectView({ course, o, mode, state, text, transient, onPointer, handle
       inner = (
         <div className="obj-text" style={{ ...textCss(s), flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <span className={`mark ${o.choiceMode === 'radio' ? 'radio' : 'check'}`}>{selected && <i />}</span>
-          <span className="flex-1">{content}</span>
+          <span className="flex-1"><RichText text={content} /></span>
         </div>
       );
       break;
@@ -238,7 +239,7 @@ function ObjectView({ course, o, mode, state, text, transient, onPointer, handle
       inner = (
         <>
           {o.kind === 'shape' && (o.shape === 'triangle' || o.shape === 'arrow' || o.shape === 'line') && <ShapeSvg o={o} s={s} />}
-          {content && <div className="obj-text relative" style={textCss(s)}>{content}</div>}
+          {content && <div className="obj-text relative" style={textCss(s)}><RichText text={content} /></div>}
         </>
       );
   }

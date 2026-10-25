@@ -283,7 +283,7 @@ export function sampleCourse(): Course {
   );
   const toolInfo: [string, string][] = [
     ['Needle', 'A sail needle or knife scratched the design into the surface.'],
-    ['Ink', 'Soot or lamp-black was rubbed into the lines so they stood out.'],
+    ['Ink', 'Soot or **lamp-black** was rubbed into the lines so they *stood out*.'],
     ['Tooth', 'Sperm whale teeth and bone were the usual canvas.'],
   ];
   toolInfo.forEach(([label, info], i) => {

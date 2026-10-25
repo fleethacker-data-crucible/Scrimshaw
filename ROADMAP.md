@@ -16,7 +16,7 @@ Status of each Storyline 360 feature area in Scrimshaw. ✅ done, 🟡 partial, 
 | Entrance animations | ✅ | Fade, fly ×4, grow, wipe |
 | Exit animations | ✅ | Entrance effects played in reverse when the object disappears |
 | Motion paths | ⬜ | |
-| Text formatting | 🟡 | Per-object font, size, weight, colour, alignment; no per-run rich text, lists or hyperlinks inside text |
+| Text formatting | 🟡 | Per-object font, size, weight, colour, alignment; inline **bold**, *italic*, __underline__, ~~strike~~, links and bullet lines; no WYSIWYG run editor yet |
 | Shapes | ✅ | Rectangle, rounded, oval, triangle, arrow, line |
 | Images | ✅ | Embedded, alt text, decorative flag |
 | Video | 🟡 | Embedded file or URL, autoplay, controls, loop, play/pause triggers. No captions, no timeline sync |
@@ -98,7 +98,7 @@ Status of each Storyline 360 feature area in Scrimshaw. ✅ done, 🟡 partial, 
 1. cmi5 publishing
 2. Captions (WebVTT) for video and audio
 3. Motion paths
-4. Rich text runs (bold/italic/links per word)
+4. WYSIWYG rich text editing (formatting already works inline)
 5. Slide masters
 6. Word bank and Likert question types
 7. Player logo and layout options

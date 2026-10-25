@@ -13,6 +13,7 @@
 - Objects list in the inspector for keyboard selection.
 - Grouping (Ctrl+G), story view arrows.
 - Hotspot and numeric question types.
+- Inline text formatting: bold, italic, underline, strike, links, bullets.
 
 ## 0.1.0 (2026-10-25)
 
