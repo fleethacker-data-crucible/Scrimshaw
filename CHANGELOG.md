@@ -11,6 +11,7 @@
 - Find and replace; translation export/import as CSV.
 - Player accent colour with an AA contrast check.
 - Objects list in the inspector for keyboard selection.
+- Grouping (Ctrl+G), story view arrows.
 
 ## 0.1.0 (2026-10-25)
 

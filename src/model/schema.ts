@@ -69,6 +69,7 @@ function object(v: unknown): SlideObject | null {
     x: num(v.x, d.x), y: num(v.y, d.y), w: Math.max(1, num(v.w, d.w)), h: Math.max(1, num(v.h, d.h)),
     rotation: num(v.rotation), start: Math.max(0, num(v.start)),
     draggable: bool(v.draggable), dropTarget: bool(v.dropTarget),
+    groupId: typeof v.groupId === 'string' ? v.groupId : null,
     correctTargetId: typeof v.correctTargetId === 'string' ? v.correctTargetId : null,
     end: typeof v.end === 'number' ? v.end : null,
   };

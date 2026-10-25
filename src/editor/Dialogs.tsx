@@ -258,7 +258,7 @@ export function PublishDialog({ onClose }: { onClose: () => void }) {
 
 export const SHORTCUTS: [string, string][] = [
   ['Ctrl+Z / Ctrl+Y', 'Undo / redo'], ['Ctrl+S', 'Save now'], ['Ctrl+H', 'Find and replace'], ['F5', 'Preview from this slide'], ['Ctrl+M', 'New slide'],
-  ['Ctrl+C / X / V', 'Copy, cut, paste objects'], ['Ctrl+D', 'Duplicate objects'], ['Ctrl+A', 'Select all on the layer'],
+  ['Ctrl+C / X / V', 'Copy, cut, paste objects'], ['Ctrl+D', 'Duplicate objects'], ['Ctrl+G / Ctrl+Shift+G', 'Group / ungroup'], ['Alt+click', 'Pick one object out of a group'], ['Ctrl+A', 'Select all on the layer'],
   ['Delete', 'Delete selection'], ['Arrows', 'Nudge 1 px (Shift: 10 px)'], ['Ctrl+] / Ctrl+[', 'Bring forward / send backward'],
   ['Ctrl+Shift+] / [', 'Bring to front / send to back'], ['Page Up / Page Down', 'Previous / next slide'], ['Escape', 'Clear selection'],
   ['Shift while dragging', 'Constrain move, keep aspect, snap rotation'], ['Double-click', 'Edit text in place'], ['?', 'This list'],
