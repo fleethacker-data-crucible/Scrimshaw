@@ -14,7 +14,7 @@ import {
   Package, Play, Redo2, Save, Scan, SendToBack, Settings as SettingsIcon, Square, SquareCheck, SquareDashed, Sun, TextCursorInput, Trash, Type, Undo2,
   Variable, Video, Volume2, Gauge, Workflow, ZoomIn, ZoomOut, Clock,
 } from '../ui/icons.tsx';
-import { Button, IconButton, Menu, useUi } from '../ui/kit.tsx';
+import { Button, IconButton, Menu, useUi, type MenuItem } from '../ui/kit.tsx';
 import { fileToAsset, imageSize, pickFile, withAsset } from './assets.ts';
 import { Canvas } from './Canvas.tsx';
 import { EditorProvider, useEditor } from './context.tsx';
@@ -219,8 +219,9 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
     if (!f) return;
     try {
       const values = csvToTexts(await f.text());
-      let n = 0;
-      edit('Import translation', (c) => { n = applyTexts(c, values); });
+      // Count on a copy first: the reducer applies the edit later, during React's next render.
+      const n = applyTexts(structuredClone(course), values);
+      edit('Import translation', (c) => { applyTexts(c, values); });
       toast(n ? `Updated ${n} text${n === 1 ? '' : 's'} from the translation. Undo reverts it.` : 'No translated rows matched this course.', n ? 'ok' : 'warn');
     } catch (e) { toast((e as Error).message, 'err'); }
   };
@@ -272,6 +273,27 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
     return () => window.removeEventListener('keydown', onKey);
   });
 
+  const contextItems = (): MenuItem[] => {
+    const has = selected.length > 0;
+    return [
+      { label: 'Cut', shortcut: 'Ctrl+X', disabled: !has, onSelect: () => { if (copy()) remove(); } },
+      { label: 'Copy', shortcut: 'Ctrl+C', disabled: !has, onSelect: () => { copy(); } },
+      { label: 'Paste', shortcut: 'Ctrl+V', disabled: !clipboard, onSelect: paste },
+      { label: 'Duplicate', shortcut: 'Ctrl+D', disabled: !has, onSelect: duplicate },
+      { separator: true, label: '' },
+      { label: 'Bring to front', shortcut: 'Ctrl+Shift+]', disabled: !has, onSelect: () => arrange('front') },
+      { label: 'Bring forward', shortcut: 'Ctrl+]', disabled: !has, onSelect: () => arrange('forward') },
+      { label: 'Send backward', shortcut: 'Ctrl+[', disabled: !has, onSelect: () => arrange('backward') },
+      { label: 'Send to back', shortcut: 'Ctrl+Shift+[', disabled: !has, onSelect: () => arrange('back') },
+      { separator: true, label: '' },
+      { label: 'Group', shortcut: 'Ctrl+G', disabled: !groupable, onSelect: group },
+      { label: 'Ungroup', shortcut: 'Ctrl+Shift+G', disabled: !grouped, onSelect: ungroup },
+      { label: 'Copy formatting', shortcut: 'Ctrl+Alt+C', disabled: selected.length !== 1, onSelect: copyStyle },
+      { label: 'Paste formatting', shortcut: 'Ctrl+Alt+V', disabled: !has || !styleClip, onSelect: pasteStyle },
+      { separator: true, label: '' },
+      { label: selected.length > 1 ? `Delete ${selected.length} objects` : 'Delete', shortcut: 'Del', danger: true, disabled: !has, onSelect: remove },
+    ];
+  };
   const setPreviewState = (id: ID, st: string | null) => setPreviewStates((p) => { const n = { ...p }; if (st) n[id] = st; else delete n[id]; return n; });
   const toggle = (k: 'snap' | 'grid' | 'showTimeline') => setSettings((s) => ({ ...s, [k]: !s[k] }));
   const dark = document.documentElement.dataset.theme !== 'light';
@@ -378,7 +400,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
           <main id="main" tabIndex={-1} className="relative min-h-0 grid">
             {story
               ? <StoryView onOpen={() => setStory(false)} />
-              : <Canvas zoom={zoom} onZoom={setZoom} onZoomResolved={setResolvedZoom} snap={settings.snap} grid={settings.grid} previewStates={previewStates} />}
+              : <Canvas contextItems={contextItems} zoom={zoom} onZoom={setZoom} onZoomResolved={setResolvedZoom} snap={settings.snap} grid={settings.grid} previewStates={previewStates} />}
           </main>
           {settings.showTimeline && !story && (
             <div className="bottom">

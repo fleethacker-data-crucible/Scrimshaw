@@ -28,7 +28,7 @@ backup you can move between machines or share with another author.
 | Slides | Scenes, slides, slide master, drag-to-reorder, duplicate, start slide, completion slide, story view with trigger links |
 | Objects | Text, shapes (rectangle, rounded, oval, triangle, arrow, line), images, video and audio (with WebVTT captions), buttons, hotspots, text entry, choices, sliders |
 | Drag and drop | Any object can be draggable or a drop target; snap to target, one item per target, keyboard pick-up and drop, `drop` trigger event |
-| Canvas | Select, marquee, multi-select, move, resize (Shift keeps aspect), rotate, snapping guides, grid, zoom, inline text editing, align and distribute, z-order, copy/paste/duplicate, lock, hide while editing |
+| Canvas | Select, marquee, multi-select, move, resize (Shift keeps aspect), rotate, snapping guides, grid, zoom, inline text editing, align and distribute, z-order, copy/paste/duplicate, right-click menu, grouping, format painter, lock, hide while editing |
 | Layers | Per-slide layers, hide other layers, modal (dim and block the base layer), layer triggers |
 | States | Normal, Hover, Down, Selected, Visited, Disabled, Hidden and custom states, with preview in the editor |
 | Triggers | 19 actions × 10 events (including lightbox slides and drag-and-drop drops), AND/OR conditions on variables and object states, reorder, enable/disable, plain-English descriptions |

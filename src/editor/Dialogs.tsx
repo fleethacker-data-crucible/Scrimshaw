@@ -334,8 +334,9 @@ export function FindReplaceDialog({ onClose }: { onClose: () => void }) {
       <>
         <Button variant="ghost" onClick={onClose}>Close</Button>
         <Button disabled={!find || hits.length === 0} onClick={() => {
-          let n = 0;
-          edit('Replace all', (c) => { n = replaceAll(c, find, replace, matchCase); });
+          // Count on a copy first: the reducer applies the edit later, during React's next render.
+          const n = replaceAll(structuredClone(course), find, replace, matchCase);
+          edit('Replace all', (c) => { replaceAll(c, find, replace, matchCase); });
           toast(`Replaced ${n} occurrence${n === 1 ? '' : 's'}.`, 'ok');
         }}>Replace all</Button>
       </>

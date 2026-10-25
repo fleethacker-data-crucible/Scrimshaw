@@ -4,6 +4,7 @@ import { findSlide } from '../model/query.ts';
 import type { ID, SlideObject } from '../model/types.ts';
 import { SlideView } from '../render/SlideView.tsx';
 import { withGroups } from '../store/ops.ts';
+import { ContextMenu, type MenuItem } from '../ui/kit.tsx';
 import { MARKER_KEYS, toggleMarker } from '../render/markup.ts';
 import { useEditor } from './context.tsx';
 
@@ -22,6 +23,8 @@ interface Drag {
 }
 
 export interface CanvasProps {
+  /** Items for the right-click menu, built for the selection at the time of the click. */
+  contextItems?: () => MenuItem[];
   onZoom?: (z: number) => void;
   zoom: number | 'fit';
   onZoomResolved: (z: number) => void;
@@ -32,7 +35,8 @@ export interface CanvasProps {
 
 const textKinds = new Set(['text', 'shape', 'button', 'choice', 'input']);
 
-export function Canvas({ zoom, onZoomResolved, onZoom, snap, grid, previewStates }: CanvasProps) {
+export function Canvas({ zoom, onZoomResolved, onZoom, snap, grid, previewStates, contextItems }: CanvasProps) {
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const { course, slide, layer, state, select, edit } = useEditor();
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -242,6 +246,14 @@ export function Canvas({ zoom, onZoomResolved, onZoom, snap, grid, previewStates
         style={{ width: W * scale, height: H * scale, backgroundSize: grid ? `${20 * scale}px ${20 * scale}px` : undefined }}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
         onDoubleClick={onDoubleClick}
+        onContextMenu={(e) => {
+          if (!contextItems || editing) return;
+          e.preventDefault();
+          const p = toSlide(e);
+          const o = hit(p.x, p.y);
+          if (o && !selectedIds.includes(o.id)) select({ objectIds: withGroups(objects, [o.id]) });
+          setMenu({ x: e.clientX, y: e.clientY });
+        }}
         role="application" aria-label={`Slide canvas: ${slide.title}. ${layer.base ? 'Base layer' : `Layer ${layer.name}`}. Use the Objects list in the inspector or Tab to reach objects with the keyboard.`}>
         <div style={{ position: 'absolute', left: 0, top: 0, transform: `scale(${scale})`, transformOrigin: '0 0', pointerEvents: 'none' }}>
           <SlideView course={live ? withLive(course, slide.id, live) : course} slide={live ? findSlide(withLive(course, slide.id, live), slide.id)! : slide}
@@ -280,6 +292,7 @@ export function Canvas({ zoom, onZoomResolved, onZoom, snap, grid, previewStates
         {guides.v.map((x, i) => <div key={`v${i}`} className="guide" style={{ left: x * scale, top: 0, width: 1, height: H * scale }} />)}
         {guides.h.map((y, i) => <div key={`h${i}`} className="guide" style={{ top: y * scale, left: 0, height: 1, width: W * scale }} />)}
         {editingObj && <InlineText o={editingObj} scale={scale} onDone={() => setEditing(null)} />}
+        {menu && contextItems && <ContextMenu x={menu.x} y={menu.y} items={contextItems()} onClose={() => setMenu(null)} />}
       </div>
     </div>
   );

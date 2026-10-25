@@ -8,6 +8,7 @@ import {
   createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
   type ComponentProps, type KeyboardEvent, type ReactNode,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { twMerge } from 'tailwind-merge';
 import { X } from './icons.tsx';
 
@@ -299,5 +300,55 @@ export function Select<T extends string>({ value, onChange, options, label, clas
     <select aria-label={label} title={label} className={className} value={value} onChange={(e) => onChange(e.target.value as T)}>
       {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
+  );
+}
+
+// ---------- context menu (positioned APG menu) ----------
+
+export function ContextMenu({ x, y, items, onClose }: { x: number; y: number; items: MenuItem[]; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ x, y });
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setPos({ x: Math.min(x, innerWidth - r.width - 8), y: Math.min(y, innerHeight - r.height - 8) });
+    el.querySelector<HTMLElement>('[role=menuitem]:not([aria-disabled=true])')?.focus();
+  }, [x, y]);
+  useEffect(() => {
+    const away = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) onClose(); };
+    const blur = () => onClose();
+    document.addEventListener('pointerdown', away, true);
+    window.addEventListener('blur', blur);
+    window.addEventListener('resize', blur);
+    return () => { document.removeEventListener('pointerdown', away, true); window.removeEventListener('blur', blur); window.removeEventListener('resize', blur); };
+  }, [onClose]);
+  const focusAt = (d: number) => {
+    const els = [...(ref.current?.querySelectorAll<HTMLElement>('[role=menuitem]:not([aria-disabled=true])') ?? [])];
+    const i = els.indexOf(document.activeElement as HTMLElement);
+    els[(i + d + els.length) % els.length]?.focus();
+  };
+  // Portalled to <body> so the menu is never clipped by the canvas or the stage's scroll area.
+  return createPortal(
+    <div ref={ref} role="menu" aria-label="Object actions" className="dd-menu open" style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 60 }}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowDown') { e.preventDefault(); focusAt(1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); focusAt(-1); }
+        else if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); onClose(); }
+      }}
+      onContextMenu={(e) => e.preventDefault()}
+      // React portals still bubble synthetic events to their React parents (the canvas): stop them here.
+      onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+      {items.map((it, i) => it.separator
+        ? <div key={i} role="separator" className="my-1 h-px !p-0 bg-line" />
+        : (
+          <div key={i} role="menuitem" tabIndex={-1} aria-disabled={it.disabled || undefined} className={cn('flex items-center gap-2', it.danger && 'danger')}
+            onClick={() => { if (it.disabled) return; onClose(); it.onSelect?.(); }}
+            onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !it.disabled) { e.preventDefault(); onClose(); it.onSelect?.(); } }}>
+            {it.icon}<span className="flex-1">{it.label}</span>{it.shortcut && <kbd className="text-[11px]">{it.shortcut}</kbd>}
+          </div>
+        ))}
+    </div>,
+    document.body,
   );
 }
