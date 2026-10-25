@@ -151,3 +151,15 @@ test('trigger descriptions and story links read naturally', () => {
   assert.equal(first.conditions, 'Needle button is not Visited');
   assert.deepEqual(slideLinks(c, tools).map((l) => l.to), [allSlides(c)[2].id]);
 });
+
+test('groups: selection expands to the group, copies get a fresh group id', async () => {
+  const { withGroups, copyObjects } = await import('../src/store/ops.ts');
+  const a = newObject('shape', { groupId: 'g1' });
+  const b = newObject('shape', { groupId: 'g1' });
+  const c = newObject('shape');
+  assert.deepEqual(withGroups([a, b, c], [a.id]).sort(), [a.id, b.id].sort());
+  assert.deepEqual(withGroups([a, b, c], [c.id]), [c.id]);
+  const copies = copyObjects([a, b]);
+  assert.equal(copies[0].groupId, copies[1].groupId);
+  assert.notEqual(copies[0].groupId, 'g1');
+});

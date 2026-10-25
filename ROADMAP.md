@@ -32,7 +32,7 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 | Undo/redo | ✅ | 200 steps |
 | Align, distribute, z-order, snapping, grid | ✅ | |
 | Rotation | ✅ | Shift snaps to 15° |
-| Grouping | ⬜ | |
+| Grouping | ✅ | Ctrl+G / Ctrl+Shift+G; Alt+click picks one member |
 | Find and replace | ✅ | Titles, text, state text, alt text, accepted answers |
 | Spell check | 🟡 | Browser spell check in text fields only |
 | Translation (export/import text) | ✅ | CSV with stable keys; opens in Excel |
@@ -99,6 +99,6 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 2. Captions (WebVTT) for video and audio
 3. Motion paths
 4. Rich text runs (bold/italic/links per word)
-5. Grouping and slide masters
+5. Slide masters
 6. Hotspot, sequence and numeric question types
 7. Player logo and layout options

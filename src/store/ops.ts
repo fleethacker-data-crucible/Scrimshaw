@@ -41,9 +41,12 @@ function remapTrigger(t: Trigger, map: Map<ID, ID>): Trigger {
 export function copyObjects(objs: SlideObject[], extraMap = new Map<ID, ID>()): SlideObject[] {
   const map = new Map(extraMap);
   for (const o of objs) if (!map.has(o.id)) map.set(o.id, uid('o'));
+  const groups = new Map<ID, ID>();
+  for (const o of objs) if (o.groupId && !groups.has(o.groupId)) groups.set(o.groupId, uid('g'));
   return objs.map((o) => ({
     ...structuredClone(o),
     id: map.get(o.id)!,
+    groupId: o.groupId ? groups.get(o.groupId)! : null,
     states: o.states.map((s) => ({ ...structuredClone(s), id: uid('st') })),
     triggers: o.triggers.map((t) => remapTrigger(t, map)),
   }));
@@ -266,4 +269,10 @@ export function pruneAssets(c: Course): Course['assets'] {
     for (const o of slideObjects(sl)) if (o.src.startsWith('asset:')) used.add(o.src.slice(6));
   }
   return Object.fromEntries(Object.entries(c.assets).filter(([id]) => used.has(id)));
+}
+
+/** Expands a set of ids to whole groups. */
+export function withGroups(objs: SlideObject[], ids: ID[]): ID[] {
+  const groups = new Set(objs.filter((o) => ids.includes(o.id) && o.groupId).map((o) => o.groupId));
+  return objs.filter((o) => ids.includes(o.id) || (o.groupId && groups.has(o.groupId))).map((o) => o.id);
 }

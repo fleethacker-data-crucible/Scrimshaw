@@ -172,6 +172,18 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
     const ids = selected.map((o) => o.id);
     edit(ids.length > 1 ? `Delete ${ids.length} objects` : 'Delete object', (c, sel) => { deleteObjects(findSlide(c, sel.slideId)!, ids); return { objectIds: [] }; });
   }, [selected, edit]);
+  const groupable = selected.length >= 2;
+  const grouped = selected.some((o) => o.groupId);
+  const group = () => {
+    if (!groupable) return;
+    const ids = selected.map((o) => o.id);
+    edit('Group', (c, sel) => { const g = `g${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`; for (const o of findLayer(findSlide(c, sel.slideId)!, sel.layerId)!.objects) if (ids.includes(o.id)) o.groupId = g; });
+  };
+  const ungroup = () => {
+    if (!grouped) return;
+    const ids = selected.map((o) => o.id);
+    edit('Ungroup', (c, sel) => { for (const o of findLayer(findSlide(c, sel.slideId)!, sel.layerId)!.objects) if (ids.includes(o.id)) o.groupId = null; });
+  };
   const arrange = (how: ZOrder) => edit('Arrange', (c, sel) => reorder(findLayer(findSlide(c, sel.slideId)!, sel.layerId)!, sel.objectIds, how));
   const doAlign = (how: Align) => edit('Align', (c, sel) => align(findLayer(findSlide(c, sel.slideId)!, sel.layerId)!.objects.filter((o) => sel.objectIds.includes(o.id)), how, c.size));
   const doDistribute = (axis: 'h' | 'v') => edit('Distribute', (c, sel) => distribute(findLayer(findSlide(c, sel.slideId)!, sel.layerId)!.objects.filter((o) => sel.objectIds.includes(o.id)), axis));
@@ -229,6 +241,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
       if (mod && k.toLowerCase() === 'x') { if (copy()) { e.preventDefault(); remove(); } return; }
       if (mod && k.toLowerCase() === 'v') { if (clipboard) { e.preventDefault(); paste(); } return; }
       if (mod && k.toLowerCase() === 'd') { e.preventDefault(); duplicate(); return; }
+      if (mod && k.toLowerCase() === 'g') { e.preventDefault(); if (e.shiftKey) ungroup(); else group(); return; }
       if (mod && (k === ']' || k === '[')) { e.preventDefault(); arrange(k === ']' ? (e.shiftKey ? 'front' : 'forward') : (e.shiftKey ? 'back' : 'backward')); return; }
       if (k === 'Delete' || k === 'Backspace') { if (selected.length) { e.preventDefault(); remove(); } return; }
       if (k === 'Escape') { select({ objectIds: [] }); return; }
@@ -317,6 +330,9 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
           { separator: true, label: '' },
           { label: 'Distribute horizontally', disabled: selected.length < 3, onSelect: () => doDistribute('h') },
           { label: 'Distribute vertically', disabled: selected.length < 3, onSelect: () => doDistribute('v') },
+          { separator: true, label: '' },
+          { label: 'Group', shortcut: 'Ctrl+G', disabled: !groupable, onSelect: group },
+          { label: 'Ungroup', shortcut: 'Ctrl+Shift+G', disabled: !grouped, onSelect: ungroup },
         ].map((i) => ({ ...i, disabled: i.disabled || selected.length === 0 }))}>Align<ChevronDown size={12} /></Menu>
         <IconButton label="Bring to front (Ctrl+Shift+])" disabled={!selected.length} onClick={() => arrange('front')}><BringToFront /></IconButton>
         <IconButton label="Send to back (Ctrl+Shift+[)" disabled={!selected.length} onClick={() => arrange('back')}><SendToBack /></IconButton>

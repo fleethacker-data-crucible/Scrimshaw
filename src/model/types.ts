@@ -170,6 +170,8 @@ export interface SlideObject {
   /** video and audio: start again from the beginning when finished. */
   loop: boolean;
   locked: boolean;
+  /** Objects sharing a group id select and move together in the editor. */
+  groupId: ID | null;
   /** Editor only: hidden on the canvas while editing. Ignored by the player. */
   editorHidden: boolean;
 }

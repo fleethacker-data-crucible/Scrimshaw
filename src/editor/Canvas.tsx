@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as RPoi
 import { findSlide } from '../model/query.ts';
 import type { ID, SlideObject } from '../model/types.ts';
 import { SlideView } from '../render/SlideView.tsx';
+import { withGroups } from '../store/ops.ts';
 import { useEditor } from './context.tsx';
 
 type Handle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | 'rot';
@@ -106,11 +107,13 @@ export function Canvas({ zoom, onZoomResolved, snap, grid, previewStates }: Canv
       return;
     }
     let ids = selectedIds;
+    // Alt-click picks one object out of its group.
+    const unit = e.altKey ? [o.id] : withGroups(objects, [o.id]);
     if (e.shiftKey || e.ctrlKey || e.metaKey) {
-      ids = selectedIds.includes(o.id) ? selectedIds.filter((id) => id !== o.id) : [...selectedIds, o.id];
+      ids = selectedIds.includes(o.id) ? selectedIds.filter((id) => !unit.includes(id)) : [...new Set([...selectedIds, ...unit])];
       select({ objectIds: ids });
     } else if (!selectedIds.includes(o.id)) {
-      ids = [o.id];
+      ids = unit;
       select({ objectIds: ids });
     }
     const moveOrig = new Map(objects.filter((x) => ids.includes(x.id)).map((x) => [x.id, { x: x.x, y: x.y, w: x.w, h: x.h, rotation: x.rotation }]));
