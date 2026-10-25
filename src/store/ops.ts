@@ -271,6 +271,7 @@ export function pruneAssets(c: Course): Course['assets'] {
       if (o.captions.startsWith('asset:')) used.add(o.captions.slice(6));
     }
   }
+  if (c.player.logo.startsWith('asset:')) used.add(c.player.logo.slice(6));
   return Object.fromEntries(Object.entries(c.assets).filter(([id]) => used.has(id)));
 }
 

@@ -24,6 +24,7 @@
 - Motion paths (straight line), played on the timeline or by triggers, reversible.
 - Printable storyboard export for review and sign-off.
 - cmi5 publishing.
+- Player logo.
 - Fix: a click that navigates away now still marks the object Visited for when the learner returns.
 
 ## 0.1.0 (2026-10-25)

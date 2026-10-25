@@ -47,6 +47,8 @@ export interface PlayerSettings {
   resources: { title: string; url: string }[];
   /** Terms shown in the player's Glossary panel. */
   glossary: { term: string; definition: string }[];
+  /** Logo in the player's title bar: "asset:<id>" or ''. */
+  logo: string;
   /** Player chrome accent (buttons, seekbar). Empty: the UI kit default. */
   accent: string;
   /** Free: learners can open any slide from the menu. Restricted: only slides already visited. */

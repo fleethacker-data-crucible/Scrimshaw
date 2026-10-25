@@ -215,6 +215,9 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
         {course.player.showMenu && (
           <IconButton label={menuOpen ? 'Hide menu' : 'Show menu'} aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)}><MenuIcon /></IconButton>
         )}
+        {course.player.logo && course.assets[course.player.logo.slice(6)] && (
+          <img src={course.assets[course.player.logo.slice(6)].data} alt="" className="h-7 w-auto max-w-[120px] object-contain shrink-0" />
+        )}
         {showTitle && <h1 className="flex-1 min-w-0 text-[15px] truncate">{course.title}</h1>}
         {!showTitle && <span className="flex-1" />}
         {r.hasQuiz && <span className="badge blue" title="Questions answered">{r.answered}/{slides.filter((s) => s.question?.graded).length} answered</span>}

@@ -61,7 +61,7 @@ Status of each Storyline 360 feature area in Scrimshaw. ✅ done, 🟡 partial, 
 | Free / restricted navigation | ✅ | |
 | Resume (local or LMS) | ✅ | |
 | Keyboard access, screen-reader names | ✅ | |
-| Player theming (colours, logo) | 🟡 | Accent colour with contrast check; no logo or layout options |
+| Player theming (colours, logo) | 🟡 | Accent colour with contrast check, logo; no layout options |
 | Glossary, resources, notes tab | 🟡 | Resources and Glossary panels; no learner-facing notes tab |
 | Responsive / mobile layout | 🟡 | Scales to fit; phone layout with an overlay menu, safe-area insets; no portrait-specific slide layouts |
 | Lightbox slides | ✅ | Open a slide as a pop-up over the current one; close, Next or Prev returns |
@@ -95,8 +95,8 @@ Status of each Storyline 360 feature area in Scrimshaw. ✅ done, 🟡 partial, 
 
 ## Suggested order
 
-3. Curved and freeform motion paths
-4. WYSIWYG rich text editing (formatting already works inline)
-5. Multiple slide masters and theme colour sets
-6. Word bank and Likert question types
-7. Player logo and layout options
+1. Curved and freeform motion paths
+2. WYSIWYG rich text editing (formatting already works inline)
+3. Multiple slide masters and theme colour sets
+4. Word bank and Likert question types
+5. Player layout options

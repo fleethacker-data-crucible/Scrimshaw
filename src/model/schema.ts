@@ -118,6 +118,7 @@ function playerSettings(v: unknown, d: Course['player']): Course['player'] {
     showTitle: bool(p.showTitle, d.showTitle), resume: bool(p.resume, d.resume),
     navigation: p.navigation === 'restricted' ? 'restricted' : 'free',
     accent: typeof p.accent === 'string' && /^#[0-9a-f]{3,8}$/i.test(p.accent) ? p.accent : '',
+    logo: typeof p.logo === 'string' && p.logo.startsWith('asset:') ? p.logo : '',
     resources: arr(p.resources, (r) => (isObj(r) && typeof r.url === 'string' && /^(https?:|mailto:)/i.test(r.url) ? { title: str(r.title, r.url), url: r.url } : null)),
     glossary: arr(p.glossary, (g) => (isObj(g) && typeof g.term === 'string' ? { term: g.term, definition: str(g.definition) } : null)),
   };
