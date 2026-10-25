@@ -34,7 +34,7 @@ backup you can move between machines or share with another author.
 | Triggers | 17 actions × 9 events, AND/OR conditions on variables and object states, reorder, enable/disable, plain-English descriptions |
 | Variables | Text, number and true/false variables, `%Name%` in any text, built-ins such as `%Results.ScorePercent%` and `%Project.SlideNumber%` |
 | Timeline | Per-object appear/disappear times, drag bars, slide length, entrance and exit animations (fade, fly, grow, wipe), cue-point triggers, auto-advance |
-| Quizzes | Multiple choice, multiple response, true/false, fill-in-the-blank, drag and drop; points, attempts, try-again/correct/incorrect feedback layers, shuffled answers, question banks (shuffle and draw per scene), results slide, retry |
+| Quizzes | Multiple choice, multiple response, true/false, fill-in-the-blank, drag and drop, hotspot, numeric; points, attempts, try-again/correct/incorrect feedback layers, shuffled answers, question banks (shuffle and draw per scene), results slide, retry |
 | Player | Menu, prev/next, seekbar, pause, resume where you left off, restricted or free navigation, accent colour (with an AA contrast check), keyboard-accessible objects |
 | Publish | SCORM 1.2 and SCORM 2004 3rd Edition zips (status, success, score, location, suspend data, session time), xAPI (Tin Can) zip with State API resume, standalone HTML, `.scrim` project file; publish-time checks for broken references and missing alt text |
 | Editor | Undo/redo (200 steps, coalesced drags and typing), autosave, find and replace, translation export/import (CSV), keyboard shortcuts (`?`), light and dark themes, reduced motion |

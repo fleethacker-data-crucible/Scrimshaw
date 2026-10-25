@@ -341,3 +341,31 @@ test('question banks: shuffle and draw within a scene, score only drawn question
   c.scenes[0].bank = null;
   assert.equal(E.buildSequence(c).length, 6);
 });
+
+test('hotspot and numeric questions', () => {
+  const c = newCourse('Q');
+  const hs = newQuestionSlide('hotspot');
+  const nu = newQuestionSlide('numeric');
+  nu.question!.numMin = 9.5; nu.question!.numMax = 10.5;
+  nu.question!.attempts = 0;
+  c.scenes[0].slides = [hs, nu];
+  const areas = slideObjects(hs).filter((o) => o.kind === 'hotspot');
+  const submit = (sl: typeof hs) => slideObjects(sl).find((o) => o.name === 'Submit')!.id;
+  let s = E.start(c);
+  s = E.click(c, s, areas[2].id);
+  s = E.click(c, s, areas[0].id);
+  assert.equal(E.stateOf(s, areas[2]), 'Normal', 'one area at a time');
+  s = E.click(c, s, submit(hs));
+  assert.equal(s.answers[hs.id].correct, true);
+  s = E.navigate(c, s, nu.id);
+  const input = nu.question!.inputObjectId!;
+  s = E.input(c, s, input, 'ten');
+  s = E.click(c, s, submit(nu));
+  assert.ok(E.takeEffects(s)[1].some((f) => f.type === 'notice'));
+  s = E.input(c, s, input, '11');
+  s = E.click(c, s, submit(nu));
+  assert.equal(s.answers[nu.id].correct, false);
+  s = E.input(c, s, input, ' 10,2 ');
+  s = E.click(c, s, submit(nu));
+  assert.equal(s.answers[nu.id].correct, true, 'decimal comma accepted');
+});

@@ -404,7 +404,15 @@ function submit(ctx: Ctx) {
 
   let correct = false;
   let response = '';
-  if (q.kind === 'fill-in') {
+  if (q.kind === 'numeric') {
+    const inputId = q.inputObjectId;
+    const input = inputId ? findObject(slide, inputId) : undefined;
+    response = inputId ? (ctx.s.inputs[inputId] ?? '') : '';
+    if (!response && input?.variableId) response = formatValue(ctx.s.vars[input.variableId]);
+    const n = Number(response.trim().replace(/\s/g, '').replace(/,(?=\d{1,2}$)/, '.').replace(/,/g, ''));
+    if (response.trim() === '' || !Number.isFinite(n)) { ctx.s.effects.push({ type: 'notice', message: 'Enter a number before you submit.' }); return; }
+    correct = n >= Math.min(q.numMin, q.numMax) && n <= Math.max(q.numMin, q.numMax);
+  } else if (q.kind === 'fill-in') {
     const inputId = q.inputObjectId;
     const input = inputId ? findObject(slide, inputId) : undefined;
     response = inputId ? (ctx.s.inputs[inputId] ?? '') : '';
@@ -419,7 +427,7 @@ function submit(ctx: Ctx) {
     response = placed.map((o) => `${o.name} → ${name(ctx.s.drops[o.id])}`).join('; ');
     correct = items.every((o) => ctx.s.drops[o.id] === o.correctTargetId);
   } else {
-    const choices = slideObjects(slide).filter((o) => o.kind === 'choice');
+    const choices = slideObjects(slide).filter((o) => o.kind === (q.kind === 'hotspot' ? 'hotspot' : 'choice'));
     const selected = choices.filter((o) => stateOf(ctx.s, o) === 'Selected');
     if (selected.length === 0) { ctx.s.effects.push({ type: 'notice', message: 'Choose an answer before you submit.' }); return; }
     response = selected.map((o) => o.text).join('; ');
@@ -430,7 +438,7 @@ function submit(ctx: Ctx) {
   const outOfAttempts = q.attempts > 0 && attempt >= q.attempts;
   const final = correct || outOfAttempts;
   ctx.s.answers[slide.id] = { correct, points: correct ? q.points : 0, max: q.points, response, graded: q.graded, final };
-  if (final) for (const o of slideObjects(slide)) if (o.kind === 'choice' || o.kind === 'input' || o.draggable) {
+  if (final) for (const o of slideObjects(slide)) if (o.kind === 'choice' || o.kind === 'input' || o.draggable || (q.kind === 'hotspot' && o.kind === 'hotspot')) {
     if (stateOf(ctx.s, o) !== 'Selected') setObjectState(ctx, o, 'Disabled');
   }
   feedback(correct, !final);
@@ -561,6 +569,10 @@ export function click(course: Course, state: PlayerState, objectId: ID): PlayerS
         setObjectState(ctx, obj, 'Selected');
       }
     } else setObjectState(ctx, obj, selected ? 'Normal' : 'Selected');
+  } else if (obj.kind === 'hotspot' && slide.question?.kind === 'hotspot') {
+    // Hotspot questions: picking an area works like a radio choice.
+    for (const o of slideObjects(slide)) if (o.kind === 'hotspot' && o.id !== obj.id && stateOf(s, o) === 'Selected') setObjectState(ctx, o, 'Normal');
+    setObjectState(ctx, obj, 'Selected');
   }
   fire(ctx, { type: 'click' }, { objectId });
   if (ctx.s.slideId === slide.id && !ctx.navigated) {

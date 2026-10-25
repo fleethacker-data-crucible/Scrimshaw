@@ -132,7 +132,9 @@ export function validateCourse(course: Course): string[] {
       for (const o of l.objects) for (const t of o.triggers) check(t, o.name);
     }
     const q = sl.question;
-    if (q && q.kind !== 'fill-in' && q.kind !== 'drag-drop' && !sl.layers.some((l) => l.objects.some((o) => o.kind === 'choice' && o.correct))) problems.push(`${sl.title}: the question has no correct answer marked.`);
+    const answerKind = q?.kind === 'hotspot' ? 'hotspot' : 'choice';
+    if (q && ['multiple-choice', 'multiple-response', 'true-false', 'hotspot'].includes(q.kind) && !sl.layers.some((l) => l.objects.some((o) => o.kind === answerKind && o.correct))) problems.push(`${sl.title}: the question has no correct answer marked.`);
+    if (q && q.kind === 'numeric' && !(q.inputObjectId && findObject(sl, q.inputObjectId))) problems.push(`${sl.title}: the numeric question has no text entry box linked.`);
     if (q && q.kind === 'fill-in' && q.accepted.filter((a) => a.trim()).length === 0) problems.push(`${sl.title}: the fill-in question has no accepted answers.`);
     if (q && q.kind === 'fill-in' && !(q.inputObjectId && findObject(sl, q.inputObjectId))) problems.push(`${sl.title}: the fill-in question has no text entry box linked.`);
     if (q && q.kind === 'drag-drop' && !sl.layers.some((l) => l.objects.some((o) => o.draggable && o.correctTargetId && findObject(sl, o.correctTargetId)?.dropTarget))) problems.push(`${sl.title}: the drag-and-drop question has no item with a correct drop target.`);

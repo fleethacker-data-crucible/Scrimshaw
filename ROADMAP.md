@@ -44,7 +44,7 @@ Status of each Storyline 360 feature area in Scrimshaw. ✅ done, 🟡 partial, 
 | --- | --- | --- |
 | Multiple choice, multiple response, true/false | ✅ | |
 | Fill in the blank | ✅ | Multiple accepted answers, case-insensitive |
-| Matching, sequence, hotspot, numeric, word bank | 🟡 | Matching works as drag and drop; others not yet |
+| Matching, sequence, hotspot, numeric, word bank | 🟡 | Hotspot and numeric (range) types; matching and sequence via drag and drop; no word bank yet |
 | Freeform questions (any object as an answer) | 🟡 | Choice objects can sit on any slide; grading needs a question slide |
 | Survey questions (Likert, essay, ranking) | 🟡 | Questions can be ungraded; no Likert/essay types yet |
 | Attempts, try again, feedback layers | ✅ | |
@@ -100,5 +100,5 @@ Status of each Storyline 360 feature area in Scrimshaw. ✅ done, 🟡 partial, 
 3. Motion paths
 4. Rich text runs (bold/italic/links per word)
 5. Slide masters
-6. Hotspot, sequence and numeric question types
+6. Word bank and Likert question types
 7. Player logo and layout options
