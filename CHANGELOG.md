@@ -14,6 +14,7 @@
 - Grouping (Ctrl+G), story view arrows.
 - Hotspot and numeric question types.
 - Inline text formatting: bold, italic, underline, strike, links, bullets.
+- Player Resources and Glossary panels.
 
 ## 0.1.0 (2026-10-25)
 

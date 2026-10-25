@@ -127,6 +127,33 @@ export function CourseDialog({ onClose }: { onClose: () => void }) {
         </div>
       </fieldset>
       <fieldset>
+        <legend>Resources</legend>
+        <div className="grid gap-1">
+          {p.resources.map((r, i) => (
+            <div key={i} className="flex gap-1 items-center">
+              <input aria-label="Resource title" className="flex-1" value={r.title} onChange={(e) => set('Resource', (c) => { c.player.resources[i].title = e.target.value; }, `rt${i}`)} />
+              <input aria-label="Resource link" className="flex-1 font-mono text-[12px]" value={r.url} aria-invalid={!/^(https?:|mailto:)/i.test(r.url)} onChange={(e) => set('Resource', (c) => { c.player.resources[i].url = e.target.value; }, `ru${i}`)} />
+              <IconButton label={`Remove ${r.title}`} onClick={() => set('Remove resource', (c) => { c.player.resources.splice(i, 1); })}><Trash /></IconButton>
+            </div>
+          ))}
+          <div><Button size="small" variant="ghost" onClick={() => set('Add resource', (c) => { c.player.resources.push({ title: 'New resource', url: 'https://' }); })}><Plus size={14} />Add link</Button></div>
+          <p className="hint">Links must start with https://, http:// or mailto:. Others are dropped when the course is saved.</p>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Glossary</legend>
+        <div className="grid gap-1">
+          {p.glossary.map((g, i) => (
+            <div key={i} className="flex gap-1 items-start">
+              <input aria-label="Term" className="w-40" value={g.term} onChange={(e) => set('Glossary', (c) => { c.player.glossary[i].term = e.target.value; }, `gt${i}`)} />
+              <textarea aria-label="Definition" rows={1} className="flex-1 !font-sans !text-[13px] !min-h-[25px]" value={g.definition} onChange={(e) => set('Glossary', (c) => { c.player.glossary[i].definition = e.target.value; }, `gd${i}`)} />
+              <IconButton label={`Remove ${g.term}`} onClick={() => set('Remove term', (c) => { c.player.glossary.splice(i, 1); })}><Trash /></IconButton>
+            </div>
+          ))}
+          <div><Button size="small" variant="ghost" onClick={() => set('Add term', (c) => { c.player.glossary.push({ term: 'Term', definition: '' }); })}><Plus size={14} />Add term</Button></div>
+        </div>
+      </fieldset>
+      <fieldset>
         <legend>Quiz and reporting</legend>
         <div className="grid grid-cols-2 gap-2">
           <Field label="Passing score (%)"><NumberInput label="Passing score" min={0} max={100} value={course.quiz.passPercent} onChange={(v) => set('Passing score', (c) => { c.quiz.passPercent = v; }, 'pass')} /></Field>

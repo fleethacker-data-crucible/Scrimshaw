@@ -123,7 +123,7 @@ export function newCourse(title = 'Untitled course'): Course {
     scenes: [newScene('Scene 1', [first])],
     variables: [],
     startSlideId: null,
-    player: { showMenu: true, showNav: true, showSeekbar: true, showTitle: true, accent: '', navigation: 'free', resume: true },
+    player: { showMenu: true, showNav: true, showSeekbar: true, showTitle: true, resources: [], glossary: [], accent: '', navigation: 'free', resume: true },
     quiz: { passPercent: 80, reporting: 'passed-failed', completionSlideId: null },
     assets: {},
     created: now, modified: now,
@@ -258,6 +258,12 @@ export function sampleCourse(): Course {
   const c = newCourse('Scrimshaw: a sailor’s craft');
   c.author = 'Scrimshaw';
   c.description = 'A short sample course that shows slides, layers, states, triggers, variables and a quiz.';
+  c.player.glossary = [
+    { term: 'Baleen', definition: 'Plates in the mouths of some whales, also carved by sailors.' },
+    { term: 'Lamp-black', definition: 'Soot from oil lamps, rubbed into carved lines to darken them.' },
+    { term: 'Scrimshander', definition: 'A person who makes scrimshaw.' },
+  ];
+  c.player.resources = [{ title: 'Scrimshaw (Wikipedia)', url: 'https://en.wikipedia.org/wiki/Scrimshaw' }];
   const name = newVariable('LearnerName', 'text', '');
   const explored = newVariable('ToolsExplored', 'number', 0);
   c.variables.push(name, explored);

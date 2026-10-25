@@ -40,6 +40,10 @@ export interface PlayerSettings {
   showNav: boolean;
   showSeekbar: boolean;
   showTitle: boolean;
+  /** Links shown in the player's Resources panel (http, https or mailto). */
+  resources: { title: string; url: string }[];
+  /** Terms shown in the player's Glossary panel. */
+  glossary: { term: string; definition: string }[];
   /** Player chrome accent (buttons, seekbar). Empty: the UI kit default. */
   accent: string;
   /** Free: learners can open any slide from the menu. Restricted: only slides already visited. */

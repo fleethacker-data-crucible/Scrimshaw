@@ -62,7 +62,7 @@ Status of each Storyline 360 feature area in Scrimshaw. ✅ done, 🟡 partial, 
 | Resume (local or LMS) | ✅ | |
 | Keyboard access, screen-reader names | ✅ | |
 | Player theming (colours, logo) | 🟡 | Accent colour with contrast check; no logo or layout options |
-| Glossary, resources, notes tab | ⬜ | |
+| Glossary, resources, notes tab | 🟡 | Resources and Glossary panels; no learner-facing notes tab |
 | Responsive / mobile layout | 🟡 | Scales to fit; no mobile-specific player layout |
 | Lightbox slides | ⬜ | |
 
