@@ -121,11 +121,24 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
   }, [layersKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const firstEntry = useRef(state.entry);
+  // The clock of the slide under an open lightbox, so closing the lightbox resumes it where it was.
+  const baseClock = useRef<typeof clock.current | null>(null);
   useEffect(() => {
     if (clock.current.entry !== state.entry) {
-      clock.current = { t: 0, last: performance.now(), entry: state.entry, ended: false, reached: new Set(), layers: new Map() };
+      const back = baseClock.current;
+      if (state.lightboxFrom && state.lightboxBase?.entry === clock.current.entry) baseClock.current = clock.current;
+      else if (!state.lightboxFrom) baseClock.current = null;
+      if (back && back.entry === state.entry) {
+        clock.current = { ...back, last: performance.now() };
+        setTime(back.t);
+        setLayerTimes(Object.fromEntries([...back.layers].map(([id, l]) => [id, l.t])));
+      } else {
+      // Seed clocks for layers already shown by the new slide's timeline-start triggers (same render).
+      clock.current = { t: 0, last: performance.now(), entry: state.entry, ended: false, reached: new Set(),
+        layers: new Map(state.layers.map((id) => [id, { t: 0, ended: false, reached: new Set<number>() }])) };
       setTime(0);
-      setLayerTimes({});
+      setLayerTimes(Object.fromEntries(state.layers.map((id) => [id, 0])));
+      }
       setPaused(false); // a "pause timeline" trigger never carries over to the next slide
       // Keyboard and screen-reader users land on the new slide (WCAG 2.4.3), unless focus is elsewhere on the page.
       if (state.entry !== firstEntry.current) {
@@ -144,19 +157,23 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
     let lastKey = '';
     const tick = (now: number) => {
       const c = clock.current;
+      // Every update queued this frame only applies to the slide it was queued for: a timeline trigger
+      // that navigates must not run the next slide's timeline events.
+      const entry = c.entry;
+      const onThisSlide = (fn: (s: E.PlayerState) => E.PlayerState) => apply((s) => (s.entry === entry ? fn(s) : s));
       const dt = Math.min(0.25, (now - c.last) / 1000);
       c.last = now;
       if (!paused) {
         if (!c.ended) {
           c.t = Math.min(slide.duration, c.t + dt);
-          for (const m of slideMarks) if (c.t >= m && !c.reached.has(m)) { c.reached.add(m); apply((s) => E.timelineReached(course, s, m)); }
-          if (c.t >= slide.duration) { c.ended = true; apply((s) => E.timelineEnded(course, s)); }
+          for (const m of slideMarks) if (c.t >= m && !c.reached.has(m)) { c.reached.add(m); onThisSlide((s) => E.timelineReached(course, s, m)); }
+          if (c.t >= slide.duration) { c.ended = true; onThisSlide((s) => E.timelineEnded(course, s)); }
         }
         for (const [id, l] of c.layers) {
           if (l.ended) continue;
           l.t = Math.min(slide.duration, l.t + dt);
-          for (const m of layerMarks.get(id) ?? []) if (l.t >= m && !l.reached.has(m)) { l.reached.add(m); apply((s) => E.timelineReached(course, s, m, id)); }
-          if (l.t >= slide.duration) { l.ended = true; apply((s) => E.timelineEnded(course, s, id)); }
+          for (const m of layerMarks.get(id) ?? []) if (l.t >= m && !l.reached.has(m)) { l.reached.add(m); onThisSlide((s) => E.timelineReached(course, s, m, id)); }
+          if (l.t >= slide.duration) { l.ended = true; onThisSlide((s) => E.timelineEnded(course, s, id)); }
         }
         // 50 ms steps: re-render only when a rounded clock changes, so the slide redraws at most 20 times a second.
         const q = (t: number) => Math.round(t * 20) / 20;

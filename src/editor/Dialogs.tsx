@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { newVariable } from '../model/factory.ts';
 import { validateCourse } from '../model/describe.ts';
 import { allSlides, slideTriggers } from '../model/query.ts';
@@ -117,8 +117,8 @@ export function CourseDialog({ onClose }: { onClose: () => void }) {
         <p className="hint !mb-2">These are the swatches under every colour picker. Changing one recolours every object that uses it.</p>
         <div className="flex flex-wrap gap-2">
           {course.theme.map((c, i) => (
-            <input key={i} type="color" aria-label={`Theme colour ${i + 1}: ${c}`} title={c} value={c} className="!w-10 !h-8 !p-0.5"
-              onChange={(e) => { const to = e.target.value; set('Theme colour', (d) => { recolor(d, d.theme[i], to); d.theme[i] = to; }, `theme-${i}`); }} />
+            <ThemeSwatch key={i} index={i} value={c}
+              onCommit={(to) => set('Theme colour', (d) => { recolor(d, d.theme[i], to); d.theme[i] = to; })} />
           ))}
         </div>
       </fieldset>
@@ -373,5 +373,28 @@ export function FindReplaceDialog({ onClose }: { onClose: () => void }) {
         </ul>
       )}
     </Dialog>
+  );
+}
+
+/**
+ * A theme swatch that recolours only when the picker is closed (the native change event), not on every
+ * step of a drag: intermediate colours could match, and wrongly capture, other objects' colours.
+ */
+function ThemeSwatch({ index, value, onCommit }: { index: number; value: string; onCommit: (to: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  const ref = useRef<HTMLInputElement>(null);
+  const commit = useRef(onCommit);
+  commit.current = onCommit;
+  useEffect(() => setDraft(value), [value]);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const done = () => { if (el.value.toLowerCase() !== value.toLowerCase()) commit.current(el.value); };
+    el.addEventListener('change', done);
+    return () => el.removeEventListener('change', done);
+  }, [value]);
+  return (
+    <input ref={ref} type="color" aria-label={`Theme colour ${index + 1}: ${value}`} title={value} value={draft} className="!w-10 !h-8 !p-0.5"
+      onChange={(e) => setDraft(e.target.value)} />
   );
 }

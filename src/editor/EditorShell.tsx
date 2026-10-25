@@ -38,7 +38,8 @@ let clipboard: { objects: SlideObject[]; assets: Asset[] } | null = null;
 /** Format painter: the style (and shape) copied with Ctrl+Alt+C. */
 let styleClip: { style: SlideObject['style']; shape: SlideObject['shape'] } | null = null;
 
-const isTyping = (t: EventTarget | null) => t instanceof HTMLElement && !!t.closest('input,textarea,select,[contenteditable=true]');
+// Keys typed into a field, or used to move around an open menu, are not editor shortcuts.
+const isTyping = (t: EventTarget | null) => t instanceof HTMLElement && !!t.closest('input,textarea,select,[contenteditable=true],[role=menu],[role=menubar]');
 
 export function EditorRoot() {
   const [course, setCourse] = useState<Course | null>(null);

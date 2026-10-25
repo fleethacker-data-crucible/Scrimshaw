@@ -192,6 +192,16 @@ function playerSettings(v: unknown, d: Course['player']): Course['player'] {
   };
 }
 
+function quizSettings(v: unknown, d: Course['quiz']): Course['quiz'] {
+  const q = isObj(v) ? v : {};
+  const pct = Number(q.passPercent);
+  return {
+    passPercent: Number.isFinite(pct) ? Math.min(100, Math.max(0, pct)) : d.passPercent,
+    reporting: q.reporting === 'completed-incomplete' ? 'completed-incomplete' : q.reporting === 'passed-failed' ? 'passed-failed' : d.reporting,
+    completionSlideId: typeof q.completionSlideId === 'string' ? q.completionSlideId : null,
+  };
+}
+
 export function normalizeCourse(input: unknown): Course {
   if (!isObj(input) || !Array.isArray(input.scenes)) throw new CourseFormatError('This file is not a Scrimshaw course.');
   const schema = num(input.schema, 1);
@@ -231,7 +241,7 @@ export function normalizeCourse(input: unknown): Course {
     }),
     startSlideId: typeof input.startSlideId === 'string' ? input.startSlideId : null,
     player: playerSettings(input.player, d.player),
-    quiz: { ...d.quiz, ...(isObj(input.quiz) ? input.quiz : {}) } as Course['quiz'],
+    quiz: quizSettings(input.quiz, d.quiz),
     assets: Object.fromEntries(Object.entries(isObj(input.assets) ? input.assets : {}).filter(([, a]) =>
       isObj(a) && typeof a.id === 'string' && typeof a.data === 'string' && /^data:((image|video|audio)\/[\w.+-]+|text\/vtt);base64,/.test(a.data))
       .map(([k, a]) => { const x = a as Record<string, string>; return [k, { id: x.id, name: str(x.name, 'media'), mime: str(x.mime), data: x.data }]; })),

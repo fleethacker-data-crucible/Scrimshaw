@@ -85,7 +85,9 @@ export function copySlide(slide: Slide): Slide {
 
 export function insertSlideAfter(c: Course, afterId: ID | null, slide: Slide): Slide {
   const scene = (afterId && sceneOfSlide(c, afterId)) || c.scenes[c.scenes.length - 1];
-  const i = afterId ? scene.slides.findIndex((s) => s.id === afterId) : scene.slides.length - 1;
+  // Not found (nothing selected, or the slide master): add at the end of the scene.
+  const found = afterId ? scene.slides.findIndex((s) => s.id === afterId) : -1;
+  const i = found < 0 ? scene.slides.length - 1 : found;
   scene.slides.splice(i + 1, 0, slide);
   return slide;
 }
@@ -194,7 +196,8 @@ export function deleteLayer(slide: Slide, layerId: ID) {
 export function duplicateLayer(slide: Slide, layerId: ID): Layer | null {
   const l = findLayer(slide, layerId);
   if (!l || l.base) return null;
-  const map = new Map<ID, ID>([[l.id, uid('l')]]);
+  // One id map for the layer and its objects, so layer triggers aimed at its objects follow the copies.
+  const map = new Map<ID, ID>([[l.id, uid('l')], ...l.objects.map((o): [ID, ID] => [o.id, uid('o')])]);
   const copy: Layer = { ...structuredClone(l), id: map.get(l.id)!, name: uniqueName(slide.layers.map((x) => x.name), `${l.name} copy`), objects: [], triggers: [] };
   copy.objects = copyObjects(l.objects, map);
   copy.triggers = l.triggers.map((t) => remapTrigger(t, map));

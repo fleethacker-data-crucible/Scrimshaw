@@ -2,6 +2,7 @@
 // A published package is the Scrimshaw app itself (one self-contained index.html) with the course
 // embedded, so the player in a package is exactly the player in the editor's preview.
 import type { Course } from '../model/types.ts';
+import { isGraded } from '../model/query.ts';
 
 export const escapeXml = (s: string) => s.replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[c]!);
 
@@ -14,7 +15,7 @@ export function scormId(s: string): string {
 export function manifest12(course: Course): string {
   const id = scormId(`scrimshaw.${course.id}`);
   const title = escapeXml(course.title || 'Untitled course');
-  const mastery = course.quiz.reporting === 'passed-failed' ? `\n        <adlcp:masteryscore>${Math.round(course.quiz.passPercent)}</adlcp:masteryscore>` : '';
+  const mastery = isGraded(course) ? `\n        <adlcp:masteryscore>${Math.round(course.quiz.passPercent)}</adlcp:masteryscore>` : '';
   return `<?xml version="1.0" encoding="UTF-8"?>
 <manifest identifier="${id}" version="1"
   xmlns="http://www.imsproject.org/xsd/imscp_rootv1p1p2"
@@ -46,7 +47,7 @@ export function manifest12(course: Course): string {
 export function manifest2004(course: Course): string {
   const id = scormId(`scrimshaw.${course.id}`);
   const title = escapeXml(course.title || 'Untitled course');
-  const graded = course.quiz.reporting === 'passed-failed';
+  const graded = isGraded(course);
   const objectives = graded ? `
           <imsss:sequencing>
             <imsss:objectives>

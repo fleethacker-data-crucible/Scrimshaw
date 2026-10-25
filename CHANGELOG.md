@@ -49,6 +49,26 @@ Fixes from an independent code review:
 - Fix: find and replace and translation import now report the right count.
 - Fix: a click that navigates away now still marks the object Visited for when the learner returns.
 
+### Fixes from the second review
+
+- Layer timelines start with the layer when a slide's timeline-start triggers show it.
+- Timeline cues from a slide that was just left no longer fire on the next slide.
+- Motion paths animate on the first play instead of jumping to the end.
+- PowerPoint placeholders without their own position take it from the slide layout or master
+  (and fall back to standard title and content areas) instead of being dropped.
+- cmi5: completed and passed are sent once per registration (remembered across sessions); a failed
+  retry can still be followed by passed; answer statements use the LMS context template.
+- Hotspot questions with several correct areas accept a click on any one of them.
+- Resuming rebuilds the play order when a republished course has gained slides.
+- Closing a lightbox returns to the slide underneath as it was: layers, states and timeline position,
+  without running its timeline-start triggers again.
+- Courses with no graded questions report completion only (SCORM mastery score and cmi5 moveOn).
+- Duplicating a layer points its triggers at the copied objects.
+- Arrow keys and Delete inside an open menu no longer act on the canvas.
+- Dragging a theme colour picker recolours once, when it closes, so passing colours can't capture
+  other objects.
+- Quiz settings are validated when a file is opened; a missing completion slide falls back to the last slide.
+
 ## 0.1.0 (2026-10-25)
 
 First version.

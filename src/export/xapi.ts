@@ -3,6 +3,7 @@
 // The player sends statements for the attempt, each answered question and the result, and keeps
 // resume data in the xAPI State API.
 import type { Course } from '../model/types.ts';
+import { isGraded } from '../model/query.ts';
 import { escapeXml } from './scorm.ts';
 import type { Lms } from './scorm.ts';
 
@@ -161,7 +162,7 @@ const EXT_MASTERY = 'https://w3id.org/xapi/cmi5/context/extensions/masteryscore'
 
 export function cmi5Xml(course: Course): string {
   const id = activityId(course);
-  const graded = course.quiz.reporting === 'passed-failed';
+  const graded = isGraded(course);
   return `<?xml version="1.0" encoding="utf-8"?>
 <courseStructure xmlns="https://w3id.org/xapi/profiles/cmi5/v1/CourseStructure.xsd">
   <course id="${escapeXml(id)}">
@@ -218,6 +219,14 @@ export async function connectCmi5(course: Course, search: string, transport: Xap
     const r = await transport(stateUrl('scrimshaw-resume'), { method: 'GET', headers });
     if (r.ok) suspendData = await r.text();
   } catch { /* none */ }
+  // cmi5 allows one completed and one passed per registration, and no failed after passed.
+  // What was already sent is kept in a state document so later sessions honour it too.
+  const sent = { completed: false, passed: false };
+  try {
+    const r = await transport(stateUrl('scrimshaw-cmi5'), { method: 'GET', headers });
+    if (r.ok) Object.assign(sent, JSON.parse(await r.text()) as Partial<typeof sent>);
+  } catch { /* none sent yet */ }
+  const saveSent = () => void transport(stateUrl('scrimshaw-cmi5'), { method: 'PUT', headers, body: JSON.stringify(sent) }).catch(() => null);
   const started = now();
   const object = { objectType: 'Activity', id: auId };
   const ctx = (moveOn: boolean, extra: Record<string, unknown> = {}) => {
@@ -226,11 +235,11 @@ export async function connectCmi5(course: Course, search: string, transport: Xap
     ca.category = [...(ca.category ?? []), { id: CMI5_CAT }, ...(moveOn ? [{ id: MOVEON_CAT }] : [])];
     return { ...t, registration: reg, contextActivities: ca, extensions: { ...(t.extensions ?? {}), ...extra } };
   };
-  const send = (verb: { id: string }, opts: { result?: Record<string, unknown>; moveOn?: boolean; ext?: Record<string, unknown>; cmi5?: boolean } = {}, keepalive = false) =>
+  const send = (verb: { id: string }, opts: { result?: Record<string, unknown>; moveOn?: boolean; ext?: Record<string, unknown>; cmi5?: boolean; object?: Record<string, unknown> } = {}, keepalive = false) =>
     transport(`${launch.endpoint}statements`, {
       method: 'POST', headers, keepalive,
       body: JSON.stringify({
-        id: uuid(), actor: launch.actor, verb, object, timestamp: new Date(now()).toISOString(),
+        id: uuid(), actor: launch.actor, verb, object: opts.object ?? object, timestamp: new Date(now()).toISOString(),
         ...(opts.result ? { result: opts.result } : {}),
         context: opts.cmi5 === false ? { registration: reg } : ctx(!!opts.moveOn, opts.ext),
       }),
@@ -238,7 +247,7 @@ export async function connectCmi5(course: Course, search: string, transport: Xap
   void send(VERBS.initialized);
   const normal = launchMode === 'Normal';
   let finished = false;
-  let reported = false;
+  let lastFailed: number | null = null;
   let lastSaved = '';
   return {
     connected: true, version: null, suspendData, location: '',
@@ -248,22 +257,43 @@ export async function connectCmi5(course: Course, search: string, transport: Xap
       void transport(stateUrl('scrimshaw-resume'), { method: 'PUT', headers, body: data }).catch(() => null);
     },
     answered(qn) {
-      // Interactions are allowed cmi5 statements ("cmi5 allowed"): no cmi5 category.
-      void send(VERBS.answered, { cmi5: false, result: { success: qn.correct, response: qn.response.slice(0, 1000) } });
+      // Interactions are "cmi5 allowed" statements: the LMS context template, but no cmi5 category,
+      // about the question as its own activity.
+      if (!normal) return;
+      const t = structuredClone(template);
+      void transport(`${launch.endpoint}statements`, {
+        method: 'POST', headers,
+        body: JSON.stringify({
+          id: uuid(), actor: launch.actor, verb: VERBS.answered, timestamp: new Date(now()).toISOString(),
+          object: { objectType: 'Activity', id: `${auId}/question/${encodeURIComponent(qn.id)}`, definition: { name: { 'en-US': qn.title }, type: 'http://adlnet.gov/expapi/activities/cmi.interaction' } },
+          result: { success: qn.correct, response: qn.response.slice(0, 1000) },
+          context: { ...t, registration: reg },
+        }),
+      }).catch(() => null);
     },
     complete(status, scorePercent) {
-      if (!normal || reported) return; // Browse and Review launches must not report completion or success.
-      reported = true;
+      if (!normal) return; // Browse and Review launches must not report completion or success.
       const duration = isoDuration(now() - started);
-      void send(VERBS.completed, { moveOn: true, result: { completion: true, duration } });
-      if (status !== 'completed') {
-        const passed = mastery !== null && scorePercent !== null ? scorePercent / 100 >= mastery : status === 'passed';
-        void send(passed ? VERBS.passed : VERBS.failed, {
-          moveOn: true,
-          result: { success: passed, duration, ...(scorePercent !== null ? { score: { scaled: Math.round(scorePercent) / 100 } } : {}) },
-          ext: mastery !== null ? { [EXT_MASTERY]: mastery } : {},
-        });
+      let changed = false;
+      if (!sent.completed) {
+        sent.completed = changed = true;
+        void send(VERBS.completed, { moveOn: true, result: { completion: true, duration } });
       }
+      if (status !== 'completed' && !sent.passed) {
+        const passed = mastery !== null && scorePercent !== null ? scorePercent / 100 >= mastery : status === 'passed';
+        const scaled = scorePercent !== null ? Math.round(scorePercent) / 100 : null;
+        // A failed retry may be reported again, but not the same failed result twice in one session.
+        if (passed || lastFailed !== scaled) {
+          if (passed) sent.passed = changed = true;
+          else lastFailed = scaled;
+          void send(passed ? VERBS.passed : VERBS.failed, {
+            moveOn: true,
+            result: { success: passed, duration, ...(scaled !== null ? { score: { scaled } } : {}) },
+            ext: mastery !== null ? { [EXT_MASTERY]: mastery } : {},
+          });
+        }
+      }
+      if (changed) saveSent();
     },
     finish() {
       if (finished) return;

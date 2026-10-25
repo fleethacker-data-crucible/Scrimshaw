@@ -70,7 +70,7 @@ export function SlidePanel() {
     const scene = sceneOfSlide(course, sl.id)!;
     const i = scene.slides.indexOf(sl);
     return [
-      { label: 'Duplicate', icon: <Copy />, shortcut: 'Ctrl+Shift+D', onSelect: () => edit('Duplicate slide', (c) => {
+      { label: 'Duplicate', icon: <Copy />, onSelect: () => edit('Duplicate slide', (c) => {
         const orig = findSlide(c, sl.id)!;
         const s = insertSlideAfter(c, sl.id, copySlide(orig));
         return { slideId: s.id, layerId: s.layers[0].id, objectIds: [] };

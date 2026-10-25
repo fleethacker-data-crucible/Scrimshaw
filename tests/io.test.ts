@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { newCourse, sampleCourse } from '../src/model/factory.ts';
+import { newCourse, newQuestionSlide, sampleCourse } from '../src/model/factory.ts';
 import { CourseFormatError, normalizeCourse, parseCourse, serializeCourse } from '../src/model/schema.ts';
 import { buildPlayerHtml, COURSE_SCRIPT_ID, scriptSafeJson } from '../src/export/publish.ts';
 import { escapeXml, manifest12, scormId } from '../src/export/scorm.ts';
@@ -57,6 +57,7 @@ test('buildPlayerHtml embeds the course and title safely', () => {
 test('SCORM 1.2 manifest is well formed and escapes the title', () => {
   const c = newCourse('Ships & "Sails" <1>');
   c.quiz.passPercent = 75;
+  c.scenes[0].slides.push(newQuestionSlide('true-false'));
   const xml = manifest12(c);
   assert.ok(xml.includes('<schemaversion>1.2</schemaversion>'));
   assert.ok(xml.includes('<title>Ships &amp; &quot;Sails&quot; &lt;1&gt;</title>'));
@@ -130,6 +131,7 @@ test('SCORM 2004 manifest declares the passing measure', async () => {
   const { manifest2004 } = await import('../src/export/scorm.ts');
   const c = newCourse('Twenty & four');
   c.quiz.passPercent = 70;
+  c.scenes[0].slides.push(newQuestionSlide('true-false'));
   const xml = manifest2004(c);
   assert.ok(xml.includes('<schemaversion>2004 3rd Edition</schemaversion>'));
   assert.ok(xml.includes('<imsss:minNormalizedMeasure>0.70</imsss:minNormalizedMeasure>'));

@@ -291,9 +291,13 @@ try {
         <p:txBody><a:p><a:r><a:rPr sz="4400" b="1"/><a:t>Imported deck</a:t></a:r></a:p></p:txBody></p:sp>
       <p:sp><p:nvSpPr><p:cNvPr id="3" name="Body"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="838200" y="1825625"/><a:ext cx="5000000" cy="2000000"/></a:xfrm></p:spPr>
         <p:txBody><a:p><a:pPr><a:buChar char="•"/></a:pPr><a:r><a:rPr sz="2400"/><a:t>First point</a:t></a:r></a:p><a:p><a:pPr><a:buChar char="•"/></a:pPr><a:r><a:t>Second point</a:t></a:r></a:p></p:txBody></p:sp>
+      <p:sp><p:nvSpPr><p:cNvPr id="5" name="Content 4"/><p:cNvSpPr/><p:nvPr><p:ph idx="1"/></p:nvPr></p:nvSpPr><p:spPr/>
+        <p:txBody><a:p><a:r><a:t>Inherited point</a:t></a:r></a:p></p:txBody></p:sp>
       <p:pic><p:nvPicPr><p:cNvPr id="4" name="Picture 3" descr="A carved tooth"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rId3"/></p:blipFill><p:spPr><a:xfrm><a:off x="6500000" y="1825625"/><a:ext cx="3000000" cy="3000000"/></a:xfrm></p:spPr></p:pic>
     </p:spTree></p:cSld></p:sld>`);
-    z.file('ppt/slides/_rels/slide1.xml.rels', '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId3" Type="image" Target="../media/image1.png"/><Relationship Id="rId4" Type="notesSlide" Target="../notesSlides/notesSlide1.xml"/></Relationships>');
+    z.file('ppt/slides/_rels/slide1.xml.rels', '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId3" Type="image" Target="../media/image1.png"/><Relationship Id="rId4" Type="notesSlide" Target="../notesSlides/notesSlide1.xml"/><Relationship Id="rId1" Type="slideLayout" Target="../slideLayouts/slideLayout2.xml"/></Relationships>');
+    // A placeholder with no position of its own takes it from the layout (matched by idx).
+    z.file('ppt/slideLayouts/slideLayout2.xml', `<p:sldLayout ${P}><p:cSld><p:spTree><p:sp><p:nvSpPr><p:cNvPr id="3" name="Content Placeholder 2"/><p:cNvSpPr/><p:nvPr><p:ph idx="1"/></p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="838200" y="4500000"/><a:ext cx="5000000" cy="1500000"/></a:xfrm></p:spPr></p:sp></p:spTree></p:cSld></p:sldLayout>`);
     z.file('ppt/notesSlides/notesSlide1.xml', `<p:notes ${P}><p:cSld><p:spTree><p:sp><p:nvSpPr><p:cNvPr id="2" name="Notes"/><p:cNvSpPr/><p:nvPr><p:ph type="body"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>Speaker notes here</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:notes>`);
     z.file('ppt/media/image1.png', Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'));
     const pptx = await z.generateAsync({ type: 'nodebuffer' });
@@ -306,6 +310,7 @@ try {
     const objs = await page.getByRole('list', { name: 'Objects' }).getByRole('button').allTextContents();
     if (objs.some((t) => t.includes('Picture 3')) && objs.some((t) => t.startsWith('First point'))) ok('PowerPoint import brings in text, bullets and pictures');
     else fail(`PowerPoint import objects: ${objs.join(' | ')}`);
+    if (objs.some((t) => t.includes('Inherited point'))) ok('PowerPoint placeholders inherit their layout position'); else fail('placeholder without position was dropped');
     if ((await page.getByRole('textbox', { name: 'Notes' }).inputValue()) === 'Speaker notes here') ok('PowerPoint speaker notes become slide notes'); else fail('notes not imported');
     await page.screenshot({ path: path.join(out, '12-pptx-import.png') });
   }

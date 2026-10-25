@@ -53,6 +53,8 @@ export interface PlayerState {
   history: ID[];
   /** Set while a slide is open as a lightbox: the slide underneath, restored on close. */
   lightboxFrom: ID | null;
+  /** The slide underneath a lightbox exactly as it was, so closing returns to it without restarting it. */
+  lightboxBase?: { layers: ID[]; states: Record<ID, string>; inputs: Record<ID, string>; drops: Record<ID, ID>; positions: Record<ID, { x: number; y: number }>; motion: Record<ID, boolean>; entry: number } | null;
   /** Play order for this attempt: every slide, with question banks shuffled and drawn. */
   sequence: ID[];
   completed: boolean;
@@ -348,7 +350,7 @@ function enter(ctx: Ctx, slideId: ID, opts: { pushHistory: boolean }) {
   // Save the slide being left.
   if (s.slideId) s.saved[s.slideId] = { states: { ...s.states }, inputs: { ...s.inputs }, drops: { ...s.drops }, positions: { ...s.positions } };
   // Leaving a lightbox by any route other than its own close returns nothing underneath.
-  if (s.lightboxFrom && slideId === s.lightboxFrom) s.lightboxFrom = null;
+  if (s.lightboxFrom && slideId === s.lightboxFrom) { s.lightboxFrom = null; s.lightboxBase = null; }
   if (opts.pushHistory && s.slideId && s.slideId !== slideId) s.history.push(s.slideId);
   s.slideId = slideId;
   s.layers = [];
@@ -395,7 +397,8 @@ export function shuffledPositions(slide: Slide, random: () => number = Math.rand
 function checkCompletion(ctx: Ctx) {
   const { course, s } = ctx;
   const slides = playSlides(course, s);
-  const target = course.quiz.completionSlideId ?? slides[slides.length - 1]?.id;
+  const chosen = course.quiz.completionSlideId;
+  const target = (chosen && findSlide(course, chosen) ? chosen : null) ?? slides[slides.length - 1]?.id;
   if (!target) return;
   if (s.slideId === target) s.reachedEnd = true;
   if (!s.reachedEnd) return;
@@ -458,9 +461,12 @@ function submit(ctx: Ctx) {
     const choices = slideObjects(slide).filter((o) => o.kind === (q.kind === 'hotspot' ? 'hotspot' : 'choice'));
     const selected = choices.filter((o) => stateOf(ctx.s, o) === 'Selected');
     if (selected.length === 0) { ctx.s.effects.push({ type: 'notice', message: 'Choose an answer before you submit.' }); return; }
-    response = selected.map((o) => o.text).join('; ');
+    response = selected.map((o) => o.text || o.name).join('; ');
     // Ungraded (survey) choices with no correct answer marked accept any selection.
-    correct = !q.graded && choices.every((o) => !o.correct) ? true : choices.every((o) => (stateOf(ctx.s, o) === 'Selected') === o.correct);
+    if (!q.graded && choices.every((o) => !o.correct)) correct = true;
+    // A hotspot question is answered by one click: right when it lands on any correct area.
+    else if (q.kind === 'hotspot') correct = selected.length === 1 && !!selected[0].correct;
+    else correct = choices.every((o) => (stateOf(ctx.s, o) === 'Selected') === o.correct);
   }
   const attempt = (ctx.s.attempts[slide.id] ?? 0) + 1;
   ctx.s.attempts[slide.id] = attempt;
@@ -475,10 +481,24 @@ function submit(ctx: Ctx) {
 }
 
 function closeLightbox(ctx: Ctx) {
-  const from = ctx.s.lightboxFrom;
+  const s = ctx.s;
+  const from = s.lightboxFrom;
+  const base = s.lightboxBase;
   if (!from || !findSlide(ctx.course, from)) return;
-  ctx.s.lightboxFrom = null;
-  enter(ctx, from, { pushHistory: false });
+  s.lightboxFrom = null;
+  s.lightboxBase = null;
+  if (!base) { enter(ctx, from, { pushHistory: false }); return; }
+  // Back to the slide underneath as it was: same layers, states and timeline (no timeline-start triggers).
+  s.slideId = from;
+  s.layers = [...base.layers];
+  s.states = { ...base.states };
+  s.inputs = { ...base.inputs };
+  s.drops = { ...base.drops };
+  s.positions = { ...base.positions };
+  s.motion = { ...base.motion };
+  s.entry = base.entry;
+  s.effects.push({ type: 'slide-entered', slideId: from });
+  ctx.navigated = true;
 }
 
 function nextSlide(ctx: Ctx) {
@@ -500,19 +520,23 @@ function prevSlide(ctx: Ctx) {
 function run(ctx: Ctx, a: Action, where: { layerId: ID | null; self: SlideObject | null }) {
   const slide = currentSlide(ctx);
   switch (a.type) {
-    case 'jump-slide': if (findSlide(ctx.course, a.slideId)) { ctx.s.lightboxFrom = null; enter(ctx, a.slideId, { pushHistory: true }); } break;
+    case 'jump-slide': if (findSlide(ctx.course, a.slideId)) { ctx.s.lightboxFrom = null; ctx.s.lightboxBase = null; enter(ctx, a.slideId, { pushHistory: true }); } break;
     case 'next-slide': nextSlide(ctx); break;
     case 'prev-slide': prevSlide(ctx); break;
     case 'jump-scene': {
       const sc = ctx.course.scenes.find((x) => x.id === a.sceneId);
-      if (sc?.slides[0]) { ctx.s.lightboxFrom = null; enter(ctx, sc.slides[0].id, { pushHistory: true }); }
+      if (sc?.slides[0]) { ctx.s.lightboxFrom = null; ctx.s.lightboxBase = null; enter(ctx, sc.slides[0].id, { pushHistory: true }); }
       break;
     }
     case 'lightbox-slide': {
       if (!findSlide(ctx.course, a.slideId) || a.slideId === ctx.s.slideId) break;
-      const from = ctx.s.lightboxFrom ?? ctx.s.slideId;
+      const s = ctx.s;
+      const from = s.lightboxFrom ?? s.slideId;
+      const base = s.lightboxFrom ? s.lightboxBase ?? null
+        : { layers: [...s.layers], states: { ...s.states }, inputs: { ...s.inputs }, drops: { ...s.drops }, positions: { ...s.positions }, motion: { ...s.motion }, entry: s.entry };
       enter(ctx, a.slideId, { pushHistory: false });
-      ctx.s.lightboxFrom = from;
+      s.lightboxFrom = from;
+      s.lightboxBase = base;
       break;
     }
     case 'close-lightbox': closeLightbox(ctx); break;
@@ -555,6 +579,7 @@ function run(ctx: Ctx, a: Action, where: { layerId: ID | null; self: SlideObject
       }
       ctx.s.sequence = buildSequence(ctx.course);
       ctx.s.lightboxFrom = null;
+      ctx.s.lightboxBase = null;
       const first = playSlides(ctx.course, ctx.s).find((sl) => sl.question)?.id ?? null;
       ctx.s.completed = false;
       ctx.s.reachedEnd = false;
@@ -591,7 +616,12 @@ export function start(course: Course, resume?: Partial<Pick<PlayerState, 'slideI
     saved: {}, answers: {}, attempts: {}, history: [], sequence: [], lightboxFrom: null, completed: false, reachedEnd: false, reported: null, entry: 0, effects: [],
   };
   const all = new Set(allSlides(course).map((x) => x.id));
-  s.sequence = resume?.sequence?.length && resume.sequence.every((id) => all.has(id)) ? [...resume.sequence] : buildSequence(course);
+  // Keep the saved draw only if it still fits the course: every id exists and no non-bank slide is missing
+  // (a republished course may have added slides since).
+  const saved = new Set(resume?.sequence ?? []);
+  const fits = !!resume?.sequence?.length && resume.sequence.every((id) => all.has(id)) &&
+    course.scenes.every((sc) => !!sc.bank || sc.slides.every((sl) => saved.has(sl.id)));
+  s.sequence = fits ? [...resume!.sequence!] : buildSequence(course);
   if (resume) {
     Object.assign(s.vars, resume.vars ?? {});
     Object.assign(s.answers, resume.answers ?? {});
@@ -637,6 +667,9 @@ export function click(course: Course, state: PlayerState, objectId: ID): PlayerS
     // The click navigated away: record Visited in the slide's saved state so it shows on return.
     const saved = s.saved[slide.id];
     if (saved && (saved.states[obj.id] ?? 'Normal') === 'Normal') s.saved[slide.id] = { ...saved, states: { ...saved.states, [obj.id]: 'Visited' } };
+    // Opened a lightbox: the snapshot of this slide is what comes back on close.
+    const base = s.lightboxFrom === slide.id ? s.lightboxBase : null;
+    if (base && (base.states[obj.id] ?? 'Normal') === 'Normal') s.lightboxBase = { ...base, states: { ...base.states, [obj.id]: 'Visited' } };
   }
   return s;
 }
@@ -723,7 +756,7 @@ export function timelineEnded(course: Course, state: PlayerState, layerId?: ID):
 export function navigate(course: Course, state: PlayerState, to: 'next' | 'prev' | ID): PlayerState {
   const s = clone(state);
   const ctx: Ctx = { course, s, depth: 0, navigated: false };
-  if (to !== 'next' && to !== 'prev') s.lightboxFrom = null;
+  if (to !== 'next' && to !== 'prev') { s.lightboxFrom = null; s.lightboxBase = null; }
   if (to === 'next') nextSlide(ctx);
   else if (to === 'prev') prevSlide(ctx);
   else if (findSlide(course, to)) enter(ctx, to, { pushHistory: true });

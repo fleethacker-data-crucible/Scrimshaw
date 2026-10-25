@@ -357,6 +357,24 @@ test('hotspot and numeric questions', () => {
   assert.equal(E.stateOf(s, areas[2]), 'Normal', 'one area at a time');
   s = E.click(c, s, submit(hs));
   assert.equal(s.answers[hs.id].correct, true);
+  // With several correct areas, a click on any one of them is right.
+  const hs2 = newQuestionSlide('hotspot');
+  hs2.question!.attempts = 0;
+  c.scenes[0].slides.push(hs2);
+  const areas2 = slideObjects(hs2).filter((o) => o.kind === 'hotspot');
+  areas2.forEach((o, i) => { o.correct = i < 2; });
+  let t = E.navigate(c, s, hs2.id);
+  t = E.click(c, t, areas2[1].id);
+  t = E.click(c, t, submit(hs2));
+  assert.equal(t.answers[hs2.id].correct, true, 'any correct area');
+  const hs3 = structuredClone(hs2);
+  hs3.id = 'hs3';
+  c.scenes[0].slides.push(hs3);
+  const areas3 = slideObjects(hs3).filter((o) => o.kind === 'hotspot');
+  t = E.navigate(c, t, hs3.id);
+  t = E.click(c, t, areas3[2].id);
+  t = E.click(c, t, submit(hs3));
+  assert.equal(t.answers[hs3.id].correct, false, 'an incorrect area');
   s = E.navigate(c, s, nu.id);
   const input = nu.question!.inputObjectId!;
   s = E.input(c, s, input, 'ten');
@@ -507,4 +525,37 @@ test('no-op events return the same state object', () => {
   assert.equal(E.hover(c, s, b.id, true), s);
   assert.equal(E.key(c, s, 'x'), s);
   assert.equal(E.timelineReached(c, s, 1), s);
+});
+
+test('closing a lightbox returns to the slide as it was, without restarting it', () => {
+  const c = newCourse('L2');
+  const a = c.scenes[0].slides[0];
+  const b = newSlide('Box');
+  c.scenes[0].slides.push(b);
+  const pop = newLayer('Pop');
+  a.layers.push(pop);
+  const v = newVariable('Starts', 'number', 0);
+  c.variables.push(v);
+  a.triggers.push(newTrigger({ type: 'timeline-start' }, { type: 'adjust-variable', variableId: v.id, op: 'add', value: 1 }));
+  const open = newObject('button');
+  open.triggers.push(newTrigger({ type: 'click' }, { type: 'lightbox-slide', slideId: b.id }));
+  a.layers[0].objects.push(open);
+  let s = E.start(c);
+  s = E.perform(c, s, { type: 'show-layer', layerId: pop.id });
+  const entry = s.entry;
+  s = E.click(c, s, open.id);
+  s = E.perform(c, s, { type: 'close-lightbox' });
+  assert.equal(s.slideId, a.id);
+  assert.deepEqual(s.layers, [pop.id], 'shown layers stay shown');
+  assert.equal(s.entry, entry, 'same timeline');
+  assert.equal(s.vars[v.id], 1, 'timeline-start triggers did not run again');
+});
+
+test('resume rebuilds the play order when the course gained slides', () => {
+  const c = newCourse('R');
+  const extra = newSlide('New');
+  const s = E.start(c);
+  c.scenes[0].slides.push(extra);
+  const r = E.start(c, { sequence: s.sequence });
+  assert.ok(r.sequence.includes(extra.id));
 });

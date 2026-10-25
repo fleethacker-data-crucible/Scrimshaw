@@ -181,9 +181,18 @@ function ObjectView({ course, o, mode, state, text, transient, onPointer, handle
 }) {
   const { style: s, text: stateText } = effectiveStyle(o, state, mode === 'play' ? transient : null);
   const css = boxCss(o, s);
+  // A transition only plays from a rendered starting point, so motion is armed one frame after mount:
+  // an object whose motion starts the moment it appears still animates instead of jumping.
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (mode !== 'play' || !o.motion) return;
+    let r2 = 0;
+    const r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(() => setArmed(true)); });
+    return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2); };
+  }, [mode, o.motion]);
   if (mode === 'play' && o.motion) {
     // The CSS translate property composes with rotation and entrance animations (which use transform).
-    css.translate = moved ? `${o.motion.dx}px ${o.motion.dy}px` : '0 0';
+    css.translate = moved && armed ? `${o.motion.dx}px ${o.motion.dy}px` : '0 0';
     css.transition = `translate ${o.motion.duration}s ${o.motion.easing === 'linear' ? 'linear' : 'ease-in-out'}`;
   }
   if (drag?.pos) { css.left = drag.pos.x; css.top = drag.pos.y; }

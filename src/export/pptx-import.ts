@@ -57,7 +57,31 @@ function color(el: Element | undefined): string | null {
   return c ? `#${(c.getAttribute('val') ?? '000000').toLowerCase()}` : null;
 }
 
-function textOf(sp: Element): { text: string; size: number | null; bold: boolean; italic: boolean; color: string | null; align: 'left' | 'center' | 'right' } {
+type PhKey = { idx: string | null; type: string };
+const phKey = (sp: Element): PhKey | null => {
+  const ph = first(sp, P, 'ph');
+  return ph ? { idx: ph.getAttribute('idx'), type: ph.getAttribute('type') ?? 'body' } : null;
+};
+const titleLike = (t: string) => t === 'title' || t === 'ctrTitle';
+
+/** Placeholder shapes of a layout or master, for position inheritance. */
+function placeholders(doc: Document): { key: PhKey; sp: Element }[] {
+  return all(doc, P, 'sp').map((sp) => ({ key: phKey(sp), sp })).filter((x): x is { key: PhKey; sp: Element } => !!x.key);
+}
+
+/** Finds the inherited placeholder: by idx first, then by type (title ~ ctrTitle, body ~ obj). */
+function inherited(key: PhKey, sources: { key: PhKey; sp: Element }[][]): Element | null {
+  for (const list of sources) {
+    const byIdx = key.idx !== null ? list.find((p) => p.key.idx === key.idx && first(p.sp, A, 'off')) : undefined;
+    if (byIdx) return byIdx.sp;
+    const byType = list.find((p) => first(p.sp, A, 'off') && (p.key.type === key.type || (titleLike(p.key.type) && titleLike(key.type)) ||
+      (['body', 'obj'].includes(p.key.type) && ['body', 'obj'].includes(key.type))));
+    if (byType) return byType.sp;
+  }
+  return null;
+}
+
+function textOf(sp: Element, bulletsByDefault = false): { text: string; size: number | null; bold: boolean; italic: boolean; color: string | null; align: 'left' | 'center' | 'right' } {
   const paras = all(sp, A, 'p');
   const lines: string[] = [];
   let size: number | null = null;
@@ -68,7 +92,7 @@ function textOf(sp: Element): { text: string; size: number | null; bold: boolean
   paras.forEach((p, i) => {
     const pPr = first(p, A, 'pPr');
     if (i === 0 && pPr) align = pPr.getAttribute('algn') === 'ctr' ? 'center' : pPr.getAttribute('algn') === 'r' ? 'right' : 'left';
-    const bullet = pPr && (first(pPr, A, 'buChar') || first(pPr, A, 'buAutoNum'));
+    const bullet = (pPr && (first(pPr, A, 'buChar') || first(pPr, A, 'buAutoNum'))) || (bulletsByDefault && !(pPr && first(pPr, A, 'buNone')));
     const runs = all(p, A, 'r').map((r) => {
       const rPr = first(r, A, 'rPr');
       if (rPr) {
@@ -105,6 +129,18 @@ export async function importPptx(data: ArrayBuffer, targetW = 960): Promise<Pptx
     if (!xml) continue;
     const doc = new DOMParser().parseFromString(xml, 'application/xml');
     const relMap = await rels(zip, path);
+    // Placeholders without a position inherit it from the slide layout, then the slide master.
+    const layoutPath = [...relMap.values()].find((p) => p.includes('slideLayouts/'));
+    const sources: { key: PhKey; sp: Element }[][] = [];
+    if (layoutPath) {
+      const lx = await zip.file(layoutPath)?.async('string');
+      if (lx) {
+        sources.push(placeholders(new DOMParser().parseFromString(lx, 'application/xml')));
+        const masterPath = [...(await rels(zip, layoutPath)).values()].find((p) => p.includes('slideMasters/'));
+        const mx = masterPath ? await zip.file(masterPath)?.async('string') : null;
+        if (mx) sources.push(placeholders(new DOMParser().parseFromString(mx, 'application/xml')));
+      }
+    }
     const slide = newSlide(`Slide ${slides.length + 1}`);
     const bg = first(doc, P, 'bg');
     const bgColor = bg ? color(first(bg, A, 'solidFill')) : null;
@@ -115,11 +151,21 @@ export async function importPptx(data: ArrayBuffer, targetW = 960): Promise<Pptx
     for (const el of tree ? Array.from(tree.children) : []) {
       const local = el.localName;
       if (local === 'sp') {
-        const b = box(el, scale);
-        const t = textOf(el);
-        if (!b || !t.text.trim()) { if (!b) skipped++; continue; }
-        const ph = first(el, P, 'ph');
-        const isTitle = !!ph && ['title', 'ctrTitle'].includes(ph.getAttribute('type') ?? '');
+        const key = phKey(el);
+        const isTitle = !!key && titleLike(key.type);
+        const isBody = !!key && ['body', 'obj'].includes(key.type) && key.type !== 'subTitle';
+        const t = textOf(el, isBody);
+        if (!t.text.trim()) continue;
+        let b = box(el, scale);
+        if (!b && key) {
+          const from = inherited(key, sources);
+          b = from ? box(from, scale) : null;
+          // Last resort: PowerPoint's usual title and content areas.
+          b ??= isTitle
+            ? { x: Math.round(size.w * 0.07), y: Math.round(size.h * 0.05), w: Math.round(size.w * 0.86), h: Math.round(size.h * 0.18) }
+            : { x: Math.round(size.w * 0.07), y: Math.round(size.h * 0.27), w: Math.round(size.w * 0.86), h: Math.round(size.h * 0.63) };
+        }
+        if (!b) { skipped++; continue; }
         if (isTitle && !title) title = t.text.split('\n')[0].slice(0, 80);
         // Only the shape's own fill (a direct child of spPr), not its outline's.
         const spPr = first(el, P, 'spPr');

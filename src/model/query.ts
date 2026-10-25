@@ -11,6 +11,10 @@ export function findSlide(course: Course, id: ID | null | undefined): Slide | un
   return undefined;
 }
 
+/** True when the course reports pass/fail: passed-failed reporting and at least one graded question. */
+export const isGraded = (course: Course) =>
+  course.quiz.reporting === 'passed-failed' && allSlides(course).some((s) => s.question?.graded);
+
 export const isMaster = (course: Course, slideId: ID) => course.master?.id === slideId;
 
 export function sceneOfSlide(course: Course, slideId: ID): Scene | undefined {
