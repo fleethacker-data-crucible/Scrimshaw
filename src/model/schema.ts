@@ -115,7 +115,7 @@ function playerSettings(v: unknown, d: Course['player']): Course['player'] {
   return {
     ...d,
     showMenu: bool(p.showMenu, d.showMenu), showNav: bool(p.showNav, d.showNav), showSeekbar: bool(p.showSeekbar, d.showSeekbar),
-    showTitle: bool(p.showTitle, d.showTitle), resume: bool(p.resume, d.resume),
+    showTitle: bool(p.showTitle, d.showTitle), resume: bool(p.resume, d.resume), showNotes: bool(p.showNotes, d.showNotes),
     navigation: p.navigation === 'restricted' ? 'restricted' : 'free',
     accent: typeof p.accent === 'string' && /^#[0-9a-f]{3,8}$/i.test(p.accent) ? p.accent : '',
     logo: typeof p.logo === 'string' && p.logo.startsWith('asset:') ? p.logo : '',
