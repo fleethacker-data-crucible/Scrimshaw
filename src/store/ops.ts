@@ -264,7 +264,7 @@ export function moveObjectsToLayer(slide: Slide, ids: ID[], toLayerId: ID) {
 /** Removes embedded media no object references any more. */
 export function pruneAssets(c: Course): Course['assets'] {
   const used = new Set<string>();
-  for (const sl of allSlides(c)) {
+  for (const sl of [...allSlides(c), c.master]) {
     if (sl.background.startsWith('asset:')) used.add(sl.background.slice(6));
     for (const o of slideObjects(sl)) {
       if (o.src.startsWith('asset:')) used.add(o.src.slice(6));

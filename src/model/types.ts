@@ -16,6 +16,9 @@ export interface Course {
   /** Slide size in CSS pixels; the player scales it to fit. */
   size: { w: number; h: number };
   scenes: Scene[];
+  /** Slide master: its base-layer objects are drawn beneath every slide that uses the master.
+   *  Never part of the play order. Its objects are display-only (no triggers). */
+  master: Slide;
   variables: Variable[];
   /** First slide the player shows. Falls back to the first slide of the first scene. */
   startSlideId: ID | null;
@@ -83,6 +86,8 @@ export interface Slide {
   question: Question | null;
   /** Whether this slide shows in the player menu. */
   inMenu: boolean;
+  /** Draw the slide master's objects beneath this slide. */
+  useMaster: boolean;
 }
 
 export interface Layer {

@@ -27,7 +27,7 @@ Status of each Storyline 360 feature area in Scrimshaw. ✅ done, 🟡 partial, 
 | Sliders, dials | 🟡 | Sliders bound to a number variable; no dials |
 | Markers, scrolling panels, zoom regions | ⬜ | |
 | Drag and drop | ✅ | Draggable objects and drop targets, snap, one item per target, keyboard support, drop triggers, graded question type |
-| Slide masters / themes | ⬜ | Course-wide colour/font presets |
+| Slide masters / themes | 🟡 | One slide master (display objects such as logos, footers, slide numbers) with per-slide opt-out; no multiple masters or theme colour sets |
 | Copy/paste between slides and projects | ✅ | Carries embedded media |
 | Undo/redo | ✅ | 200 steps |
 | Align, distribute, z-order, snapping, grid | ✅ | |
@@ -98,6 +98,6 @@ Status of each Storyline 360 feature area in Scrimshaw. ✅ done, 🟡 partial, 
 1. cmi5 publishing
 3. Motion paths
 4. WYSIWYG rich text editing (formatting already works inline)
-5. Slide masters
+5. Multiple slide masters and theme colour sets
 6. Word bank and Likert question types
 7. Player logo and layout options

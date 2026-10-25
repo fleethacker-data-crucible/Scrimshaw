@@ -101,6 +101,7 @@ function slide(v: unknown): Slide | null {
     layers, triggers: arr(v.triggers, trigger),
     question: question(v.question),
     inMenu: bool(v.inMenu, true),
+    useMaster: bool(v.useMaster, true),
   };
 }
 
@@ -134,6 +135,16 @@ export function normalizeCourse(input: unknown): Course {
     id: str(input.id, d.id), title: str(input.title, 'Untitled course'), author: str(input.author), description: str(input.description),
     size: isObj(input.size) ? { w: num(input.size.w, d.size.w), h: num(input.size.h, d.size.h) } : d.size,
     scenes,
+    master: (() => {
+      const m = slide(input.master) ?? d.master;
+      m.layers = [m.layers[0]];
+      m.useMaster = false;
+      m.inMenu = false;
+      m.question = null;
+      m.triggers = [];
+      for (const o of m.layers[0].objects) o.triggers = [];
+      return m;
+    })(),
     variables: arr(input.variables, (v) => (isObj(v) && typeof v.id === 'string' && typeof v.name === 'string' && ['text', 'number', 'boolean'].includes(v.type as string)
       ? (v as unknown as Course['variables'][number]) : null)),
     startSlideId: typeof input.startSlideId === 'string' ? input.startSlideId : null,

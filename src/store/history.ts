@@ -39,6 +39,7 @@ export function cloneCourse(c: Course): Course {
     ...c,
     size: { ...c.size },
     scenes: structuredClone(c.scenes),
+    master: structuredClone(c.master),
     variables: structuredClone(c.variables),
     player: structuredClone(c.player),
     quiz: { ...c.quiz },
