@@ -210,6 +210,63 @@ try {
   await lmsPage.context().close();
   server.close();
 
+  // ---------- SCORM 2004 package in a mock 2004 LMS ----------
+  await page.getByRole('button', { name: 'Publish' }).click();
+  const [z04] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download SCORM 2004 zip' }).click()]);
+  const zip04 = await JSZip.loadAsync(readFileSync(await z04.path()));
+  if ((await zip04.file('imsmanifest.xml').async('string')).includes('2004 3rd Edition')) ok('SCORM 2004 zip has a 2004 manifest');
+  else fail('SCORM 2004 manifest missing');
+  const dir04 = path.join(out, 'package04');
+  mkdirSync(dir04, { recursive: true });
+  writeFileSync(path.join(dir04, 'index.html'), await zip04.file('index.html').async('string'));
+  writeFileSync(path.join(dir04, 'lms.html'), `<!doctype html><html><head><link rel="icon" href="data:,"></head><body style="margin:0"><script>
+    const data = {'cmi.completion_status':'unknown','cmi.entry':'ab-initio'};
+    window.API_1484_11 = { Initialize(){return 'true'}, Terminate(){return 'true'}, GetValue(k){return data[k]??''},
+      SetValue(k,v){data[k]=v;return 'true'}, Commit(){return 'true'}, GetLastError(){return '0'} }; window.lmsData = data;
+  </script><iframe src="index.html" style="width:100vw;height:100vh;border:0"></iframe></body></html>`);
+  await page.keyboard.press('Escape');
+  const srv04 = http.createServer((req, res) => {
+    const f = path.join(dir04, path.basename(new URL(req.url, 'http://x').pathname) || 'lms.html');
+    if (!existsSync(f)) { res.writeHead(404).end(); return; }
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(readFileSync(f));
+  });
+  await new Promise((r) => srv04.listen(0, '127.0.0.1', r));
+  const p04 = await newPage('dark');
+  await p04.goto(`http://127.0.0.1:${srv04.address().port}/lms.html`);
+  await p04.frameLocator('iframe').locator('.player').waitFor();
+  await p04.waitForTimeout(300);
+  const cs = await p04.evaluate(() => window.lmsData['cmi.completion_status']);
+  if (cs === 'incomplete') ok('SCORM 2004 package reports cmi.completion_status incomplete'); else fail(`cmi.completion_status is ${cs}`);
+  await p04.context().close();
+  srv04.close();
+
+  // ---------- trigger wizard ----------
+  await page.getByRole('button', { name: 'Slide 1: Title slide' }).click();
+  await page.getByRole('tab', { name: 'Slide' }).click();
+  await page.getByRole('list', { name: 'Objects' }).getByRole('button', { name: /^Start/ }).click();
+  await page.getByRole('tab', { name: 'Triggers' }).click();
+  await page.getByRole('button', { name: 'New trigger' }).click();
+  const wiz = page.getByRole('dialog', { name: 'New trigger' });
+  await wiz.getByRole('combobox', { name: 'Action' }).selectOption('open-url');
+  await wiz.getByRole('textbox', { name: /^URL/ }).fill('https://example.com/scrimshaw');
+  await wiz.getByRole('button', { name: 'Add trigger' }).click();
+  await page.getByText('Open https://example.com/scrimshaw').waitFor();
+  ok('trigger wizard adds a trigger with a plain-English description');
+  await page.keyboard.press('Control+z');
+
+  // ---------- find and replace ----------
+  await page.keyboard.press('Escape');
+  await page.locator('body').click({ position: { x: 5, y: 300 } }).catch(() => {});
+  await page.keyboard.press('Control+h');
+  const fr = page.getByRole('dialog', { name: 'Find and replace' });
+  await fr.getByRole('textbox', { name: 'Find' }).fill('Tooth');
+  await fr.getByText(/places? found/).waitFor();
+  await fr.getByRole('textbox', { name: 'Replace with' }).fill('Whale tooth');
+  await fr.getByRole('button', { name: 'Replace all' }).click();
+  await page.getByText(/Replaced \d+ occurrence/).waitFor();
+  ok('find and replace across the course');
+  await fr.getByRole('button', { name: 'Close', exact: true }).last().click();
+
   // ---------- new course, question slide insert ----------
   await page.getByRole('button', { name: 'File' }).click();
   await page.getByRole('menuitem', { name: 'New course' }).click();
