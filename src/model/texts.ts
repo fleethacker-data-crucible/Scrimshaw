@@ -15,8 +15,15 @@ export interface TextEntry {
 
 export function collectTexts(course: Course): TextEntry[] {
   const out: TextEntry[] = [{ key: 'course:title', slideId: null, objectId: null, where: 'Course', field: 'course title', text: course.title }];
-  allSlides(course).forEach((sl, i) => {
-    const at = `${i + 1}. ${sl.title}`;
+  [...allSlides(course), course.master].forEach((sl, i, all) => {
+    const at = sl === course.master ? 'Slide master' : `${i + 1}. ${sl.title}`;
+    if (i === all.length - 1 && sl === course.master) {
+      for (const o of sl.layers[0].objects) {
+        if (o.text) out.push({ key: `obj:${o.id}:text`, slideId: sl.id, objectId: o.id, where: `${at} › ${o.name}`, field: 'text', text: o.text });
+        if (o.alt) out.push({ key: `obj:${o.id}:alt`, slideId: sl.id, objectId: o.id, where: `${at} › ${o.name}`, field: 'alt text', text: o.alt });
+      }
+      return;
+    }
     out.push({ key: `slide:${sl.id}:title`, slideId: sl.id, objectId: null, where: at, field: 'slide title', text: sl.title });
     for (const l of sl.layers) for (const o of l.objects) {
       const where = `${at} › ${l.base ? '' : `${l.name} › `}${o.name}`;
@@ -34,6 +41,10 @@ export function applyTexts(course: Course, values: Map<string, string>): number 
   let n = 0;
   const put = (key: string, fn: (v: string) => void) => { const v = values.get(key); if (v !== undefined) { fn(v); n++; } };
   put('course:title', (v) => { course.title = v; });
+  for (const o of course.master.layers[0].objects) {
+    put(`obj:${o.id}:text`, (v) => { o.text = v; });
+    put(`obj:${o.id}:alt`, (v) => { o.alt = v; });
+  }
   for (const sl of allSlides(course)) {
     put(`slide:${sl.id}:title`, (v) => { sl.title = v; });
     for (const l of sl.layers) for (const o of l.objects) {

@@ -7,8 +7,11 @@ export function allSlides(course: Course): Slide[] {
 export function findSlide(course: Course, id: ID | null | undefined): Slide | undefined {
   if (!id) return undefined;
   for (const sc of course.scenes) for (const sl of sc.slides) if (sl.id === id) return sl;
+  if (course.master?.id === id) return course.master;
   return undefined;
 }
+
+export const isMaster = (course: Course, slideId: ID) => course.master?.id === slideId;
 
 export function sceneOfSlide(course: Course, slideId: ID): Scene | undefined {
   return course.scenes.find((s) => s.slides.some((sl) => sl.id === slideId));

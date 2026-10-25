@@ -169,3 +169,17 @@ test('contrast ratio', async () => {
   assert.ok(contrast('#e8c15a', '#ffffff')! < 4.5);
   assert.equal(contrast('nope', '#fff'), null);
 });
+
+test('slide master: normalized as display-only and included in text tools', async () => {
+  const T = await import('../src/model/texts.ts');
+  const c = sampleCourse();
+  const raw = JSON.parse(serializeCourse(c)).course;
+  raw.master.layers.push({ id: 'extra', objects: [] });
+  raw.master.layers[0].objects[0].triggers = [{ id: 't', event: { type: 'click' }, action: { type: 'next-slide' }, conditions: [] }];
+  const back = normalizeCourse(raw);
+  assert.equal(back.master.layers.length, 1);
+  assert.equal(back.master.layers[0].objects[0].triggers.length, 0);
+  assert.ok(T.collectTexts(back).some((e) => e.where.startsWith('Slide master')));
+  const old = normalizeCourse({ ...raw, master: undefined });
+  assert.equal(old.master.layers[0].objects.length, 0, 'older files get an empty master');
+});

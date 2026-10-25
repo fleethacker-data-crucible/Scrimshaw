@@ -473,7 +473,8 @@ export function TriggerList({ owner, triggers, ownerObj, onChange }: { owner: Tr
 }
 
 function ObjectTriggers() {
-  const { selected, editSelected } = useEditor();
+  const { selected, editSelected, slide, course } = useEditor();
+  if (slide.id === course.master.id) return <p className="muted text-[13px]">Objects on the slide master are for display and cannot have triggers. Put interactive objects on the slides themselves.</p>;
   if (selected.length > 1) return <p className="muted text-[13px]">Select one object to edit its triggers.</p>;
   const o = selected[0];
   return (
@@ -485,7 +486,18 @@ function ObjectTriggers() {
 // ---------- slide ----------
 
 function SlideInspector({ tab, setTab }: { tab: SlideTab; setTab: (t: SlideTab) => void }) {
-  const { slide, layer, edit } = useEditor();
+  const { slide, layer, edit, course } = useEditor();
+  if (slide.id === course.master.id) {
+    return (
+      <>
+        <div className="pane-head"><h2>Slide master</h2></div>
+        <div className="insp">
+          <p className="muted text-[13px]">Objects here appear beneath every slide that uses the master: a logo, a footer, a progress line such as “%Project.SlideNumber% / %Project.TotalSlides%”. Master objects are for display, so they have no triggers. Turn the master off for a slide in its Slide tab.</p>
+          <ObjectList />
+        </div>
+      </>
+    );
+  }
   const tabs: { id: SlideTab; label: string }[] = [{ id: 'slide', label: 'Slide' }, { id: 'triggers', label: 'Triggers' }];
   if (slide.question) tabs.push({ id: 'question', label: 'Question' });
   const current = tab === 'question' && !slide.question ? 'slide' : tab;
@@ -542,6 +554,7 @@ function SlideProps({ editSlide }: { editSlide: (label: string, fn: (s: Slide) =
         </Field>
       </div>
       <label className="check"><input type="checkbox" checked={slide.inMenu} onChange={(e) => editSlide('Menu', (s) => { s.inMenu = e.target.checked; })} /> Show in the player menu</label>
+      <label className="check"><input type="checkbox" checked={slide.useMaster} onChange={(e) => editSlide('Use master', (s) => { s.useMaster = e.target.checked; })} /> Show the slide master's objects</label>
       <Field label="Notes" hint={`Private to authors. ${course.title ? '' : ''}`}>
         <textarea className="!font-sans !text-[13px]" rows={4} value={slide.notes} onChange={(e) => editSlide('Notes', (s) => { s.notes = e.target.value; }, `notes-${slide.id}`)} />
       </Field>

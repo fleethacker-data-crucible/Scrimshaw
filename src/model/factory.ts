@@ -92,9 +92,13 @@ export function newLayer(name: string, base = false): Layer {
 export function newSlide(title = 'Untitled slide', over: Partial<Slide> = {}): Slide {
   return {
     id: uid('s'), title, notes: '', background: '#ffffff', duration: 5, advance: 'user',
-    layers: [newLayer('Base layer', true)], triggers: [], question: null, inMenu: true,
+    layers: [newLayer('Base layer', true)], triggers: [], question: null, inMenu: true, useMaster: true,
     ...over,
   };
+}
+
+export function newMaster(): Slide {
+  return newSlide('Slide master', { id: uid('master'), background: 'transparent', inMenu: false, useMaster: false });
 }
 
 export function newScene(name = 'Scene', slides: Slide[] = [newSlide()]): Scene {
@@ -121,6 +125,7 @@ export function newCourse(title = 'Untitled course'): Course {
     schema: SCHEMA_VERSION, id: uid('c'), title, author: '', description: '',
     size: { w: SLIDE_W, h: SLIDE_H },
     scenes: [newScene('Scene 1', [first])],
+    master: newMaster(),
     variables: [],
     startSlideId: null,
     player: { showMenu: true, showNav: true, showSeekbar: true, showTitle: true, resources: [], glossary: [], accent: '', navigation: 'free', resume: true },
@@ -275,7 +280,12 @@ export function sampleCourse(): Course {
   const explored = newVariable('ToolsExplored', 'number', 0);
   c.variables.push(name, explored);
 
+  c.master.layers[0].objects.push(newObject('text', {
+    name: 'Slide number', x: 760, y: 500, w: 180, h: 32, text: '%Project.SlideNumber% / %Project.TotalSlides%',
+    style: baseStyle({ fontSize: 14, color: '#9a988f', align: 'right', valign: 'middle', padding: 4 }),
+  }));
   const title = c.scenes[0].slides[0];
+  title.useMaster = false;
   title.background = '#0f2236';
   title.layers[0].objects[0].text = 'Scrimshaw';
   title.layers[0].objects[0].style.color = '#ffffff';

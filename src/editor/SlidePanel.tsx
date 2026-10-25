@@ -74,6 +74,17 @@ export function SlidePanel() {
         <h2>Slides</h2>
         <Menu label="New slide" items={newItems} size="small" variant="default" title="New slide (Ctrl+M)"><Plus size={14} />Slide</Menu>
       </div>
+      <div className="px-2 pt-2">
+        <button type="button" className={`thumb w-full !h-auto !p-1.5 !bg-transparent !text-fg !font-normal text-left !grid`} aria-current={current === course.master.id}
+          onClick={() => select({ slideId: course.master.id, layerId: course.master.layers[0].id, objectIds: [] })}
+          aria-label={`Slide master: objects shown on every slide (${course.master.layers[0].objects.length})`}>
+          <span className="num">M</span>
+          <span className="min-w-0 block">
+            <span className="mini block"><SlideThumb course={course} slide={course.master} width={176} /></span>
+            <span className="t block">Slide master</span>
+          </span>
+        </button>
+      </div>
       {course.scenes.map((scene) => (
         <section key={scene.id} aria-label={scene.name}
           onDragOver={(e) => { if (dragId) { e.preventDefault(); if (scene.slides.length === 0) setDropAt({ sceneId: scene.id, index: 0 }); } }}

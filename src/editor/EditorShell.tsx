@@ -234,7 +234,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
       const k = e.key;
       if (mod && k.toLowerCase() === 's') { e.preventDefault(); void saveNow(); toast('Saved in this browser.', 'ok'); return; }
       if (document.querySelector('dialog[open]')) return;
-      if (k === 'F5') { e.preventDefault(); setPreview({ from: e.shiftKey ? null : state.sel.slideId }); return; }
+      if (k === 'F5') { e.preventDefault(); setPreview({ from: e.shiftKey || state.sel.slideId === course.master.id ? null : state.sel.slideId }); return; }
       if (isTyping(e.target)) return;
       if (mod && k.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); dispatch({ type: 'undo' }); return; }
       if (mod && (k.toLowerCase() === 'y' || (k.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); dispatch({ type: 'redo' }); return; }
@@ -305,7 +305,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
         <IconButton label={dark ? 'Switch to light theme' : 'Switch to dark theme'} onClick={() => setSettings((s) => ({ ...s, theme: dark ? 'light' : 'dark' }))}>{dark ? <Sun /> : <Moon />}</IconButton>
         <IconButton label="Keyboard shortcuts (?)" onClick={() => setDialog('shortcuts')}><Keyboard /></IconButton>
         <Menu label="Preview" variant="ghost" align="right" items={[
-          { label: 'This slide', icon: <Play />, shortcut: 'F5', onSelect: () => setPreview({ from: state.sel.slideId }) },
+          { label: 'This slide', icon: <Play />, shortcut: 'F5', onSelect: () => setPreview({ from: state.sel.slideId === course.master.id ? null : state.sel.slideId }) },
           { label: 'From the beginning', icon: <MonitorPlay />, shortcut: 'Shift+F5', onSelect: () => setPreview({ from: null }) },
         ]}><Play />Preview<ChevronDown size={14} /></Menu>
         <Button variant="primary" onClick={() => setDialog('publish')}><Package />Publish</Button>

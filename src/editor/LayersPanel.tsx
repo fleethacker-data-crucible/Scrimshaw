@@ -5,7 +5,8 @@ import { IconButton, useUi } from '../ui/kit.tsx';
 import { useEditor } from './context.tsx';
 
 export function LayersPanel() {
-  const { slide, layer, select, edit } = useEditor();
+  const { slide, layer, select, edit, course } = useEditor();
+  const master = slide.id === course.master.id;
   const { confirm, prompt } = useUi();
   const editSlide = (label: string, fn: (s: typeof slide) => void) => edit(label, (c, sel) => { fn(findSlide(c, sel.slideId)!); });
   return (
@@ -13,7 +14,7 @@ export function LayersPanel() {
       <div className="flex items-center gap-1 mb-1">
         <Layers size={14} />
         <h2 className="!m-0 flex-1">Layers</h2>
-        <IconButton label="New layer" onClick={() => edit('New layer', (c, sel) => { const l = addLayer(findSlide(c, sel.slideId)!); return { layerId: l.id, objectIds: [] }; })}><Plus /></IconButton>
+        <IconButton label="New layer" disabled={master} onClick={() => edit('New layer', (c, sel) => { const l = addLayer(findSlide(c, sel.slideId)!); return { layerId: l.id, objectIds: [] }; })}><Plus /></IconButton>
       </div>
       <ul className="snav" role="listbox" aria-label="Layer being edited">
         {[...slide.layers].reverse().map((l) => (

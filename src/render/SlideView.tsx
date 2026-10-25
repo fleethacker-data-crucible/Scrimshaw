@@ -413,6 +413,14 @@ export function SlideView(p: SlideViewProps) {
 
   return (
     <div ref={el} className={`slide ${p.className ?? ''}`} style={{ width: course.size.w, height: course.size.h, background: slide.background.startsWith('asset:') ? `center / cover url(${resolveSrc(course, slide.background)})` : slide.background, ...p.style }}>
+      {slide.useMaster && course.master && course.master.id !== slide.id && course.master.layers[0].objects.length > 0 && (
+        <div className="absolute inset-0" style={{ pointerEvents: 'none' }} aria-hidden={mode !== 'play' || undefined} data-master="">
+          {course.master.layers[0].objects.map((o) => (mode === 'edit' && o.editorHidden ? null : (
+            <ObjectView key={o.id} course={course} o={{ ...o, triggers: [] }} mode={mode === 'play' ? 'thumb' : mode} state="Normal" text={text}
+              transient={null} onPointer={() => {}} handlers={{}} inputValue="" animate={false} />
+          )))}
+        </div>
+      )}
       {layers.map((layer, li) => {
         const t = p.times?.[layer.id] ?? Infinity;
         const isBaseUnderModal = modalOn && layer.base;
@@ -457,6 +465,7 @@ export function SlideView(p: SlideViewProps) {
 export const SlideThumb = memo(SlideThumbInner, (a, b) =>
   a.width === b.width && a.course.assets === b.course.assets &&
   a.course.size.w === b.course.size.w && a.course.size.h === b.course.size.h &&
+  (a.course.master === b.course.master || JSON.stringify(a.course.master) === JSON.stringify(b.course.master)) &&
   (a.slide === b.slide || JSON.stringify(a.slide) === JSON.stringify(b.slide)));
 
 function SlideThumbInner({ course, slide, width }: { course: Course; slide: Slide; width: number }) {
