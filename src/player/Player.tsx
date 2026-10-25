@@ -41,7 +41,7 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
   const [menuOpen, setMenuOpen] = useState(course.player.showMenu && !embedded && typeof window !== 'undefined' && window.innerWidth > 900);
   const [notice, setNotice] = useState<string | null>(null);
   const [exited, setExited] = useState(false);
-  const media = useRef(new Map<ID, HTMLVideoElement>());
+  const media = useRef(new Map<ID, HTMLMediaElement>());
   const layerShown = useRef<Record<ID, number>>({});
   const clock = useRef({ t: 0, last: 0, entry: -1, ended: false, reached: new Set<number>() });
   const stage = useRef<HTMLDivElement>(null);

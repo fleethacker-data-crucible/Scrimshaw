@@ -15,7 +15,7 @@ align-center-horizontal align-end-horizontal bring-to-front send-to-back arrow-u
 lock-open workflow menu circle-check circle-x rotate-ccw monitor-play package grid-3x3 magnet zoom-in
 zoom-out scan message-square-text list-ordered pencil ellipsis square-check file-braces globe triangle
 arrow-right clipboard-paste scissors square-mouse-pointer circle-dot gauge book-open skip-forward
-skip-back clock maximize keyboard info triangle-alert trophy flag`.split(/\s+/).filter(Boolean);
+skip-back clock maximize keyboard info triangle-alert trophy flag volume-2 log-out`.split(/\s+/).filter(Boolean);
 
 const dir = process.argv[2];
 if (!dir) { console.error('usage: node tools/gen-icons.mjs <lucide>/icons'); process.exit(1); }

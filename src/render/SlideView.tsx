@@ -79,6 +79,35 @@ function ShapeSvg({ o, s }: { o: SlideObject; s: Style }) {
   );
 }
 
+function SpeakerGlyph({ color, playing }: { color: string; playing?: boolean }) {
+  return (
+    <svg width="60%" height="60%" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6A1.4 1.4 0 0 1 5.4 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z" fill={playing ? color : 'none'} />
+      <path d="M16 9a5 5 0 0 1 0 6" /><path d="M19.4 18.4a9 9 0 0 0 0-12.8" />
+    </svg>
+  );
+}
+
+/** Audio in the player: an <audio> element, plus a play/pause button when the author asked for one. */
+function AudioObject({ o, src, css, s, mediaRef, label }: { o: SlideObject; src: string; css: CSSProperties; s: Style; mediaRef?: (id: ID, el: HTMLMediaElement | null) => void; label: string }) {
+  const ref = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const audio = src ? (
+    <audio ref={(el) => { ref.current = el; mediaRef?.(o.id, el); }} src={src} autoPlay={o.autoplay} loop={o.loop} preload="auto"
+      onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} />
+  ) : null;
+  if (!o.controls) return <>{audio}</>;
+  return (
+    <div className="obj obj-audio" style={{ ...css, pointerEvents: 'auto' }} role="button" tabIndex={0} aria-pressed={playing}
+      aria-label={`${playing ? 'Pause' : 'Play'} ${label}`}
+      onClick={() => { const a = ref.current; if (a) { if (a.paused) void a.play().catch(() => {}); else a.pause(); } }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); (e.currentTarget as HTMLElement).click(); } }}>
+      <div className="w-full h-full grid place-items-center"><SpeakerGlyph color={s.color} playing={playing} /></div>
+      {audio}
+    </div>
+  );
+}
+
 interface Handlers {
   onClick?: (id: ID) => void;
   onHover?: (id: ID, entering: boolean) => void;
@@ -94,10 +123,10 @@ interface DragWiring {
   props: Record<string, unknown>;
 }
 
-function ObjectView({ course, o, mode, state, text, transient, onPointer, handlers, inputValue, animate, mediaRef, drag }: {
+function ObjectView({ course, o, mode, state, text, transient, onPointer, handlers, inputValue, animate, mediaRef, drag, exiting }: {
   course: Course; o: SlideObject; mode: ViewMode; state: string; text: (t: string) => string; transient: 'hover' | 'down' | null;
   onPointer: (id: ID, t: 'hover' | 'down' | null) => void; handlers: Handlers; inputValue: string; animate: boolean;
-  mediaRef?: (id: ID, el: HTMLVideoElement | null) => void; drag?: DragWiring;
+  mediaRef?: (id: ID, el: HTMLMediaElement | null) => void; drag?: DragWiring; exiting?: boolean;
 }) {
   const { style: s, text: stateText } = effectiveStyle(o, state, mode === 'play' ? transient : null);
   const css = boxCss(o, s);
@@ -106,7 +135,10 @@ function ObjectView({ course, o, mode, state, text, transient, onPointer, handle
   else if (drag && mode === 'play' && o.draggable) css.transition = 'left .15s ease-out, top .15s ease-out';
   const play = mode === 'play';
   const disabled = state === 'Disabled';
-  if (play && animate && o.enter.type !== 'none') {
+  if (play && exiting && o.exit.type !== 'none') {
+    // Exit = the matching entrance keyframes played backwards.
+    css.animation = `scr-${o.exit.type} ${o.exit.duration}s ease-in reverse both`;
+  } else if (play && animate && o.enter.type !== 'none') {
     css.animation = `scr-${o.enter.type} ${o.enter.duration}s ease-out both`;
   }
   const content = text(stateText ?? o.text);
@@ -141,9 +173,23 @@ function ObjectView({ course, o, mode, state, text, transient, onPointer, handle
     case 'video': {
       const src = resolveSrc(course, o.src);
       inner = src && mode !== 'thumb'
-        ? <video ref={(el) => mediaRef?.(o.id, el)} src={src} controls={o.controls && play} autoPlay={play && o.autoplay} playsInline preload="metadata"
+        ? <video ref={(el) => mediaRef?.(o.id, el)} src={src} controls={o.controls && play} autoPlay={play && o.autoplay} loop={o.loop} playsInline preload="metadata"
             className="block w-full h-full" style={{ pointerEvents: play ? undefined : 'none' }} aria-label={o.alt || o.name} />
         : <div className="w-full h-full grid place-items-center text-[13px]" style={{ color: '#aaa' }}>Video</div>;
+      break;
+    }
+    case 'audio': {
+      const src = resolveSrc(course, o.src);
+      if (play) {
+        return <AudioObject o={o} src={src} css={css} s={s} mediaRef={mediaRef} label={o.alt || o.name} />;
+      }
+      inner = (
+        <div className="w-full h-full grid place-items-center" title={`${o.name}${o.controls ? '' : ' (invisible to learners)'}`}>
+          <SpeakerGlyph color={s.color} />
+        </div>
+      );
+      if (!o.controls && mode === 'edit') css.outline = '1px dashed #9a988f';
+      if (mode === 'thumb' && !o.controls) return null;
       break;
     }
     case 'input':
@@ -197,7 +243,7 @@ export interface SlideViewProps extends Handlers {
   previewStates?: Record<ID, string>;
   /** Edit mode: dim the base layer while editing another layer. */
   dimBase?: boolean;
-  mediaRef?: (id: ID, el: HTMLVideoElement | null) => void;
+  mediaRef?: (id: ID, el: HTMLMediaElement | null) => void;
   className?: string;
   style?: CSSProperties;
 }
@@ -317,7 +363,8 @@ export function SlideView(p: SlideViewProps) {
               if (mode === 'play' && p.state) {
                 st = stateOf(p.state, o);
                 if (st === 'Hidden') return null;
-                if (t < o.start || (o.end !== null && t >= o.end)) return null;
+                if (t < o.start) return null;
+                if (o.end !== null && t >= o.end && !(o.exit.type !== 'none' && t < o.end + o.exit.duration)) return null;
               } else if (mode === 'edit' && p.previewStates?.[o.id]) {
                 st = p.previewStates[o.id];
               }
@@ -327,7 +374,8 @@ export function SlideView(p: SlideViewProps) {
               return (
                 <ObjectView key={o.id} course={course} o={o} mode={mode} state={st} text={text}
                   transient={pointer?.id === o.id ? pointer.t : null} onPointer={onPointer} handlers={p}
-                  inputValue={inputValue} animate={mode === 'play'} mediaRef={p.mediaRef} drag={dragWiring(o)} />
+                  inputValue={inputValue} animate={mode === 'play'} mediaRef={p.mediaRef} drag={dragWiring(o)}
+                  exiting={mode === 'play' && o.end !== null && t >= o.end} />
               );
             })}
             {layer.base && p.dimBase && <div className="layer-dim" />}

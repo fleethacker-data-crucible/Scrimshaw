@@ -67,3 +67,72 @@ test('SCORM 1.2 manifest is well formed and escapes the title', () => {
   assert.equal(scormId('9 bad id!'), '_9_bad_id_');
   assert.equal(escapeXml(`<'&">`), '&lt;&apos;&amp;&quot;&gt;');
 });
+
+function fakeWindow(apiName: 'API' | 'API_1484_11', data: Record<string, string>) {
+  const calls: string[] = [];
+  const ok = () => 'true';
+  const api = apiName === 'API'
+    ? { LMSInitialize: () => { calls.push('init'); return 'true'; }, LMSFinish: () => { calls.push('finish'); return 'true'; },
+        LMSGetValue: (k: string) => data[k] ?? '', LMSSetValue: (k: string, v: string) => { data[k] = v; return 'true'; }, LMSCommit: ok, LMSGetLastError: () => '0' }
+    : { Initialize: () => { calls.push('init'); return 'true'; }, Terminate: () => { calls.push('finish'); return 'true'; },
+        GetValue: (k: string) => data[k] ?? '', SetValue: (k: string, v: string) => { data[k] = v; return 'true'; }, Commit: ok, GetLastError: () => '0' };
+  const top: Record<string, unknown> = { [apiName]: api };
+  top.parent = top;
+  const child: Record<string, unknown> = { parent: top, opener: null };
+  return { win: child as unknown as Window, calls, data };
+}
+
+test('SCORM 1.2 adapter: discovery in a parent frame, status, score, suspend, session time', async () => {
+  const { connectLms, timespan12 } = await import('../src/export/scorm.ts');
+  const f = fakeWindow('API', { 'cmi.core.lesson_status': 'not attempted', 'cmi.core.entry': 'ab-initio' });
+  let t = 0;
+  const lms = connectLms(f.win, () => t);
+  assert.equal(lms.version, '1.2');
+  assert.equal(f.data['cmi.core.lesson_status'], 'incomplete');
+  lms.setProgress('slide-3', '{"v":1}');
+  assert.equal(f.data['cmi.core.lesson_location'], 'slide-3');
+  assert.equal(f.data['cmi.core.exit'], 'suspend');
+  lms.complete('passed', 87.6);
+  assert.equal(f.data['cmi.core.score.raw'], '88');
+  assert.equal(f.data['cmi.core.lesson_status'], 'passed');
+  t = 3_725_500;
+  lms.finish(); lms.finish();
+  assert.equal(f.data['cmi.core.session_time'], '0001:02:05.50');
+  assert.deepEqual(f.calls, ['init', 'finish']);
+  assert.equal(timespan12(0), '0000:00:00.00');
+});
+
+test('SCORM 2004 adapter is preferred and maps status and scaled score', async () => {
+  const { connectLms, duration2004 } = await import('../src/export/scorm.ts');
+  const f = fakeWindow('API_1484_11', { 'cmi.completion_status': 'unknown', 'cmi.entry': 'resume', 'cmi.suspend_data': 'abc', 'cmi.location': 's2' });
+  const lms = connectLms(f.win, () => 0);
+  assert.equal(lms.version, '2004');
+  assert.equal(lms.suspendData, 'abc');
+  assert.equal(lms.location, 's2');
+  assert.equal(f.data['cmi.completion_status'], 'incomplete');
+  lms.complete('failed', 40);
+  assert.equal(f.data['cmi.score.scaled'], '0.40');
+  assert.equal(f.data['cmi.success_status'], 'failed');
+  assert.equal(f.data['cmi.completion_status'], 'completed');
+  assert.equal(duration2004(3_725_500), 'PT1H2M5.5S');
+});
+
+test('no LMS: adapter is a harmless no-op', async () => {
+  const { connectLms } = await import('../src/export/scorm.ts');
+  const lone: Record<string, unknown> = { opener: null };
+  lone.parent = lone;
+  const lms = connectLms(lone as unknown as Window);
+  assert.equal(lms.connected, false);
+  lms.setProgress('x', 'y'); lms.complete('passed', 1); lms.finish();
+});
+
+test('SCORM 2004 manifest declares the passing measure', async () => {
+  const { manifest2004 } = await import('../src/export/scorm.ts');
+  const c = newCourse('Twenty & four');
+  c.quiz.passPercent = 70;
+  const xml = manifest2004(c);
+  assert.ok(xml.includes('<schemaversion>2004 3rd Edition</schemaversion>'));
+  assert.ok(xml.includes('<imsss:minNormalizedMeasure>0.70</imsss:minNormalizedMeasure>'));
+  assert.ok(xml.includes('adlcp:scormType="sco"'));
+  assert.ok(xml.includes('Twenty &amp; four'));
+});

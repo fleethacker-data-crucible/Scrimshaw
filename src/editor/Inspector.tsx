@@ -93,15 +93,15 @@ function DesignTab() {
   const set = (label: string, fn: (o: SlideObject) => void, key?: string) => editSelected(label, fn, key);
   const setStyle = <K extends keyof Style>(k: K, v: Style[K]) => set('Format', (x) => { x.style[k] = v; }, `style-${k}`);
   const hasText = ['text', 'shape', 'button', 'choice', 'input'].includes(o.kind);
-  const hasFill = o.kind !== 'image' && o.kind !== 'hotspot';
+  const hasFill = o.kind !== 'image' && o.kind !== 'hotspot' && o.kind !== 'video';
 
-  const replaceMedia = async (kind: 'image' | 'video') => {
-    const file = await pickFile(kind === 'image' ? 'image/*' : 'video/*');
+  const replaceMedia = async (kind: 'image' | 'video' | 'audio') => {
+    const file = await pickFile(`${kind}/*`);
     if (!file) return;
     try {
       const asset = await fileToAsset(file, kind);
       const size = kind === 'image' ? await imageSize(asset.data, course.size.w * 0.8, course.size.h * 0.8) : null;
-      edit(kind === 'image' ? 'Replace image' : 'Set video', (c, sel) => {
+      edit(kind === 'image' ? 'Replace image' : kind === 'video' ? 'Set video' : 'Set audio', (c, sel) => {
         withAsset(c, asset);
         const obj = findObject(findSlide(c, sel.slideId)!, o.id)!;
         obj.src = `asset:${asset.id}`;
@@ -206,7 +206,22 @@ function DesignTab() {
           <div className="row">
             <label className="check"><input type="checkbox" checked={o.autoplay} onChange={(e) => set('Autoplay', (x) => { x.autoplay = e.target.checked; })} /> Autoplay</label>
             <label className="check"><input type="checkbox" checked={o.controls} onChange={(e) => set('Controls', (x) => { x.controls = e.target.checked; })} /> Show controls</label>
+            <label className="check"><input type="checkbox" checked={o.loop} onChange={(e) => set('Loop', (x) => { x.loop = e.target.checked; })} /> Loop</label>
           </div>
+        </Section>
+      )}
+      {!multi && o.kind === 'audio' && (
+        <Section title="Audio">
+          <Button variant="ghost" onClick={() => replaceMedia('audio')}>{o.src ? 'Replace audio file…' : 'Choose audio file…'}</Button>
+          <Field label="Or an audio URL" hint="Relative paths work when the file ships beside the published course.">
+            <input value={o.src.startsWith('asset:') ? '' : o.src} placeholder="media/narration.mp3" onChange={(e) => set('Audio URL', (x) => { x.src = e.target.value; }, `src-${o.id}`)} />
+          </Field>
+          <div className="row">
+            <label className="check"><input type="checkbox" checked={o.autoplay} onChange={(e) => set('Autoplay', (x) => { x.autoplay = e.target.checked; })} /> Play when it appears</label>
+            <label className="check"><input type="checkbox" checked={o.controls} onChange={(e) => set('Controls', (x) => { x.controls = e.target.checked; })} /> Show a play button</label>
+            <label className="check"><input type="checkbox" checked={o.loop} onChange={(e) => set('Loop', (x) => { x.loop = e.target.checked; })} /> Loop</label>
+          </div>
+          <p className="hint">Without a play button the audio is invisible to learners. Set when it starts in the Timing tab; triggers can play and pause it.</p>
         </Section>
       )}
       {!multi && o.kind === 'input' && <InputVariable o={o} />}
@@ -220,7 +235,7 @@ function DesignTab() {
         </Section>
       )}
 
-      {!multi && o.kind !== 'input' && o.kind !== 'video' && (
+      {!multi && o.kind !== 'input' && o.kind !== 'video' && o.kind !== 'audio' && (
         <Section title="Drag and drop">
           <label className="check"><input type="checkbox" checked={o.draggable} onChange={(e) => set('Draggable', (x) => { x.draggable = e.target.checked; if (e.target.checked) x.dropTarget = false; })} /> Learner can drag this</label>
           <label className="check"><input type="checkbox" checked={o.dropTarget} onChange={(e) => set('Drop target', (x) => { x.dropTarget = e.target.checked; if (e.target.checked) x.draggable = false; })} /> Drop target</label>
@@ -365,7 +380,13 @@ function TimingTab() {
           <Field label="Effect"><Select label="Entrance effect" value={o.enter.type} options={ANIMS} onChange={(v) => editSelected('Animation', (x) => { x.enter = { ...x.enter, type: v }; })} /></Field>
           <Field label="Duration (s)"><NumberInput label="Animation duration" min={0.1} max={10} step={0.1} value={o.enter.duration} onChange={(v) => editSelected('Animation', (x) => { x.enter = { ...x.enter, duration: v }; }, 'anim-d')} /></Field>
         </div>
-        <p className="hint">Animations are skipped for learners who prefer reduced motion.</p>
+      </Section>
+      <Section title="Exit animation">
+        <div className="grid-2">
+          <Field label="Effect"><Select label="Exit effect" value={o.exit.type} options={ANIMS} onChange={(v) => editSelected('Animation', (x) => { x.exit = { ...x.exit, type: v }; })} /></Field>
+          <Field label="Duration (s)"><NumberInput label="Exit duration" min={0.1} max={10} step={0.1} value={o.exit.duration} onChange={(v) => editSelected('Animation', (x) => { x.exit = { ...x.exit, duration: v }; }, 'anim-x')} /></Field>
+        </div>
+        <p className="hint">{o.end === null ? 'Plays when the object disappears; set “Disappears at” above.' : `Plays at ${o.end}s.`} Animations are skipped for learners who prefer reduced motion.</p>
       </Section>
     </>
   );

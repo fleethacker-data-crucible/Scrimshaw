@@ -55,6 +55,7 @@ const KIND_DEFAULTS: Record<ObjectKind, () => Partial<SlideObject>> = {
   }),
   choice: () => ({ name: 'Choice', w: 560, h: 44, text: 'Answer option', style: baseStyle({ fontSize: 18, valign: 'middle' }) }),
   video: () => ({ name: 'Video', w: 480, h: 270, controls: true, style: baseStyle({ fill: '#000000', padding: 0 }) }),
+  audio: () => ({ name: 'Audio', w: 48, h: 48, autoplay: true, controls: false, style: baseStyle({ fill: '#2f74c8', color: '#ffffff', radius: 24, padding: 0, align: 'center', valign: 'middle' }) }),
 };
 
 export function newObject(kind: ObjectKind, over: Partial<SlideObject> = {}): SlideObject {
@@ -66,7 +67,7 @@ export function newObject(kind: ObjectKind, over: Partial<SlideObject> = {}): Sl
     enter: { type: 'none', duration: 0.5 }, exit: { type: 'none', duration: 0.5 },
     states: [], triggers: [], variableId: null, correct: false, choiceMode: 'radio',
     draggable: false, dropTarget: false, correctTargetId: null,
-    autoplay: false, controls: true, locked: false, editorHidden: false,
+    autoplay: false, controls: true, loop: false, locked: false, editorHidden: false,
     ...d,
     ...over,
   };
