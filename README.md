@@ -25,7 +25,7 @@ backup you can move between machines or share with another author.
 
 | Area | Features |
 | --- | --- |
-| Slides | Scenes, slides, slide master, drag-to-reorder, duplicate, start slide, completion slide, story view with trigger links |
+| Slides | Scenes, slides, import from PowerPoint, slide master, drag-to-reorder, duplicate, start slide, completion slide, story view with trigger links |
 | Objects | Text, shapes (rectangle, rounded, oval, triangle, arrow, line), images, video and audio (with WebVTT captions), buttons, hotspots, text entry, choices, sliders |
 | Drag and drop | Any object can be draggable or a drop target; snap to target, one item per target, keyboard pick-up and drop, `drop` trigger event |
 | Canvas | Select, marquee, multi-select, move, resize (Shift keeps aspect), rotate, snapping guides, grid, zoom, inline text editing, align and distribute, z-order, copy/paste/duplicate, right-click menu, grouping, format painter, lock, hide while editing |

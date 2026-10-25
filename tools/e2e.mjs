@@ -280,6 +280,36 @@ try {
     if (after === before + 1) ok('right-click menu duplicates an object'); else fail(`objects ${before} -> ${after}`);
   }
 
+  // ---------- PowerPoint import ----------
+  {
+    const P = 'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+    const z = new JSZip();
+    z.file('ppt/presentation.xml', `<p:presentation ${P}><p:sldIdLst><p:sldId id="256" r:id="rId2"/></p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/></p:presentation>`);
+    z.file('ppt/_rels/presentation.xml.rels', '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId2" Type="slide" Target="slides/slide1.xml"/></Relationships>');
+    z.file('ppt/slides/slide1.xml', `<p:sld ${P}><p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="F4F1EA"/></a:solidFill></p:bgPr></p:bg><p:spTree>
+      <p:sp><p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="838200" y="365125"/><a:ext cx="10515600" cy="1325563"/></a:xfrm></p:spPr>
+        <p:txBody><a:p><a:r><a:rPr sz="4400" b="1"/><a:t>Imported deck</a:t></a:r></a:p></p:txBody></p:sp>
+      <p:sp><p:nvSpPr><p:cNvPr id="3" name="Body"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="838200" y="1825625"/><a:ext cx="5000000" cy="2000000"/></a:xfrm></p:spPr>
+        <p:txBody><a:p><a:pPr><a:buChar char="•"/></a:pPr><a:r><a:rPr sz="2400"/><a:t>First point</a:t></a:r></a:p><a:p><a:pPr><a:buChar char="•"/></a:pPr><a:r><a:t>Second point</a:t></a:r></a:p></p:txBody></p:sp>
+      <p:pic><p:nvPicPr><p:cNvPr id="4" name="Picture 3" descr="A carved tooth"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rId3"/></p:blipFill><p:spPr><a:xfrm><a:off x="6500000" y="1825625"/><a:ext cx="3000000" cy="3000000"/></a:xfrm></p:spPr></p:pic>
+    </p:spTree></p:cSld></p:sld>`);
+    z.file('ppt/slides/_rels/slide1.xml.rels', '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId3" Type="image" Target="../media/image1.png"/><Relationship Id="rId4" Type="notesSlide" Target="../notesSlides/notesSlide1.xml"/></Relationships>');
+    z.file('ppt/notesSlides/notesSlide1.xml', `<p:notes ${P}><p:cSld><p:spTree><p:sp><p:nvSpPr><p:cNvPr id="2" name="Notes"/><p:cNvSpPr/><p:nvPr><p:ph type="body"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>Speaker notes here</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:notes>`);
+    z.file('ppt/media/image1.png', Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'));
+    const pptx = await z.generateAsync({ type: 'nodebuffer' });
+    await page.getByRole('button', { name: 'New slide' }).first().click();
+    const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('menuitem', { name: /Import from PowerPoint/ }).click()]);
+    await chooser.setFiles({ name: 'deck.pptx', mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', buffer: pptx });
+    await page.getByText(/Imported 1 slide from deck\.pptx/).waitFor();
+    await page.getByRole('button', { name: /^Slide \d+: Imported deck/ }).waitFor();
+    await page.getByRole('tab', { name: 'Slide' }).click();
+    const objs = await page.getByRole('list', { name: 'Objects' }).getByRole('button').allTextContents();
+    if (objs.some((t) => t.includes('Picture 3')) && objs.some((t) => t.startsWith('First point'))) ok('PowerPoint import brings in text, bullets and pictures');
+    else fail(`PowerPoint import objects: ${objs.join(' | ')}`);
+    if ((await page.getByRole('textbox', { name: 'Notes' }).inputValue()) === 'Speaker notes here') ok('PowerPoint speaker notes become slide notes'); else fail('notes not imported');
+    await page.screenshot({ path: path.join(out, '12-pptx-import.png') });
+  }
+
   // ---------- new course, question slide insert ----------
   await page.getByRole('button', { name: 'File' }).click();
   await page.getByRole('menuitem', { name: 'New course' }).click();

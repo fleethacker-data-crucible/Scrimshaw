@@ -88,6 +88,7 @@ Status of each Storyline 360 feature area in Scrimshaw. ✅ done, 🟡 partial, 
 | Offline, no CDN | ✅ | |
 | Autosave (IndexedDB) and .scrim files | ✅ | |
 | Light / dark theme, reduced motion | ✅ | UI kit tokens |
+| Import PowerPoint (.pptx) | 🟡 | Text boxes (size, bold, colour, alignment, bullets), pictures, solid backgrounds, speaker notes; no charts, tables, groups or animations |
 | Import Storyline .story files | ⬜ | The format is proprietary; a best-effort importer is a stretch goal |
 | Collaboration / review comments | ⬜ | |
 | Rust → WebAssembly compute | ⬜ | Not needed yet; reserved for heavy work such as video export |

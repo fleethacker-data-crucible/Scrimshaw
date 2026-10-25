@@ -29,6 +29,7 @@
 - Right-click menu on the canvas.
 - Optional learner Notes panel.
 - Theme colours: course swatches; changing one recolours every object that uses it.
+- Import slides from PowerPoint (.pptx): text, bullets, pictures, backgrounds, speaker notes.
 - Fix: find and replace and translation import now report the right count.
 - Fix: a click that navigates away now still marks the object Visited for when the learner returns.
 
