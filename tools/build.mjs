@@ -54,6 +54,7 @@ async function buildJs() {
     legalComments: 'none',
     charset: 'utf8',
     define: { 'process.env.NODE_ENV': '"production"', __SCRIMSHAW_VERSION__: JSON.stringify(pkg.version) },
+    loader: { '.webp': 'dataurl', '.png': 'dataurl' },
     logLevel: 'warning',
   });
   let js = r.outputFiles[0].text;
@@ -66,7 +67,8 @@ async function buildJs() {
   return js;
 }
 
-const FAVICON = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="5" fill="#2f74c8"/><path d="M9 4c6 1 13 6 15 14 1.4 5.5-1 9.6-5 10-3.7.4-6-2.6-6.6-6.8C11.6 15.7 10.6 9.6 9 4Z" fill="#fff"/><path d="M14.6 13.5c2.2 1.6 3.9 4 4.6 7M13.2 18.6c1.6.9 2.9 2.4 3.5 4.3" stroke="#2f74c8" stroke-width="1.6" stroke-linecap="round" fill="none"/><path d="M21.5 9.5 25 6" stroke="#e8c15a" stroke-width="1.8" stroke-linecap="round"/></svg>')}`;
+// Favicon: the logo's emblem at 64 px (made from docs/brand/scrimshaw-emblem.png).
+const FAVICON = `data:image/png;base64,${readFileSync(path.join(root, 'src/assets/favicon.png')).toString('base64')}`;
 
 function html(css, js) {
   return `<!doctype html>
