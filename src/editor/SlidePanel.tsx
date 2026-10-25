@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { newQuestionSlide, newResultsSlide, newSlide } from '../model/factory.ts';
+import { newLikertSlide, newQuestionSlide, newResultsSlide, newSlide } from '../model/factory.ts';
 import { allSlides, findSlide, sceneOfSlide } from '../model/query.ts';
 import type { ID, QuestionKind, Slide } from '../model/types.ts';
 import { SlideThumb } from '../render/SlideView.tsx';
@@ -30,6 +30,7 @@ export function useNewSlideItems(afterId: () => ID | null): MenuItem[] {
     { label: 'Blank slide', icon: <Plus />, onSelect: () => add('New slide', () => newSlide()) },
     { separator: true, label: '' },
     ...QUESTION_KINDS.map((q) => ({ label: `${q.label} question`, icon: <ListChecks />, onSelect: () => add(`New ${q.label} question`, () => newQuestionSlide(q.kind)) })),
+    { label: 'Likert scale (survey)', icon: <ListChecks />, onSelect: () => add('New Likert scale', () => newLikertSlide()) },
     { label: 'Results slide', icon: <Trophy />, onSelect: () => add('New results slide', () => newResultsSlide()) },
   ];
 }
