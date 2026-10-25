@@ -47,6 +47,8 @@ export interface PlayerSettings {
   resources: { title: string; url: string }[];
   /** Terms shown in the player's Glossary panel. */
   glossary: { term: string; definition: string }[];
+  /** Show each slide's notes to learners in a Notes panel. */
+  showNotes: boolean;
   /** Logo in the player's title bar: "asset:<id>" or ''. */
   logo: string;
   /** Player chrome accent (buttons, seekbar). Empty: the UI kit default. */

@@ -41,7 +41,7 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
   const [menuOpen, setMenuOpen] = useState(course.player.showMenu && !embedded && typeof window !== 'undefined' && window.innerWidth > 900);
   const [notice, setNotice] = useState<string | null>(null);
   const [exited, setExited] = useState(false);
-  const [panel, setPanel] = useState<'resources' | 'glossary' | null>(null);
+  const [panel, setPanel] = useState<'resources' | 'glossary' | 'notes' | null>(null);
   const media = useRef(new Map<ID, HTMLMediaElement>());
   const layerShown = useRef<Record<ID, number>>({});
   const clock = useRef({ t: 0, last: 0, entry: -1, ended: false, reached: new Set<number>() });
@@ -222,6 +222,9 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
         {showTitle && <h1 className="flex-1 min-w-0 text-[15px] truncate">{course.title}</h1>}
         {!showTitle && <span className="flex-1" />}
         {r.hasQuiz && <span className="badge blue" title="Questions answered">{r.answered}/{slides.filter((s) => s.question?.graded).length} answered</span>}
+        {course.player.showNotes && (
+          <Button variant="ghost" size="small" aria-expanded={panel === 'notes'} aria-controls="player-panel" onClick={() => setPanel((p) => (p === 'notes' ? null : 'notes'))}>Notes</Button>
+        )}
         {course.player.resources.length > 0 && (
           <Button variant="ghost" size="small" aria-expanded={panel === 'resources'} aria-controls="player-panel" onClick={() => setPanel((p) => (p === 'resources' ? null : 'resources'))}>Resources</Button>
         )}
@@ -280,13 +283,15 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
           <h2 className="sr-only" aria-live="polite">{slide.title}</h2>
           {notice && <div className="player-notice notice warn" role="alert" style={{ background: 'var(--panel)' }}><b>!</b>{notice}</div>}
           {panel && (
-            <aside id="player-panel" className="absolute top-2 right-2 bottom-2 w-[min(340px,90%)] overflow-auto box z-40 shadow-xl" aria-label={panel === 'resources' ? 'Resources' : 'Glossary'}
+            <aside id="player-panel" className="absolute top-2 right-2 bottom-2 w-[min(340px,90%)] overflow-auto box z-40 shadow-xl" aria-label={panel === 'resources' ? 'Resources' : panel === 'notes' ? 'Notes' : 'Glossary'}
               style={{ color: 'var(--text)' }} onKeyDown={(e) => { if (e.key === 'Escape') setPanel(null); }}>
               <div className="flex items-center mb-2">
-                <h2 className="!m-0 flex-1">{panel === 'resources' ? 'Resources' : 'Glossary'}</h2>
+                <h2 className="!m-0 flex-1">{panel === 'resources' ? 'Resources' : panel === 'notes' ? 'Notes' : 'Glossary'}</h2>
                 <IconButton label="Close" autoFocus onClick={() => setPanel(null)}><X /></IconButton>
               </div>
-              {panel === 'resources' ? (
+              {panel === 'notes' ? (
+                <div className="whitespace-pre-wrap">{slide.notes.trim() || <span className="muted">This slide has no notes.</span>}</div>
+              ) : panel === 'resources' ? (
                 <ul className="grid gap-2">
                   {course.player.resources.map((r, i) => <li key={i}><a href={r.url} target="_blank" rel="noopener noreferrer">{r.title}</a></li>)}
                 </ul>

@@ -128,7 +128,7 @@ export function newCourse(title = 'Untitled course'): Course {
     master: newMaster(),
     variables: [],
     startSlideId: null,
-    player: { showMenu: true, showNav: true, showSeekbar: true, showTitle: true, resources: [], glossary: [], logo: '', accent: '', navigation: 'free', resume: true },
+    player: { showMenu: true, showNav: true, showSeekbar: true, showTitle: true, showNotes: false, resources: [], glossary: [], logo: '', accent: '', navigation: 'free', resume: true },
     quiz: { passPercent: 80, reporting: 'passed-failed', completionSlideId: null },
     assets: {},
     created: now, modified: now,

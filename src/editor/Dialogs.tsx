@@ -114,7 +114,7 @@ export function CourseDialog({ onClose }: { onClose: () => void }) {
       <fieldset>
         <legend>Player</legend>
         <div className="grid grid-cols-2 gap-2">
-          {([['showMenu', 'Menu'], ['showNav', 'Prev / Next bar'], ['showSeekbar', 'Seekbar'], ['showTitle', 'Course title'], ['resume', 'Resume where the learner left off']] as const).map(([k, label]) => (
+          {([['showMenu', 'Menu'], ['showNav', 'Prev / Next bar'], ['showSeekbar', 'Seekbar'], ['showTitle', 'Course title'], ['showNotes', 'Notes panel (slide notes)'], ['resume', 'Resume where the learner left off']] as const).map(([k, label]) => (
             <label key={k} className="check"><input type="checkbox" checked={p[k]} onChange={(e) => set('Player setting', (c) => { c.player[k] = e.target.checked; })} /> {label}</label>
           ))}
           <div className="col-span-2 flex items-center gap-2">

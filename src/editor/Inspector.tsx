@@ -585,7 +585,7 @@ function SlideProps({ editSlide }: { editSlide: (label: string, fn: (s: Slide) =
       </div>
       <label className="check"><input type="checkbox" checked={slide.inMenu} onChange={(e) => editSlide('Menu', (s) => { s.inMenu = e.target.checked; })} /> Show in the player menu</label>
       <label className="check"><input type="checkbox" checked={slide.useMaster} onChange={(e) => editSlide('Use master', (s) => { s.useMaster = e.target.checked; })} /> Show the slide master's objects</label>
-      <Field label="Notes" hint={`Private to authors. ${course.title ? '' : ''}`}>
+      <Field label="Notes" hint={course.player.showNotes ? 'Learners see these in the player’s Notes panel.' : 'Private to authors unless the Notes panel is turned on in Course settings.'}>
         <textarea className="!font-sans !text-[13px]" rows={4} value={slide.notes} onChange={(e) => editSlide('Notes', (s) => { s.notes = e.target.value; }, `notes-${slide.id}`)} />
       </Field>
       <ObjectList />
