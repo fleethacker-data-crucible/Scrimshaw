@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Scrimshaw">
+  <title>Scrimshaw</title>
+  <circle cx="32" cy="32" r="29.5" fill="#0d2233" stroke="#c9a66b" stroke-width="3"/>
+  <path d="M16.5 10 C12.5 31 27 48.5 50.5 49 L48.6 38.4 C33 37 21.5 27 16.5 10 Z" fill="#f1e4c8"/>
+  <path d="M45.9 48.6 L44.4 38 M42.3 48.1 L41 37.4" stroke="#9b7a52" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M19 24 C21 33 27 40 34.5 43.2" fill="none" stroke="#9b7a52" stroke-width="1.3" stroke-linecap="round"/>
+  <polygon points="42.00,11.50 44.10,16.90 49.50,19.00 44.10,21.10 42.00,26.50 39.90,21.10 34.50,19.00 39.90,16.90" fill="#c9a66b"/>
+</svg>
