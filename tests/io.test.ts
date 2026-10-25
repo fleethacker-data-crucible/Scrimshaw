@@ -183,3 +183,29 @@ test('slide master: normalized as display-only and included in text tools', asyn
   const old = normalizeCourse({ ...raw, master: undefined });
   assert.equal(old.master.layers[0].objects.length, 0, 'older files get an empty master');
 });
+
+test('malformed triggers, objects and variables are dropped or coerced, never crash the engine', async () => {
+  const E = await import('../src/engine/runtime.ts');
+  const c = normalizeCourse({
+    scenes: [{ id: 's', slides: [{ id: 'x', layers: [{ id: 'l', objects: [
+      { id: 'o', kind: 'button', text: null, name: 5, style: { fill: 3, fontSize: 'big' },
+        triggers: [
+          { id: 't1', event: { type: 'click' }, action: { type: 'open-url' } },
+          { id: 't2', event: { type: 'key' }, action: { type: 'next-slide' } },
+          { id: 't3', event: { type: 'click' }, action: { type: 'adjust-variable', variableId: 'v', op: 'explode', value: 1 } },
+          { id: 't4', event: { type: 'click' }, action: { type: 'next-slide' }, conditions: [{ kind: 'variable', variableId: 'v', op: 'bogus' }, { kind: 'state', objectId: 'o', state: 'Visited' }] },
+        ] },
+    ] }] }] }],
+    variables: [{ id: 'v', name: 'N', type: 'number', initial: 'seven' }],
+  });
+  const o = c.scenes[0].slides[0].layers[0].objects[0];
+  assert.equal(o.text, 'Continue', 'null text falls back to the default');
+  assert.equal(typeof o.name, 'string');
+  assert.equal(o.style.fontSize, 18);
+  assert.deepEqual(o.triggers.map((t) => t.id), ['t4']);
+  assert.equal(o.triggers[0].conditions.length, 1);
+  assert.equal(c.variables[0].initial, 0);
+  const s = E.start(c);
+  E.key(c, s, 'Enter');
+  E.click(c, s, o.id);
+});

@@ -33,6 +33,7 @@ function remapTrigger(t: Trigger, map: Map<ID, ID>): Trigger {
   if ('layerId' in a && a.layerId !== 'this') a.layerId = m(a.layerId);
   if ('objectId' in a && a.objectId !== 'this') a.objectId = m(a.objectId);
   if (n.event.type === 'state-change') n.event.objectId = m(n.event.objectId);
+  if (n.event.type === 'drop' && n.event.targetId !== 'any') n.event.targetId = m(n.event.targetId);
   for (const c of n.conditions) if (c.kind === 'state') c.objectId = m(c.objectId);
   return n;
 }
@@ -47,6 +48,7 @@ export function copyObjects(objs: SlideObject[], extraMap = new Map<ID, ID>()): 
     ...structuredClone(o),
     id: map.get(o.id)!,
     groupId: o.groupId ? groups.get(o.groupId)! : null,
+    correctTargetId: o.correctTargetId ? map.get(o.correctTargetId) ?? o.correctTargetId : null,
     states: o.states.map((s) => ({ ...structuredClone(s), id: uid('st') })),
     triggers: o.triggers.map((t) => remapTrigger(t, map)),
   }));
@@ -106,9 +108,12 @@ export function moveSlide(c: Course, slideId: ID, toSceneId: ID, toIndex: number
   const from = sceneOfSlide(c, slideId);
   const to = c.scenes.find((s) => s.id === toSceneId);
   if (!from || !to) return;
-  const slide = from.slides.find((s) => s.id === slideId)!;
+  const oldIndex = from.slides.findIndex((s) => s.id === slideId);
+  const slide = from.slides[oldIndex];
   from.slides = from.slides.filter((s) => s.id !== slideId);
-  to.slides.splice(Math.max(0, Math.min(toIndex, to.slides.length)), 0, slide);
+  // toIndex is measured in the list before removal, so a later spot in the same scene shifts by one.
+  const index = from === to && oldIndex < toIndex ? toIndex - 1 : toIndex;
+  to.slides.splice(Math.max(0, Math.min(index, to.slides.length)), 0, slide);
 }
 
 export function addScene(c: Course, name?: string): Scene {
@@ -149,28 +154,41 @@ export function addLayer(slide: Slide, name?: string): Layer {
   return layer;
 }
 
+/** Removes every reference to deleted objects (and optionally a deleted layer) from a slide. */
+function cleanReferences(slide: Slide, objectIds: Set<ID>, layerId: ID | null) {
+  const clean = (list: Trigger[]) => list.filter((t) => {
+    const a = t.action;
+    if (layerId && (a.type === 'show-layer' || a.type === 'hide-layer') && a.layerId === layerId) return false;
+    if ('objectId' in a && a.objectId !== 'this' && objectIds.has(a.objectId)) return false;
+    if (t.event.type === 'state-change' && objectIds.has(t.event.objectId)) return false;
+    if (t.event.type === 'drop' && t.event.targetId !== 'any' && objectIds.has(t.event.targetId)) return false;
+    t.conditions = t.conditions.filter((c) => !(c.kind === 'state' && c.objectId !== 'this' && objectIds.has(c.objectId)));
+    return true;
+  });
+  slide.triggers = clean(slide.triggers);
+  for (const l of slide.layers) {
+    l.triggers = clean(l.triggers);
+    for (const o of l.objects) {
+      o.triggers = clean(o.triggers);
+      if (o.correctTargetId && objectIds.has(o.correctTargetId)) o.correctTargetId = null;
+    }
+  }
+  const q = slide.question;
+  if (q) {
+    if (q.inputObjectId && objectIds.has(q.inputObjectId)) q.inputObjectId = null;
+    if (layerId) {
+      if (q.correctLayerId === layerId) q.correctLayerId = null;
+      if (q.incorrectLayerId === layerId) q.incorrectLayerId = null;
+      if (q.tryAgainLayerId === layerId) q.tryAgainLayerId = null;
+    }
+  }
+}
+
 export function deleteLayer(slide: Slide, layerId: ID) {
   const l = findLayer(slide, layerId);
   if (!l || l.base) return;
   slide.layers = slide.layers.filter((x) => x.id !== layerId);
-  const ids = new Set(l.objects.map((o) => o.id));
-  const clean = (list: Trigger[]) => list.filter((t) => {
-    const a = t.action;
-    if ((a.type === 'show-layer' || a.type === 'hide-layer') && a.layerId === layerId) return false;
-    if ('objectId' in a && ids.has(a.objectId)) return false;
-    return true;
-  });
-  slide.triggers = clean(slide.triggers);
-  for (const x of slide.layers) {
-    x.triggers = clean(x.triggers);
-    for (const o of x.objects) o.triggers = clean(o.triggers);
-  }
-  const q = slide.question;
-  if (q) {
-    if (q.correctLayerId === layerId) q.correctLayerId = null;
-    if (q.incorrectLayerId === layerId) q.incorrectLayerId = null;
-    if (q.tryAgainLayerId === layerId) q.tryAgainLayerId = null;
-  }
+  cleanReferences(slide, new Set(l.objects.map((o) => o.id)), layerId);
 }
 
 export function duplicateLayer(slide: Slide, layerId: ID): Layer | null {
@@ -189,19 +207,7 @@ export function duplicateLayer(slide: Slide, layerId: ID): Layer | null {
 export function deleteObjects(slide: Slide, ids: ID[]) {
   const set = new Set(ids);
   for (const l of slide.layers) l.objects = l.objects.filter((o) => !set.has(o.id));
-  const clean = (list: Trigger[]) => list.filter((t) => {
-    const a = t.action;
-    if ('objectId' in a && a.objectId !== 'this' && set.has(a.objectId)) return false;
-    if (t.event.type === 'state-change' && set.has(t.event.objectId)) return false;
-    t.conditions = t.conditions.filter((c) => !(c.kind === 'state' && set.has(c.objectId)));
-    return true;
-  });
-  slide.triggers = clean(slide.triggers);
-  for (const l of slide.layers) {
-    l.triggers = clean(l.triggers);
-    for (const o of l.objects) o.triggers = clean(o.triggers);
-  }
-  if (slide.question?.inputObjectId && set.has(slide.question.inputObjectId)) slide.question.inputObjectId = null;
+  cleanReferences(slide, set, null);
 }
 
 export type ZOrder = 'front' | 'forward' | 'backward' | 'back';

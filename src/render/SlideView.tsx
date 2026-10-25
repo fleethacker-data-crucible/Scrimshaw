@@ -189,6 +189,8 @@ function ObjectView({ course, o, mode, state, text, transient, onPointer, handle
   if (drag?.pos) { css.left = drag.pos.x; css.top = drag.pos.y; }
   if (drag?.lifted) { css.zIndex = 20; css.boxShadow = '0 10px 24px rgba(0,0,0,.35)'; css.cursor = 'grabbing'; css.transition = 'none'; }
   else if (drag && mode === 'play' && o.draggable) css.transition = 'left .15s ease-out, top .15s ease-out';
+  // Without this, touch browsers treat a drag as a scroll and cancel the pointer at once.
+  if (mode === 'play' && o.draggable) css.touchAction = 'none';
   const play = mode === 'play';
   const disabled = state === 'Disabled';
   if (play && exiting && o.exit.type !== 'none') {

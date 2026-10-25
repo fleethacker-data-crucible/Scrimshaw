@@ -121,6 +121,11 @@ try {
             $client.ReceiveTimeout = 5000
             $client.SendTimeout = 10000
             $stream = $client.GetStream()
+            # Browsers open idle "preconnect" sockets. This server handles one connection at a time, so
+            # give a socket 300 ms to start its request and otherwise close it (the browser reconnects).
+            $deadline = (Get-Date).AddMilliseconds(300)
+            while (-not $stream.DataAvailable -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 5 }
+            if (-not $stream.DataAvailable) { continue }
             $head = Read-RequestHead $stream
             $lines = $head -split "`r`n"
             $parts = $lines[0] -split ' '

@@ -13,17 +13,76 @@ const str = (v: unknown, d = '') => (typeof v === 'string' ? v : d);
 const num = (v: unknown, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 const bool = (v: unknown, d = false) => (typeof v === 'boolean' ? v : d);
 
+const id = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
+const isValue = (v: unknown): v is string | number | boolean => typeof v === 'string' || typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v));
+const OPS = ['==', '!=', '<', '<=', '>', '>=', 'contains', 'not-contains', 'empty', 'not-empty'];
+const VAR_OPS = ['set', 'add', 'subtract', 'multiply', 'divide', 'toggle', 'assign'];
+
+/** Each event type with the fields it needs; anything malformed is dropped. */
+function event(v: Record<string, unknown>): Trigger['event'] | null {
+  switch (v.type) {
+    case 'click': case 'hover-enter': case 'hover-leave': case 'timeline-start': case 'timeline-end': return { type: v.type };
+    case 'timeline-reaches': return typeof v.time === 'number' && Number.isFinite(v.time) ? { type: v.type, time: Math.max(0, v.time) } : null;
+    case 'variable-change': return id(v.variableId) ? { type: v.type, variableId: v.variableId } : null;
+    case 'key': return id(v.key) ? { type: v.type, key: v.key } : null;
+    case 'state-change': return id(v.objectId) && id(v.state) ? { type: v.type, objectId: v.objectId, state: v.state } : null;
+    case 'drop': return id(v.targetId) ? { type: v.type, targetId: v.targetId } : null;
+  }
+  return null;
+}
+
+function action(v: Record<string, unknown>): Trigger['action'] | null {
+  switch (v.type) {
+    case 'next-slide': case 'prev-slide': case 'close-lightbox': case 'submit-interaction': case 'reset-results':
+    case 'pause-timeline': case 'resume-timeline': case 'restart-course': case 'exit-course':
+      return { type: v.type };
+    case 'jump-slide': case 'lightbox-slide': return id(v.slideId) ? { type: v.type, slideId: v.slideId } : null;
+    case 'jump-scene': return id(v.sceneId) ? { type: v.type, sceneId: v.sceneId } : null;
+    case 'show-layer': return id(v.layerId) ? { type: v.type, layerId: v.layerId } : null;
+    case 'hide-layer': return id(v.layerId) ? { type: v.type, layerId: v.layerId } : null;
+    case 'set-state': return id(v.objectId) && id(v.state) ? { type: v.type, objectId: v.objectId, state: v.state } : null;
+    case 'play-media': case 'pause-media': return id(v.objectId) ? { type: v.type, objectId: v.objectId } : null;
+    case 'play-motion': case 'reverse-motion': return id(v.objectId) ? { type: v.type, objectId: v.objectId } : null;
+    case 'open-url': return typeof v.url === 'string' ? { type: v.type, url: v.url } : null;
+    case 'adjust-variable':
+      if (!id(v.variableId) || typeof v.op !== 'string' || !VAR_OPS.includes(v.op) || !isValue(v.value)) return null;
+      return { type: v.type, variableId: v.variableId, op: v.op as 'set', value: v.value, ...(id(v.fromVariableId) ? { fromVariableId: v.fromVariableId } : {}) };
+  }
+  return null;
+}
+
+function condition(v: unknown): Trigger['conditions'][number] | null {
+  if (!isObj(v)) return null;
+  if (v.kind === 'variable' && id(v.variableId) && typeof v.op === 'string' && OPS.includes(v.op)) {
+    return { kind: 'variable', variableId: v.variableId, op: v.op as '==', value: isValue(v.value) ? v.value : '', ...(id(v.compareVariableId) ? { compareVariableId: v.compareVariableId } : {}) };
+  }
+  if (v.kind === 'state' && id(v.objectId) && id(v.state)) return { kind: 'state', objectId: v.objectId, is: bool(v.is, true), state: v.state };
+  return null;
+}
+
 function trigger(v: unknown): Trigger | null {
-  if (!isObj(v) || !isObj(v.event) || !isObj(v.action) || typeof v.id !== 'string') return null;
-  if (typeof v.event.type !== 'string' || typeof v.action.type !== 'string') return null;
-  return {
-    id: v.id,
-    event: v.event as Trigger['event'],
-    action: v.action as Trigger['action'],
-    conditions: arr(v.conditions, (c) => (isObj(c) && (c.kind === 'variable' || c.kind === 'state') ? (c as Trigger['conditions'][number]) : null)),
-    join: v.join === 'or' ? 'or' : 'and',
-    enabled: bool(v.enabled, true),
-  };
+  if (!isObj(v) || !id(v.id) || !isObj(v.event) || !isObj(v.action)) return null;
+  const ev = event(v.event);
+  const ac = action(v.action);
+  if (!ev || !ac) return null;
+  return { id: v.id, event: ev, action: ac, conditions: arr(v.conditions, condition), join: v.join === 'or' ? 'or' : 'and', enabled: bool(v.enabled, true) };
+}
+
+const STYLE_NUM = ['strokeWidth', 'radius', 'fontSize', 'fontWeight', 'padding', 'opacity', 'lineHeight'] as const;
+const STYLE_STR = ['fill', 'stroke', 'color'] as const;
+/** Keeps only well-typed style fields (partial for states, complete for objects). */
+function stylePart(v: unknown): Partial<SlideObject['style']> {
+  if (!isObj(v)) return {};
+  const out: Partial<SlideObject['style']> = {};
+  for (const k of STYLE_NUM) if (typeof v[k] === 'number' && Number.isFinite(v[k])) out[k] = v[k] as number;
+  for (const k of STYLE_STR) if (typeof v[k] === 'string') out[k] = v[k] as string;
+  if (v.fontFamily === 'sans' || v.fontFamily === 'mono') out.fontFamily = v.fontFamily;
+  if (typeof v.italic === 'boolean') out.italic = v.italic;
+  if (typeof v.underline === 'boolean') out.underline = v.underline;
+  if (typeof v.shadow === 'boolean') out.shadow = v.shadow;
+  if (v.align === 'left' || v.align === 'center' || v.align === 'right') out.align = v.align;
+  if (v.valign === 'top' || v.valign === 'middle' || v.valign === 'bottom') out.valign = v.valign;
+  return out;
 }
 
 const ANIMS = ['none', 'fade', 'fly-left', 'fly-right', 'fly-up', 'fly-down', 'zoom', 'wipe'];
@@ -52,16 +111,19 @@ function question(v: unknown): Slide['question'] {
   };
 }
 
+const SHAPES = ['rect', 'round', 'ellipse', 'triangle', 'arrow', 'line'];
 function object(v: unknown): SlideObject | null {
-  if (!isObj(v) || typeof v.id !== 'string' || typeof v.kind !== 'string') return null;
+  if (!isObj(v) || !id(v.id) || typeof v.kind !== 'string') return null;
   const kinds = ['text', 'shape', 'image', 'button', 'hotspot', 'input', 'choice', 'video', 'audio', 'slider'];
   if (!kinds.includes(v.kind)) return null;
   const d = newObject(v.kind as SlideObject['kind']);
+  const strOr = (k: keyof SlideObject) => str(v[k], d[k] as string);
   return {
     ...d,
-    ...(v as Partial<SlideObject>),
     id: v.id,
-    style: { ...baseStyle(), ...(isObj(v.style) ? (v.style as object) : {}) },
+    name: strOr('name'), text: strOr('text'), src: strOr('src'), alt: strOr('alt'),
+    shape: typeof v.shape === 'string' && SHAPES.includes(v.shape) ? (v.shape as SlideObject['shape']) : d.shape,
+    style: { ...baseStyle(), ...d.style, ...stylePart(v.style) },
     motion: isObj(v.motion) ? {
       dx: num(v.motion.dx), dy: num(v.motion.dy), duration: Math.max(0.05, num(v.motion.duration, 1)),
       start: v.motion.start === 'trigger' ? 'trigger' : 'timeline', at: Math.max(0, num(v.motion.at)),
@@ -69,18 +131,24 @@ function object(v: unknown): SlideObject | null {
     } : null,
     enter: anim(v.enter, d.enter),
     exit: anim(v.exit, d.exit),
-    states: arr(v.states, (s) => (isObj(s) && typeof s.id === 'string' && typeof s.name === 'string'
-      ? { id: s.id, name: s.name, style: isObj(s.style) ? (s.style as object) : {}, text: typeof s.text === 'string' ? s.text : null }
+    states: arr(v.states, (s) => (isObj(s) && id(s.id) && id(s.name)
+      ? { id: s.id, name: s.name, style: stylePart(s.style), text: typeof s.text === 'string' ? s.text : null }
       : null)),
     triggers: arr(v.triggers, trigger),
     x: num(v.x, d.x), y: num(v.y, d.y), w: Math.max(1, num(v.w, d.w)), h: Math.max(1, num(v.h, d.h)),
     rotation: num(v.rotation), start: Math.max(0, num(v.start)),
+    end: typeof v.end === 'number' && Number.isFinite(v.end) ? v.end : null,
+    decorative: bool(v.decorative), initiallyHidden: bool(v.initiallyHidden),
+    variableId: id(v.variableId) ? v.variableId : null,
+    min: num(v.min, d.min), max: num(v.max, d.max), step: num(v.step, d.step) > 0 ? num(v.step, d.step) : d.step,
+    correct: bool(v.correct), choiceMode: v.choiceMode === 'check' ? 'check' : 'radio',
+    autoplay: bool(v.autoplay, d.autoplay), controls: bool(v.controls, d.controls), loop: bool(v.loop),
+    locked: bool(v.locked), editorHidden: bool(v.editorHidden),
     draggable: bool(v.draggable), dropTarget: bool(v.dropTarget),
-    groupId: typeof v.groupId === 'string' ? v.groupId : null,
+    groupId: id(v.groupId) ? v.groupId : null,
     multiline: bool(v.multiline),
-    captions: typeof v.captions === 'string' ? v.captions : '',
-    correctTargetId: typeof v.correctTargetId === 'string' ? v.correctTargetId : null,
-    end: typeof v.end === 'number' ? v.end : null,
+    captions: str(v.captions),
+    correctTargetId: id(v.correctTargetId) ? v.correctTargetId : null,
   };
 }
 
@@ -155,8 +223,12 @@ export function normalizeCourse(input: unknown): Course {
       const t = Array.isArray(input.theme) ? input.theme.filter((c): c is string => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c)) : [];
       return t.length ? t.slice(0, 16) : [...d.theme];
     })(),
-    variables: arr(input.variables, (v) => (isObj(v) && typeof v.id === 'string' && typeof v.name === 'string' && ['text', 'number', 'boolean'].includes(v.type as string)
-      ? (v as unknown as Course['variables'][number]) : null)),
+    variables: arr(input.variables, (v) => {
+      if (!isObj(v) || !id(v.id) || !id(v.name) || !['text', 'number', 'boolean'].includes(v.type as string)) return null;
+      const type = v.type as Course['variables'][number]['type'];
+      const initial = type === 'number' ? num(v.initial) : type === 'boolean' ? bool(v.initial) : str(v.initial);
+      return { id: v.id, name: v.name, type, initial };
+    }),
     startSlideId: typeof input.startSlideId === 'string' ? input.startSlideId : null,
     player: playerSettings(input.player, d.player),
     quiz: { ...d.quiz, ...(isObj(input.quiz) ? input.quiz : {}) } as Course['quiz'],

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as E from '../engine/runtime.ts';
 import { findSlide } from '../model/query.ts';
-import type { Course, ID } from '../model/types.ts';
+import type { Course, ID, Trigger } from '../model/types.ts';
 import { SlideView } from '../render/SlideView.tsx';
 import type { Lms } from '../export/scorm.ts';
 import { ChevronLeft, ChevronRight, Menu as MenuIcon, Pause, Play, RotateCcw, X } from '../ui/icons.tsx';
@@ -43,8 +43,10 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
   const [exited, setExited] = useState(false);
   const [panel, setPanel] = useState<'resources' | 'glossary' | 'notes' | null>(null);
   const media = useRef(new Map<ID, HTMLMediaElement>());
-  const layerShown = useRef<Record<ID, number>>({});
-  const clock = useRef({ t: 0, last: 0, entry: -1, ended: false, reached: new Set<number>() });
+  const clock = useRef({ t: 0, last: 0, entry: -1, ended: false, reached: new Set<number>(), layers: new Map<ID, { t: number; ended: boolean; reached: Set<number> }>() });
+  const [layerTimes, setLayerTimes] = useState<Record<ID, number>>({});
+  const playerRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
 
@@ -81,12 +83,15 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
   useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(null), 4000); return () => clearTimeout(t); }, [notice]);
 
   // ---- progress ----
+  const lastSaved = useRef('');
   useEffect(() => {
     if (embedded || askResume) return;
     const data = E.suspend(state);
+    if (data === lastSaved.current) return; // hovers and other no-op updates never reach the LMS
+    lastSaved.current = data;
     if (lms?.connected) lms.setProgress(state.slideId, data);
     else if (course.player.resume) writeLocal(course.id, data);
-  }, [state.slideId, state.vars, state.answers, embedded, askResume, lms, course, state]);
+  }, [state.slideId, state.vars, state.answers, state.attempts, state.visitedSlides, state.sequence, embedded, askResume, lms, course]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!lms?.connected) return;
     const bye = () => lms.finish();
@@ -106,38 +111,61 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
     }
   }, [state.answers, lms, embedded, course]);
 
-  // ---- layer timelines: remember when each layer appeared ----
+  // ---- clocks: the base timeline, plus one per visible layer (a layer keeps running after the base ends) ----
   const layersKey = state.layers.join(',');
   useEffect(() => {
-    const shown: Record<ID, number> = {};
-    for (const id of state.layers) shown[id] = layerShown.current[id] ?? clock.current.t;
-    layerShown.current = shown;
+    const c = clock.current;
+    for (const id of [...c.layers.keys()]) if (!state.layers.includes(id)) c.layers.delete(id);
+    for (const id of state.layers) if (!c.layers.has(id)) c.layers.set(id, { t: 0, ended: false, reached: new Set() });
+    setLayerTimes(Object.fromEntries([...c.layers].map(([id, l]) => [id, l.t])));
   }, [layersKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ---- clock ----
+  const firstEntry = useRef(state.entry);
   useEffect(() => {
     if (clock.current.entry !== state.entry) {
-      clock.current = { t: 0, last: performance.now(), entry: state.entry, ended: false, reached: new Set() };
-      layerShown.current = {};
+      clock.current = { t: 0, last: performance.now(), entry: state.entry, ended: false, reached: new Set(), layers: new Map() };
       setTime(0);
-      for (const el of media.current.values()) el.pause();
+      setLayerTimes({});
+      setPaused(false); // a "pause timeline" trigger never carries over to the next slide
+      // Keyboard and screen-reader users land on the new slide (WCAG 2.4.3), unless focus is elsewhere on the page.
+      if (state.entry !== firstEntry.current) {
+        const active = document.activeElement;
+        if (!active || active === document.body || playerRef.current?.contains(active) || !active.isConnected) headingRef.current?.focus({ preventScroll: true });
+      }
     }
   }, [state.entry]);
 
   useEffect(() => {
     if (askResume || exited) return;
     let raf = 0;
-    const marks = [...new Set(slide.triggers.filter((t) => t.event.type === 'timeline-reaches').map((t) => (t.event as { time: number }).time))];
+    const marks = (triggers: Trigger[]) => [...new Set(triggers.flatMap((t) => (t.event.type === 'timeline-reaches' ? [t.event.time] : [])))];
+    const slideMarks = marks(slide.triggers);
+    const layerMarks = new Map(slide.layers.map((l) => [l.id, marks(l.triggers)]));
+    let lastKey = '';
     const tick = (now: number) => {
       const c = clock.current;
       const dt = Math.min(0.25, (now - c.last) / 1000);
       c.last = now;
-      if (!paused && !c.ended) {
-        c.t = Math.min(slide.duration, c.t + dt);
-        for (const m of marks) if (c.t >= m && !c.reached.has(m)) { c.reached.add(m); apply((s) => E.timelineReached(course, s, m)); }
-        if (c.t >= slide.duration) { c.ended = true; apply((s) => E.timelineEnded(course, s)); }
-        // 50 ms steps: React skips renders when the value is unchanged, so the slide redraws at most 20 times a second.
-        setTime(Math.round(c.t * 20) / 20);
+      if (!paused) {
+        if (!c.ended) {
+          c.t = Math.min(slide.duration, c.t + dt);
+          for (const m of slideMarks) if (c.t >= m && !c.reached.has(m)) { c.reached.add(m); apply((s) => E.timelineReached(course, s, m)); }
+          if (c.t >= slide.duration) { c.ended = true; apply((s) => E.timelineEnded(course, s)); }
+        }
+        for (const [id, l] of c.layers) {
+          if (l.ended) continue;
+          l.t = Math.min(slide.duration, l.t + dt);
+          for (const m of layerMarks.get(id) ?? []) if (l.t >= m && !l.reached.has(m)) { l.reached.add(m); apply((s) => E.timelineReached(course, s, m, id)); }
+          if (l.t >= slide.duration) { l.ended = true; apply((s) => E.timelineEnded(course, s, id)); }
+        }
+        // 50 ms steps: re-render only when a rounded clock changes, so the slide redraws at most 20 times a second.
+        const q = (t: number) => Math.round(t * 20) / 20;
+        const key = `${q(c.t)}|${[...c.layers].map(([id, l]) => `${id}:${q(l.t)}`).join(',')}`;
+        if (key !== lastKey) {
+          lastKey = key;
+          setTime(q(c.t));
+          setLayerTimes(Object.fromEntries([...c.layers].map(([id, l]) => [id, q(l.t)])));
+        }
       }
       raf = requestAnimationFrame(tick);
     };
@@ -172,8 +200,8 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
     return () => ro.disconnect();
   }, [course.size.w, course.size.h, menuOpen]);
 
-  const times: Record<ID, number> = { [slide.layers[0].id]: time };
-  for (const id of state.layers) times[id] = time - (layerShown.current[id] ?? time);
+  const times: Record<ID, number> = { ...layerTimes, [slide.layers[0].id]: time };
+  for (const id of state.layers) times[id] ??= 0;
 
   const seek = (t: number) => {
     const c = clock.current;
@@ -187,6 +215,7 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
     writeLocal(course.id, null);
     setState(E.start(playable));
     setExited(false);
+    setPaused(false);
   };
 
   const showTitle = course.player.showTitle;
@@ -210,7 +239,7 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
   }
 
   return (
-    <div className={`player ${embedded ? 'embedded' : ''}`} role="application" aria-roledescription="course player" aria-label={course.title}
+    <div ref={playerRef} className={`player ${embedded ? 'embedded' : ''}`} role="region" aria-label={`${course.title} (course player)`}
       style={course.player.accent ? ({ '--accent': course.player.accent, '--focus': course.player.accent } as React.CSSProperties) : undefined}>
       <div className="player-top">
         {course.player.showMenu && (
@@ -274,13 +303,19 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
               onHover={(id, entering) => apply((s) => E.hover(course, s, id, entering))}
               onInput={(id, text) => apply((s) => E.input(course, s, id, text))}
               onDrop={(id, target) => apply((s) => E.drop(course, s, id, target))}
-              mediaRef={(id, el) => { if (el) media.current.set(id, el); else media.current.delete(id); }} />
+              mediaRef={(id, el) => {
+                if (el) { media.current.set(id, el); return; }
+                // Inline ref callbacks also get null on every re-render, so pause only media that really left the page.
+                const old = media.current.get(id);
+                media.current.delete(id);
+                if (old) queueMicrotask(() => { if (!old.isConnected) old.pause(); });
+              }} />
             {underneath && (
               <IconButton label="Close lightbox" variant="default" className="absolute top-2 right-2 z-10" onClick={() => apply((s) => E.perform(course, s, { type: 'close-lightbox' }))}><X /></IconButton>
             )}
             </div>
           </div>
-          <h2 className="sr-only" aria-live="polite">{slide.title}</h2>
+          <h2 ref={headingRef} tabIndex={-1} className="sr-only" aria-live="polite">{slide.title}</h2>
           {notice && <div className="player-notice notice warn" role="alert" style={{ background: 'var(--panel)' }}><b>!</b>{notice}</div>}
           {panel && (
             <aside id="player-panel" className="absolute top-2 right-2 bottom-2 w-[min(340px,90%)] overflow-auto box z-40 shadow-xl" aria-label={panel === 'resources' ? 'Resources' : panel === 'notes' ? 'Notes' : 'Glossary'}
