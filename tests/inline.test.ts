@@ -16,3 +16,10 @@ test('inline formatting parses nested runs and safe links only', () => {
   assert.equal(hasMarkup('Plain 50% text'), false);
   assert.equal(hasMarkup('- item'), true);
 });
+
+test('toggleMarker wraps and unwraps the selection', async () => {
+  const { toggleMarker } = await import('../src/render/markup.ts');
+  assert.deepEqual(toggleMarker('make bold here', 5, 9, '**'), { text: 'make **bold** here', start: 7, end: 11 });
+  assert.deepEqual(toggleMarker('make **bold** here', 7, 11, '**'), { text: 'make bold here', start: 5, end: 9 });
+  assert.deepEqual(toggleMarker('x', 1, 1, '*'), { text: 'x**', start: 2, end: 2 });
+});

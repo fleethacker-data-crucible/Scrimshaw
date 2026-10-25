@@ -4,6 +4,7 @@ import { findSlide } from '../model/query.ts';
 import type { ID, SlideObject } from '../model/types.ts';
 import { SlideView } from '../render/SlideView.tsx';
 import { withGroups } from '../store/ops.ts';
+import { MARKER_KEYS, toggleMarker } from '../render/markup.ts';
 import { useEditor } from './context.tsx';
 
 type Handle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | 'rot';
@@ -319,6 +320,14 @@ function InlineText({ o, scale, onDone }: { o: SlideObject; scale: number; onDon
       onKeyDown={(e) => {
         e.stopPropagation();
         if (e.key === 'Escape') { e.preventDefault(); onDone(); }
+        const marker = (e.ctrlKey || e.metaKey) && !e.altKey ? MARKER_KEYS[e.key.toLowerCase()] : undefined;
+        if (marker) {
+          e.preventDefault();
+          const el = e.currentTarget;
+          const r = toggleMarker(text, el.selectionStart, el.selectionEnd, marker);
+          setText(r.text);
+          requestAnimationFrame(() => el.setSelectionRange(r.start, r.end));
+        }
         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); commit(); }
       }}
       style={{

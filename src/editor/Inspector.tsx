@@ -7,6 +7,7 @@ import { findLayer, findObject, findSlide } from '../model/query.ts';
 import { BUILTIN_STATES, type AnimationType, type ID, type ObjectState, type ShapeKind, type Slide, type SlideObject, type Style, type Trigger } from '../model/types.ts';
 import { ArrowDown, ArrowUp, Eye, EyeOff, Image as ImageIcon, Lock, LockOpen, Pencil, Plus, Trash, Zap } from '../ui/icons.tsx';
 import { Button, Field, IconButton, NumberInput, Select, Tabs, useUi } from '../ui/kit.tsx';
+import { MARKER_KEYS, toggleMarker } from '../render/markup.ts';
 import { captionsToAsset, fileToAsset, imageSize, pickFile, withAsset } from './assets.ts';
 import { useEditor } from './context.tsx';
 import { TriggerEditor, type TriggerOwner } from './TriggerEditor.tsx';
@@ -138,7 +139,16 @@ function DesignTab() {
       {!multi && hasText && (
         <Section title={o.kind === 'input' ? 'Placeholder' : 'Text'}>
           <textarea aria-label="Text" className="!font-sans !text-[13px]" rows={3} value={o.text}
-            onChange={(e) => set('Edit text', (x) => { x.text = e.target.value; }, `text-${o.id}`)} />
+            onChange={(e) => set('Edit text', (x) => { x.text = e.target.value; }, `text-${o.id}`)}
+            onKeyDown={(e) => {
+              const marker = (e.ctrlKey || e.metaKey) && !e.altKey ? MARKER_KEYS[e.key.toLowerCase()] : undefined;
+              if (!marker) return;
+              e.preventDefault();
+              const el = e.currentTarget;
+              const r = toggleMarker(o.text, el.selectionStart, el.selectionEnd, marker);
+              set('Format text', (x) => { x.text = r.text; }, `text-${o.id}`);
+              requestAnimationFrame(() => el.setSelectionRange(r.start, r.end));
+            }} />
           <p className="hint">Insert a variable with %Name%, for example %Results.ScorePercent%. Format with **bold**, *italic*, __underline__, [link](https://…), and “- ” for bullets.</p>
         </Section>
       )}
