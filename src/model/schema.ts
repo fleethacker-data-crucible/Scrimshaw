@@ -52,7 +52,7 @@ function question(v: unknown): Slide['question'] {
 
 function object(v: unknown): SlideObject | null {
   if (!isObj(v) || typeof v.id !== 'string' || typeof v.kind !== 'string') return null;
-  const kinds = ['text', 'shape', 'image', 'button', 'hotspot', 'input', 'choice', 'video', 'audio'];
+  const kinds = ['text', 'shape', 'image', 'button', 'hotspot', 'input', 'choice', 'video', 'audio', 'slider'];
   if (!kinds.includes(v.kind)) return null;
   const d = newObject(v.kind as SlideObject['kind']);
   return {

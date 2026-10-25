@@ -40,6 +40,8 @@ export interface PlayerSettings {
   showNav: boolean;
   showSeekbar: boolean;
   showTitle: boolean;
+  /** Player chrome accent (buttons, seekbar). Empty: the UI kit default. */
+  accent: string;
   /** Free: learners can open any slide from the menu. Restricted: only slides already visited. */
   navigation: 'free' | 'restricted';
   resume: boolean;
@@ -92,7 +94,7 @@ export interface Layer {
   triggers: Trigger[];
 }
 
-export type ObjectKind = 'text' | 'shape' | 'image' | 'button' | 'hotspot' | 'input' | 'choice' | 'video' | 'audio';
+export type ObjectKind = 'text' | 'shape' | 'image' | 'button' | 'hotspot' | 'input' | 'choice' | 'video' | 'audio' | 'slider';
 export type ShapeKind = 'rect' | 'round' | 'ellipse' | 'triangle' | 'arrow' | 'line';
 
 export interface Style {
@@ -145,8 +147,12 @@ export interface SlideObject {
   exit: Animation;
   states: ObjectState[];
   triggers: Trigger[];
-  /** input: the text or number variable it writes to. */
+  /** input: the text or number variable it writes to. slider: the number variable it controls. */
   variableId: ID | null;
+  /** slider: range and step. */
+  min: number;
+  max: number;
+  step: number;
   /** choice: grading info for question slides. */
   correct: boolean;
   /** choice: 'radio' = one answer in the group, 'check' = many. */

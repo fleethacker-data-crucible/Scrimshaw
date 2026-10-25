@@ -195,7 +195,8 @@ export function Player({ course, embedded, startAt, onClose, lms }: PlayerProps)
   }
 
   return (
-    <div className={`player ${embedded ? 'embedded' : ''}`} role="application" aria-roledescription="course player" aria-label={course.title}>
+    <div className={`player ${embedded ? 'embedded' : ''}`} role="application" aria-roledescription="course player" aria-label={course.title}
+      style={course.player.accent ? ({ '--accent': course.player.accent, '--focus': course.player.accent } as React.CSSProperties) : undefined}>
       <div className="player-top">
         {course.player.showMenu && (
           <IconButton label={menuOpen ? 'Hide menu' : 'Show menu'} aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)}><MenuIcon /></IconButton>

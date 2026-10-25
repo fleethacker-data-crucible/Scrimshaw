@@ -225,6 +225,19 @@ function DesignTab() {
         </Section>
       )}
       {!multi && o.kind === 'input' && <InputVariable o={o} />}
+      {!multi && o.kind === 'slider' && (
+        <>
+          <InputVariable o={o} numberOnly />
+          <Section title="Range">
+            <div className="grid grid-cols-3 gap-2">
+              <Field label="Min"><NumberInput label="Minimum" value={o.min} onChange={(v) => set('Slider range', (x) => { x.min = v; }, 'smin')} /></Field>
+              <Field label="Max"><NumberInput label="Maximum" value={o.max} onChange={(v) => set('Slider range', (x) => { x.max = v; }, 'smax')} /></Field>
+              <Field label="Step"><NumberInput label="Step" min={0.001} value={o.step} onChange={(v) => set('Slider range', (x) => { x.step = v; }, 'sstep')} /></Field>
+            </div>
+            <p className="hint">Use a “Variable changes” trigger to react as the learner moves it, and %Name% to show its value.</p>
+          </Section>
+        </>
+      )}
       {!multi && o.kind === 'choice' && (
         <Section title="Answer">
           <label className="check"><input type="checkbox" checked={o.correct} onChange={(e) => set('Mark correct', (x) => { x.correct = e.target.checked; })} /> This is a correct answer</label>
@@ -235,7 +248,7 @@ function DesignTab() {
         </Section>
       )}
 
-      {!multi && o.kind !== 'input' && o.kind !== 'video' && o.kind !== 'audio' && (
+      {!multi && o.kind !== 'input' && o.kind !== 'video' && o.kind !== 'audio' && o.kind !== 'slider' && (
         <Section title="Drag and drop">
           <label className="check"><input type="checkbox" checked={o.draggable} onChange={(e) => set('Draggable', (x) => { x.draggable = e.target.checked; if (e.target.checked) x.dropTarget = false; })} /> Learner can drag this</label>
           <label className="check"><input type="checkbox" checked={o.dropTarget} onChange={(e) => set('Drop target', (x) => { x.dropTarget = e.target.checked; if (e.target.checked) x.draggable = false; })} /> Drop target</label>
@@ -268,10 +281,10 @@ function DropTargetPicker({ o }: { o: SlideObject }) {
   );
 }
 
-function InputVariable({ o }: { o: SlideObject }) {
+function InputVariable({ o, numberOnly }: { o: SlideObject; numberOnly?: boolean }) {
   const { course, edit, editSelected } = useEditor();
   const { prompt } = useUi();
-  const vars = course.variables.filter((v) => v.type !== 'boolean');
+  const vars = course.variables.filter((v) => (numberOnly ? v.type === 'number' : v.type !== 'boolean'));
   return (
     <Section title="Stores the answer in">
       <div className="flex gap-1">
@@ -280,10 +293,10 @@ function InputVariable({ o }: { o: SlideObject }) {
           {vars.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
         </select>
         <Button size="small" variant="ghost" onClick={async () => {
-          const name = await prompt({ title: 'New text variable', label: 'Variable name', value: 'TextEntry', ok: 'Create' });
+          const name = await prompt({ title: numberOnly ? 'New number variable' : 'New text variable', label: 'Variable name', value: numberOnly ? 'SliderValue' : 'TextEntry', ok: 'Create' });
           if (!name) return;
           edit('New variable', (c, sel) => {
-            const v = newVariable(uniqueVarName(c.variables.map((x) => x.name), name), 'text', '');
+            const v = numberOnly ? newVariable(uniqueVarName(c.variables.map((x) => x.name), name), 'number', o.min) : newVariable(uniqueVarName(c.variables.map((x) => x.name), name), 'text', '');
             c.variables.push(v);
             findObject(findSlide(c, sel.slideId)!, o.id)!.variableId = v.id;
           });
