@@ -331,7 +331,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
     <div className="shell">
       <a className="skip" href="#main">Skip to canvas</a>
       <header className="topbar">
-        <span className="brand"><img className="logo rounded-full" src={emblem} alt="" width={40} height={40} /><span><h1>Scrimshaw</h1><span className="sub">{course.title || 'Untitled'} · <span role="status" className={saveStatus === 'error' || saveStatus === 'full' ? 'err' : undefined}>{statusText}</span></span></span></span>
+        <span className="brand"><img className="logo" src={emblem} alt="" width={40} height={40} /><span><h1>Scrimshaw</h1><span className="sub">{course.title || 'Untitled'} · <span role="status" className={saveStatus === 'error' || saveStatus === 'full' ? 'err' : undefined}>{statusText}</span></span></span></span>
         <Menu label="File" items={[
           { label: 'Projects…', icon: <FolderOpen />, onSelect: () => setDialog('projects') },
           { label: 'New course', onSelect: () => openNew(newCourse()) },
