@@ -446,7 +446,8 @@ function submit(ctx: Ctx) {
     const selected = choices.filter((o) => stateOf(ctx.s, o) === 'Selected');
     if (selected.length === 0) { ctx.s.effects.push({ type: 'notice', message: 'Choose an answer before you submit.' }); return; }
     response = selected.map((o) => o.text).join('; ');
-    correct = choices.every((o) => (stateOf(ctx.s, o) === 'Selected') === o.correct);
+    // Ungraded (survey) choices with no correct answer marked accept any selection.
+    correct = !q.graded && choices.every((o) => !o.correct) ? true : choices.every((o) => (stateOf(ctx.s, o) === 'Selected') === o.correct);
   }
   const attempt = (ctx.s.attempts[slide.id] ?? 0) + 1;
   ctx.s.attempts[slide.id] = attempt;

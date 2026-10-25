@@ -429,3 +429,20 @@ test('motion paths: play and reverse from triggers, reset on re-entry', () => {
   s = E.navigate(c, s, s1.id);
   assert.deepEqual(s.motion, {}, 'motion restarts with the slide');
 });
+
+test('Likert survey: any answer is accepted and nothing is scored', async () => {
+  const { newLikertSlide } = await import('../src/model/factory.ts');
+  const { validateCourse } = await import('../src/model/describe.ts');
+  const c = newCourse('Survey');
+  const l = newLikertSlide();
+  c.scenes[0].slides = [l];
+  const choices = slideObjects(l).filter((o) => o.kind === 'choice');
+  assert.equal(choices.length, 5);
+  let s = E.start(c);
+  s = E.click(c, s, choices[3].id);
+  s = E.click(c, s, slideObjects(l).find((o) => o.name === 'Submit')!.id);
+  assert.equal(s.answers[l.id].response, 'Agree');
+  assert.deepEqual(s.layers, [l.question!.correctLayerId]);
+  assert.equal(E.results(c, s).hasQuiz, false);
+  assert.deepEqual(validateCourse(c), []);
+});

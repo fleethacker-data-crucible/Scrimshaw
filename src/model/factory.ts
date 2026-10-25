@@ -234,6 +234,36 @@ export function newQuestionSlide(kind: QuestionKind): Slide {
   return slide;
 }
 
+/** Survey: a five-point Likert scale (an ungraded multiple choice laid out in a row). */
+export function newLikertSlide(): Slide {
+  const slide = newQuestionSlide('multiple-choice');
+  slide.title = 'Likert scale';
+  const q = slide.question!;
+  q.graded = false;
+  q.points = 0;
+  q.attempts = 1;
+  const base = slide.layers[0];
+  base.objects[0].text = 'How much do you agree? Scrimshaw is a craft worth preserving.';
+  base.objects = base.objects.filter((o) => o.kind !== 'choice');
+  const labels = ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly agree'];
+  const w = 168;
+  labels.forEach((label, i) => {
+    base.objects.splice(1 + i, 0, newObject('choice', {
+      name: label, x: 60 + i * (w + 6), y: 200, w, h: 90, text: label, correct: false, choiceMode: 'radio',
+      style: baseStyle({ fontSize: 15, align: 'center', valign: 'middle', fill: '#f4f4f2', stroke: '#dddcd6', strokeWidth: 1, radius: 8 }),
+    }));
+  });
+  // Ungraded: one shared "Thanks" layer instead of right/wrong feedback.
+  const correct = slide.layers.find((l) => l.id === q.correctLayerId)!;
+  correct.name = 'Thanks';
+  const msg = correct.objects.find((o) => o.kind === 'text');
+  if (msg) { msg.text = 'Thanks for your answer.'; msg.style.color = '#1a1a19'; }
+  slide.layers = slide.layers.filter((l) => l.base || l.id === correct.id);
+  q.incorrectLayerId = correct.id;
+  q.tryAgainLayerId = null;
+  return slide;
+}
+
 export function newResultsSlide(): Slide {
   const slide = newSlide('Results');
   slide.inMenu = true;
