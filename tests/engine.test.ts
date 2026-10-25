@@ -458,3 +458,23 @@ test('sequence template grades the order', async () => {
   s = E.click(c, s, slideObjects(q).find((o) => o.name === 'Submit')!.id);
   assert.equal(s.answers[q.id].correct, true);
 });
+
+test('word bank: the distractor cannot satisfy a blank', async () => {
+  const { newWordBankSlide } = await import('../src/model/factory.ts');
+  const c = newCourse('WB');
+  const q = newWordBankSlide();
+  q.question!.attempts = 0;
+  c.scenes[0].slides = [q];
+  const chips = slideObjects(q).filter((o) => o.draggable);
+  const [designs, soot, paint] = chips;
+  const submit = slideObjects(q).find((o) => o.name === 'Submit')!.id;
+  let s = E.start(c);
+  s = E.drop(c, s, designs.id, designs.correctTargetId!);
+  s = E.drop(c, s, paint.id, soot.correctTargetId!);
+  s = E.click(c, s, submit);
+  assert.equal(s.answers[q.id].correct, false);
+  s = E.drop(c, s, soot.id, soot.correctTargetId!);
+  assert.equal(s.drops[paint.id], undefined, 'the distractor is pushed out');
+  s = E.click(c, s, submit);
+  assert.equal(s.answers[q.id].correct, true);
+});

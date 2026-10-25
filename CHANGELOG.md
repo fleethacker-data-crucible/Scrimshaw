@@ -25,7 +25,7 @@
 - Printable storyboard export for review and sign-off.
 - cmi5 publishing.
 - Player logo.
-- Likert scale survey and sequence question templates.
+- Likert scale survey, sequence and word bank question templates.
 - Right-click menu on the canvas.
 - Optional learner Notes panel.
 - Theme colours: course swatches; changing one recolours every object that uses it.
