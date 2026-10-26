@@ -2,7 +2,7 @@
 
 Build an interactive course from slides, triggers and a quiz, preview it, and publish it as SCORM or a web page.
 
-> **Screenshots:** captured with demo data and scanned by the Chief of Staff (team directive 10). Steps marked *Screenshot pending* still need a new capture; their image links do not resolve yet.
+> **Screenshots:** captured with demo data and scanned by the Chief of Staff (team directive 10).
 
 ## Before you start
 
@@ -38,11 +38,9 @@ Select an object and open **Triggers**, then **New trigger**. Pick an action, an
 
 ### 5. Time the slide
 
-The **Timeline** sets when each object appears and disappears.
+The **Timeline** under the canvas shows when each object appears and disappears. Select an object and open the **Timing** tab to set its appear and disappear times and its entrance and exit animations.
 
-*Screenshot pending: a new capture is needed for this step.*
-
-![Scrimshaw Timeline panel with appear and disappear bars for the objects on the slide.](../assets/walkthrough/05-timeline.png)
+![Scrimshaw editor with the Subtitle object selected, its bar in the Timeline, and the Timing tab showing appear at 0.6 s and a fly-in entrance.](../assets/walkthrough/05-timeline.png)
 
 ### 6. Preview
 
@@ -52,11 +50,9 @@ Preview the course in the player, including the quiz.
 
 ### 7. Publish
 
-**Publish** builds a SCORM 1.2 or 2004, xAPI, cmi5 or web package after checking for broken references and missing alt text.
+**Publish** builds a SCORM 1.2 or 2004, xAPI (Tin Can or cmi5), web page or .scrim project package. It checks for broken references and missing alt text first; there is no separate passed message, so no warning box means the publish-time checks passed.
 
-*Screenshot pending: a new capture is needed for this step.*
-
-![Scrimshaw Publish dialog with SCORM 2004 selected and the publish-time checks passing.](../assets/walkthrough/07-publish.png)
+![Scrimshaw Publish dialog with SCORM 2004 highlighted, the xAPI, web page and project file options, and no warning box.](../assets/walkthrough/07-publish.png)
 
 ## About these images
 
