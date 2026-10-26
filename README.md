@@ -1,4 +1,9 @@
-<p align="center"><img src="docs/brand/scrimshaw-logo-640.png" alt="Scrimshaw: a carved whale tooth showing a tall ship under a compass star" width="320"></p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/emblem-dark.png">
+    <img src="assets/brand/emblem-light.png" width="280" alt="Scrimshaw emblem: a carved whale tooth showing a tall ship under a compass star, above the SCRIMSHAW wordmark">
+  </picture>
+</p>
 
 # Scrimshaw
 
