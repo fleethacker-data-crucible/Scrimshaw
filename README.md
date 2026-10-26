@@ -11,6 +11,12 @@ server on 127.0.0.1, React 19 + TypeScript, Tailwind CSS 4 with CVA and Lucide, 
 data, everything bundled, no CDNs) and the **FleetHacker UI Kit v0.2.2** (tokens, Exo 2 / Syne
 Mono, 25 px controls, gold brand accent, native dialogs, toasts and the kit's accessibility rules).
 
+| Night watch (dark) | Chart room (light) |
+| --- | --- |
+| ![Scrimshaw editor in the Night watch theme](docs/screenshots/editor-night-watch.png) | ![Scrimshaw editor in the Chart room theme](docs/screenshots/editor-chart-room.png) |
+
+The editor with the starter project a new author gets (`node tools/screenshots.mjs` regenerates both pictures from a fresh browser profile).
+
 ## Run it
 
 **Windows (workstation):** double-click `Launch.bat`. It starts the local server in a minimised
@@ -76,7 +82,7 @@ src/export/             publishing (HTML, SCORM 1.2 zip) and the LMS runtime ada
 src/ui/                 kit.tsx (React versions of the UI kit patterns), generated Lucide icons
 vendor/ui-kit/          FleetHacker UI Kit v0.2.2 (vendored, unmodified)
 tests/                  unit tests
-tools/                  build, e2e test, icon generator
+tools/                  build, e2e test, README screenshots, icon generator
 ```
 
 ### Updating the UI kit
