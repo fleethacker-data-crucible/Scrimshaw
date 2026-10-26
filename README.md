@@ -17,6 +17,13 @@ Mono, 25 px controls, gold brand accent, native dialogs, toasts and the kit's ac
 
 The editor with the starter project a new author gets (`node tools/screenshots.mjs` regenerates both pictures from a fresh browser profile).
 
+## The name
+
+*Scrimshaw* is the carving sailors did on long voyages: pictures scratched into whale teeth and
+bone by hand, one line at a time, until the piece told a story to whoever held it. Scrimshaw does
+the same for training. You build a course by hand, slide by slide and layer by layer, and the
+finished package tells its story to whoever takes it.
+
 ## Run it
 
 **Windows (workstation):** double-click `Launch.bat`. It starts the local server in a minimised
