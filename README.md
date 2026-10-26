@@ -11,6 +11,13 @@ server on 127.0.0.1, React 19 + TypeScript, Tailwind CSS 4 with CVA and Lucide, 
 data, everything bundled, no CDNs) and the **FleetHacker UI Kit v0.2.2** (tokens, Exo 2 / Syne
 Mono, 25 px controls, gold brand accent, native dialogs, toasts and the kit's accessibility rules).
 
+## The name
+
+*Scrimshaw* is the carving sailors did on long voyages: pictures scratched into whale teeth and
+bone by hand, one line at a time, until the piece told a story to whoever held it. Scrimshaw does
+the same for training. You build a course by hand, slide by slide and layer by layer, and the
+finished package tells its story to whoever takes it.
+
 ## Run it
 
 **Windows (workstation):** double-click `Launch.bat`. It starts the local server in a minimised
