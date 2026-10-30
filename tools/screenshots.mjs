@@ -1,6 +1,7 @@
 // README screenshots of the editor in both Fleet themes (Night watch = dark, Chart room = light).
-// Mock data only: each shot opens dist/index.html from file:// in a fresh, empty browser profile, so the
-// editor shows the starter project a new author gets. Nothing is imported or typed in.
+// Mock data only: each shot opens dist/index.html from file:// in a fresh, empty browser profile and
+// continues the sample course from the Welcome view, so the editor shows the starter project a new
+// author gets. Nothing is imported or typed in.
 //   node tools/screenshots.mjs [--out docs/screenshots]
 import { chromium } from 'playwright';
 import { existsSync, mkdirSync } from 'node:fs';
@@ -20,6 +21,8 @@ try {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, colorScheme: scheme });
     const page = await ctx.newPage();
     await page.goto(url);
+    // Scrimshaw opens on the Welcome view; Continue opens the sample course in the editor.
+    await page.getByRole('button', { name: /^Continue / }).click();
     await page.getByRole('heading', { name: 'Scrimshaw', level: 1 }).waitFor();
     await page.getByText('Saved', { exact: true }).waitFor({ timeout: 5000 }).catch(() => {});
     await page.mouse.move(0, 899);
