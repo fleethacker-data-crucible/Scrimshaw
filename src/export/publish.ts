@@ -8,6 +8,8 @@ import { manifest12, manifest2004 } from './scorm.ts';
 import { cmi5Xml, tincanXml } from './xapi.ts';
 
 export const COURSE_SCRIPT_ID = 'scrimshaw-course';
+/** The editor may call its own local server (heartbeat, end session) and the local Fairlead router (drafts); a published course never may, so this is put back to 'none'. */
+export const EDITOR_CONNECT_SRC = "connect-src 'self' http://127.0.0.1:8776 http://localhost:8776";
 
 let shell: string | null = null;
 
@@ -46,6 +48,7 @@ export function buildPlayerHtml(course: Course, template: string | null = shell)
   // Function replacers: a string replacement would expand "$&" and friends found in course text.
   // The app bundle sits at the end of <body>, so the first </head> is the real one.
   let html = template.replace(/<title>[\s\S]*?<\/title>/, () => `<title>${title}</title>`);
+  html = html.replace(EDITOR_CONNECT_SRC, () => "connect-src 'none'");
   html = html.replace('</head>', () => `${tag}\n</head>`);
   return html;
 }

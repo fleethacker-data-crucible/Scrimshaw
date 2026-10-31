@@ -15,12 +15,15 @@ import {
   Variable, Video, Volume2, Gauge, Workflow, ZoomIn, ZoomOut, Clock,
 } from '../ui/icons.tsx';
 import { Button, IconButton, Menu, useUi, type MenuItem } from '../ui/kit.tsx';
-import { fileToAsset, imageSize, pickFile, withAsset } from './assets.ts';
+import { fileToAsset, imageSize, pickFile, pickFiles, withAsset } from './assets.ts';
+import { applyImport, planImport } from '../import/media.ts';
+import { endSession } from '../lifecycle.ts';
 import { Canvas } from './Canvas.tsx';
 import { EditorProvider, useEditor } from './context.tsx';
-import { CourseDialog, FindReplaceDialog, ProjectsDialog, PublishDialog, ShortcutsDialog, VariablesDialog } from './Dialogs.tsx';
+import { CourseDialog, DraftDialog, FindReplaceDialog, ProjectsDialog, PublishDialog, ShortcutsDialog, VariablesDialog } from './Dialogs.tsx';
 import { applyTexts, csvToTexts, textsToCsv } from '../model/texts.ts';
 import { buildStoryboard, currentCss } from '../export/storyboard.tsx';
+import { buildDocx } from '../export/docx.ts';
 import { Inspector } from './Inspector.tsx';
 import { LayersPanel } from './LayersPanel.tsx';
 import emblem from '../assets/emblem.webp';
@@ -77,7 +80,7 @@ export function EditorRoot() {
   );
 }
 
-type DialogName = 'variables' | 'course' | 'projects' | 'publish' | 'shortcuts' | 'find' | null;
+type DialogName = 'variables' | 'course' | 'projects' | 'publish' | 'shortcuts' | 'find' | 'draft' | null;
 
 function EditorShell({ settings, setSettings, openCourse }: { settings: Settings; setSettings: (fn: (s: Settings) => Settings) => void; openCourse: (c: Course) => void }) {
   const ed = useEditor();
@@ -258,6 +261,24 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
       toast(n ? `Updated ${n} text${n === 1 ? '' : 's'} from the translation. Undo reverts it.` : 'No translated rows matched this course.', n ? 'ok' : 'warn');
     } catch (e) { toast((e as Error).message, 'err'); }
   };
+  const importFleetMedia = async () => {
+    const picked = await pickFiles('.mp4,.m4v,.webm,.vtt,.txt,.png,.json,.wav');
+    if (!picked.length) return;
+    try {
+      const plan = planImport(await Promise.all(picked.map(async (f) => ({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) }))));
+      const n = plan.videos.length + plan.images.length + plan.audio.length;
+      if (n) { edit('Import Fleet media', (c) => { applyImport(c, plan); }); }
+      const skipped = plan.rejected.length + plan.warnings.length;
+      const detail = [...plan.rejected.map((r) => r.reason), ...plan.warnings].slice(0, 3).join(' ');
+      toast(n ? `Added ${n} slide${n === 1 ? '' : 's'} in a new scene "Imported media".${skipped ? ` ${skipped} file${skipped === 1 ? '' : 's'} skipped or adjusted. ${detail}` : ''} Undo reverts it.` : `Nothing imported. ${detail}`, n ? (skipped ? 'warn' : 'ok') : 'err');
+    } catch (e) { toast((e as Error).message, 'err'); }
+  };
+  const endServerSession = async () => {
+    if (!(await confirm({ title: 'End this session?', message: 'The local Scrimshaw server stops and this tab can be closed. Your projects stay saved in this browser; start Scrimshaw again to keep working.', ok: 'End session' }))) return;
+    if (!(await saveBeforeLeaving())) return;
+    if (await endSession()) toast('Scrimshaw has stopped. You can close this tab.', 'ok');
+    else toast('Could not stop the server from here (it may already be stopped, or this is a development build). Close its window instead.', 'warn');
+  };
   const openNew = async (c: Course) => { if (!(await saveBeforeLeaving())) return; await saveProject(c).catch(() => {}); setDialog(null); openCourse(c); };
 
   // ---- keyboard ----
@@ -364,9 +385,14 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
           { label: 'Course settings…', icon: <SettingsIcon />, onSelect: () => setDialog('course') },
           { separator: true, label: '' },
           { label: 'Find and replace…', shortcut: 'Ctrl+H', onSelect: () => setDialog('find') },
+          { label: 'Draft with the router…', onSelect: () => setDialog('draft') },
           { label: 'Storyboard for review (printable HTML)', onSelect: () => download(fileName(course.title, 'storyboard.html'), buildStoryboard(course, currentCss(document)), 'text/html') },
+          { label: 'Handout for Word (.docx, text only)', onSelect: async () => { try { download(fileName(course.title, 'handout.docx'), await buildDocx(course)); } catch (e) { toast((e as Error).message, 'err'); } } },
           { label: 'Export text for translation (.csv)', onSelect: () => download(fileName(course.title, 'translation.csv'), textsToCsv(course), 'text/csv') },
           { label: 'Import translated text (.csv)…', onSelect: importTranslation },
+          { label: 'Import Fleet media (video, captions, PNG, WAV)…', onSelect: importFleetMedia },
+          { separator: true, label: '' },
+          { label: 'End session (stop the local server)', onSelect: () => { void endServerSession(); } },
         ]}>File<ChevronDown size={14} /></Menu>
         {(saveStatus === 'error' || saveStatus === 'full') && <Button onClick={saveToFile}>Save to file</Button>}
         <span className="spacer" />
@@ -464,6 +490,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
       {dialog === 'publish' && <PublishDialog onClose={() => setDialog(null)} />}
       {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}
       {dialog === 'find' && <FindReplaceDialog onClose={() => setDialog(null)} />}
+      {dialog === 'draft' && <DraftDialog onClose={() => setDialog(null)} />}
       {dialog === 'projects' && (
         <ProjectsDialog currentId={course.id} onClose={() => setDialog(null)} onImport={importFile}
           onOpen={async (id) => {

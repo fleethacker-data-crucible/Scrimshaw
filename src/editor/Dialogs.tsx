@@ -12,6 +12,9 @@ import { deleteProject, listProjects, type ProjectMeta } from '../store/persist.
 import { Download, FileBraces, Globe, Package, Plus, Trash, TriangleAlert } from '../ui/icons.tsx';
 import { Button, Dialog, Field, IconButton, NumberInput, Select, useUi } from '../ui/kit.tsx';
 import { fileToAsset, pickFile, withAsset } from './assets.ts';
+import { chat, loadRouterSettings, parseQuiz, parseStoryboard, quizToSlides, saveRouterSettings, storyboardToScene, type DraftKind, type RouterSettings } from '../ai/router.ts';
+import { newScene } from '../model/factory.ts';
+import type { Scene } from '../model/types.ts';
 import { useEditor } from './context.tsx';
 import { ColorInput, uniqueVarName } from './Inspector.tsx';
 
@@ -400,5 +403,71 @@ function ThemeSwatch({ index, value, onCommit }: { index: number; value: string;
   return (
     <input ref={ref} type="color" aria-label={`Theme colour ${index + 1}: ${value}`} title={value} value={draft} className="!w-10 !h-8 !p-0.5"
       onChange={(e) => setDraft(e.target.value)} />
+  );
+}
+
+// ---------- drafts through the Fairlead router ----------
+
+/** Opt-in drafting. The client key is held in this dialog's state only: it is never saved or put in the course. */
+export function DraftDialog({ onClose }: { onClose: () => void }) {
+  const { edit, select } = useEditor();
+  const { toast } = useUi();
+  const [settings, setSettings] = useState<RouterSettings>(() => loadRouterSettings());
+  const [key, setKey] = useState('');
+  const [kind, setKind] = useState<DraftKind>('storyboard');
+  const [brief, setBrief] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [scene, setScene] = useState<Scene | null>(null);
+  const abort = useRef<AbortController | null>(null);
+  useEffect(() => () => abort.current?.abort(), []);
+  const change = (s: RouterSettings) => { setSettings(s); saveRouterSettings(s); };
+  const run = async () => {
+    setBusy(true); setError(''); setScene(null);
+    abort.current = new AbortController();
+    try {
+      const text = await chat(kind, brief, { settings, key: key || undefined, signal: abort.current.signal });
+      if (kind === 'storyboard') setScene(storyboardToScene(parseStoryboard(text)));
+      else { const q = parseQuiz(text); setScene(newScene(q.title, quizToSlides(q))); }
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') setError((e as Error).message);
+    } finally { setBusy(false); }
+  };
+  const add = () => {
+    if (!scene) return;
+    edit(kind === 'storyboard' ? 'Add drafted storyboard' : 'Add drafted quiz', (c) => { c.scenes.push(scene); });
+    select({ slideId: scene.slides[0].id, objectIds: [] });
+    toast(`Added "${scene.name}" with ${scene.slides.length} slide${scene.slides.length === 1 ? '' : 's'}. Review it before publishing.`, 'ok');
+    onClose();
+  };
+  return (
+    <Dialog title="Draft with the router" onClose={onClose} wide={640} footer={
+      <>
+        <Button variant="ghost" onClick={onClose}>Close</Button>
+        {scene
+          ? <Button variant="primary" onClick={add}>Add to course</Button>
+          : <Button variant="primary" disabled={!settings.enabled || busy || brief.trim().length < 3} onClick={() => { void run(); }}>{busy ? 'Drafting…' : 'Draft'}</Button>}
+      </>
+    }>
+      <p className="muted text-[13px]">Fairlead, the Fleet router on this computer, writes a first draft you then review and edit. Nothing is sent until you turn this on.</p>
+      <label className="check"><input type="checkbox" checked={settings.enabled} onChange={(e) => change({ ...settings, enabled: e.target.checked })} /> Use the router for drafts</label>
+      <fieldset className="grid gap-2" disabled={!settings.enabled}>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Router address" hint="Must be on this computer."><input value={settings.url} onChange={(e) => setSettings({ ...settings, url: e.target.value })} onBlur={() => change(settings)} spellCheck={false} /></Field>
+          <Field label="Route or model"><input value={settings.model} onChange={(e) => setSettings({ ...settings, model: e.target.value })} onBlur={() => change(settings)} spellCheck={false} /></Field>
+          <Field label="Client key (kept for this session only)" className="col-span-2"><input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder="Leave empty if the router does not require one" /></Field>
+        </div>
+        <label className="check"><input type="checkbox" checked={settings.localOnly} onChange={(e) => change({ ...settings, localOnly: e.target.checked })} /> Keep drafts on this computer (local models only)</label>
+        <Field label="Kind of draft"><Select<DraftKind> label="Kind of draft" value={kind} onChange={(v) => { setKind(v); setScene(null); }} options={[{ value: 'storyboard', label: 'Storyboard (a scene of slides)' }, { value: 'quiz', label: 'Quiz questions (a scene of question slides)' }]} /></Field>
+        <Field label="What is the course or topic about?"><textarea rows={4} value={brief} onChange={(e) => { setBrief(e.target.value); setScene(null); }} /></Field>
+      </fieldset>
+      {error && <p className="text-[13px]" role="alert">{error}</p>}
+      {scene && (
+        <div role="status">
+          <p className="text-[13px]">Draft ready: {scene.name} ({scene.slides.length} slides)</p>
+          <ul className="grid gap-1 max-h-48 overflow-auto text-[13px]" aria-label="Drafted slides">{scene.slides.map((s) => <li key={s.id}>{s.title}</li>)}</ul>
+        </div>
+      )}
+    </Dialog>
   );
 }

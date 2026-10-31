@@ -8,6 +8,7 @@ import { captureShell, embeddedCourseJson } from './export/publish.ts';
 import { normalizeCourse } from './model/schema.ts';
 import { Player } from './player/Player.tsx';
 import { EditorRoot } from './editor/EditorShell.tsx';
+import { startBrowserHeartbeat } from './lifecycle.ts';
 import { applyTheme, loadSettings } from './store/persist.ts';
 import { UiProvider } from './ui/kit.tsx';
 
@@ -51,6 +52,7 @@ if (embedded !== null) {
 } else {
   const s = loadSettings();
   applyTheme(s.theme, s.reducedMotion);
+  startBrowserHeartbeat();
   root.render(
     <StrictMode>
       <UiProvider><EditorRoot /></UiProvider>
