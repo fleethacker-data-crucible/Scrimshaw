@@ -455,8 +455,12 @@ function submit(ctx: Ctx) {
     const placed = items.filter((o) => ctx.s.drops[o.id]);
     if (placed.length === 0) { ctx.s.effects.push({ type: 'notice', message: 'Drag at least one item before you submit.' }); return; }
     const name = (id: ID) => findObject(slide, id)?.name ?? '?';
-    response = placed.map((o) => `${o.name} → ${name(ctx.s.drops[o.id])}`).join('; ');
-    correct = items.every((o) => ctx.s.drops[o.id] === o.correctTargetId);
+    // A survey ranking is recorded in rank order (target order on the slide); a graded one in item order.
+    const slotOf = (o: SlideObject) => slideObjects(slide).filter((t) => t.dropTarget).findIndex((t) => t.id === ctx.s.drops[o.id]);
+    const ordered = q.graded ? placed : [...placed].sort((x, y) => slotOf(x) - slotOf(y));
+    response = ordered.map((o) => `${o.name} → ${name(ctx.s.drops[o.id])}`).join('; ');
+    // A survey (ungraded) ranking accepts any order; a graded drag and drop needs every item on its target.
+    correct = !q.graded || items.every((o) => ctx.s.drops[o.id] === o.correctTargetId);
   } else {
     const choices = slideObjects(slide).filter((o) => o.kind === (q.kind === 'hotspot' ? 'hotspot' : 'choice'));
     const selected = choices.filter((o) => stateOf(ctx.s, o) === 'Selected');
