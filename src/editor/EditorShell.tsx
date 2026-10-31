@@ -16,6 +16,7 @@ import {
 } from '../ui/icons.tsx';
 import { Button, IconButton, Menu, useUi, type MenuItem } from '../ui/kit.tsx';
 import { fileToAsset, imageSize, pickFile, withAsset } from './assets.ts';
+import { endSession } from '../lifecycle.ts';
 import { Canvas } from './Canvas.tsx';
 import { EditorProvider, useEditor } from './context.tsx';
 import { CourseDialog, FindReplaceDialog, ProjectsDialog, PublishDialog, ShortcutsDialog, VariablesDialog } from './Dialogs.tsx';
@@ -237,6 +238,12 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
       toast(n ? `Updated ${n} text${n === 1 ? '' : 's'} from the translation. Undo reverts it.` : 'No translated rows matched this course.', n ? 'ok' : 'warn');
     } catch (e) { toast((e as Error).message, 'err'); }
   };
+  const endServerSession = async () => {
+    if (!(await confirm({ title: 'End this session?', message: 'The local Scrimshaw server stops and this tab can be closed. Your projects stay saved in this browser; start Scrimshaw again to keep working.', ok: 'End session' }))) return;
+    await saveNow();
+    if (await endSession()) toast('Scrimshaw has stopped. You can close this tab.', 'ok');
+    else toast('Could not stop the server from here (it may already be stopped, or this is a development build). Close its window instead.', 'warn');
+  };
   const openNew = async (c: Course) => { await saveNow(); await saveProject(c).catch(() => {}); setDialog(null); openCourse(c); };
 
   // ---- keyboard ----
@@ -346,6 +353,8 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
           { label: 'Storyboard for review (printable HTML)', onSelect: () => download(fileName(course.title, 'storyboard.html'), buildStoryboard(course, currentCss(document)), 'text/html') },
           { label: 'Export text for translation (.csv)', onSelect: () => download(fileName(course.title, 'translation.csv'), textsToCsv(course), 'text/csv') },
           { label: 'Import translated text (.csv)…', onSelect: importTranslation },
+          { separator: true, label: '' },
+          { label: 'End session (stop the local server)', onSelect: () => { void endServerSession(); } },
         ]}>File<ChevronDown size={14} /></Menu>
         <span className="spacer" />
         <IconButton label={undo ? `Undo ${undo} (Ctrl+Z)` : 'Nothing to undo'} disabled={!undo} onClick={() => dispatch({ type: 'undo' })}><Undo2 /></IconButton>

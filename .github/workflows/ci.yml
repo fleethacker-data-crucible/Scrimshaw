@@ -56,6 +56,18 @@ jobs:
           if ((Status 'http://127.0.0.1:18765/') -ne 200) { Write-Host '::error::index.html not served'; $fail = $true }
           if ((Status 'http://127.0.0.1:18765/%2e%2e/package.json') -ne 404) { Write-Host '::error::path traversal not blocked'; $fail = $true }
           if ((Status 'http://127.0.0.1:18765/' @{ Host = 'evil.example:18765' }) -ne 403) { Write-Host '::error::foreign Host header not refused'; $fail = $true }
+          # Fleet lifecycle endpoints (edge-ops PORTS.md): id for self-detection, shutdown only with its header and no foreign Origin.
+          $id = try { Invoke-RestMethod -UseBasicParsing -Uri 'http://127.0.0.1:18765/__fleethacker/id' } catch { $null }
+          if (-not $id -or $id.tool -ne 'scrimshaw' -or -not $id.pid -or -not $id.version) { Write-Host '::error::/__fleethacker/id did not report scrimshaw'; $fail = $true }
+          if ((Status 'http://127.0.0.1:18765/__fleethacker/id' @{ Origin = 'http://evil.example' }) -ne 403) { Write-Host '::error::id endpoint accepted a foreign Origin'; $fail = $true }
+          function PostStatus([string]$Url, [hashtable]$Headers = @{}) {
+            try { (Invoke-WebRequest -UseBasicParsing -Method Post -Uri $Url -Headers $Headers).StatusCode } catch { [int]$_.Exception.Response.StatusCode }
+          }
+          if ((PostStatus 'http://127.0.0.1:18765/__fleethacker/shutdown') -ne 400) { Write-Host '::error::shutdown ran without X-FleetHacker-Shutdown: 1'; $fail = $true }
+          if ((PostStatus 'http://127.0.0.1:18765/__fleethacker/shutdown' @{ 'X-FleetHacker-Shutdown' = '1'; Origin = 'http://evil.example' }) -ne 403) { Write-Host '::error::shutdown accepted a foreign Origin'; $fail = $true }
+          if ((PostStatus 'http://127.0.0.1:18765/__fleethacker/shutdown' @{ 'X-FleetHacker-Shutdown' = '1' }) -ne 200) { Write-Host '::error::shutdown did not answer 200'; $fail = $true }
+          Start-Sleep -Seconds 2
+          if ((Status 'http://127.0.0.1:18765/') -ne 0) { Write-Host '::error::server still answering after shutdown'; $fail = $true }
           Stop-Job $job; Remove-Job $job -Force
           if ($fail) { exit 1 }
 

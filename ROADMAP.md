@@ -86,6 +86,7 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 | --- | --- | --- |
 | Local server (PowerShell 5.1, TcpListener) | ✅ | 127.0.0.1 only, Host check, no traversal |
 | Offline, no CDN | ✅ | |
+| Lifecycle rules | ✅ | Tab owns the server (heartbeat every 5 s, leaving beacon, stop after 20 s of silence), End session in the File menu, `Stop-Scrimshaw.ps1`, runtime file in `logs\`, `-Stay` and `SCRIMSHAW_AUTO_STOP=0`, Fleet `GET /__fleethacker/id` and `POST /__fleethacker/shutdown`. Port 8765 is inside SnapShackle's block in PORTS.md; Scrimshaw has no block of its own yet |
 | Autosave (IndexedDB) and .scrim files | ✅ | |
 | Light / dark theme, reduced motion | ✅ | UI kit tokens |
 | Import PowerPoint (.pptx) | 🟡 | Text boxes (size, bold, colour, alignment, bullets), pictures, solid backgrounds, speaker notes; no charts, tables, groups or animations |

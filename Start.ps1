@@ -9,6 +9,14 @@
     Start.ps1 -Port 9000      use a specific port
     Start.ps1 -NoBrowser      print the URL instead of opening it
     Start.ps1 -IdleMinutes 0  never stop on idle (default: stop after 240 idle minutes)
+    Start.ps1 -Stay           keep running after the tab closes (SCRIMSHAW_AUTO_STOP=0 does the same)
+
+  Lifecycle (Fleet TechStack): the page sends POST /api/heartbeat every 5 s and a "leaving" beacon when it
+  closes. Once a heartbeat has been seen, the server stops 20 s after the last one, or 5 s after a leaving
+  signal with no new heartbeat. A reload sends a fresh heartbeat inside that time, so nothing happens.
+  Fleet endpoints (PORTS.md): GET /__fleethacker/id and POST /__fleethacker/shutdown with the header
+  X-FleetHacker-Shutdown: 1. Both need a loopback caller, a loopback Host and an Origin that is absent or
+  the same origin. Stop-Scrimshaw.ps1 stops every running instance through the shutdown endpoint.
 
   Close the console window (or press Ctrl+C) to stop it.
 #>
@@ -16,7 +24,8 @@ param(
     [int]$Port = 0,
     [switch]$NoBrowser,
     [int]$IdleMinutes = 240,
-    [string]$Root = ''
+    [string]$Root = '',
+    [switch]$Stay
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
@@ -99,6 +108,25 @@ $listener = New-Listener $Port
 $actualPort = ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
 $url = "http://127.0.0.1:$actualPort/"
 $allowedHosts = @("127.0.0.1:$actualPort", "localhost:$actualPort")
+$allowedOrigins = @("http://127.0.0.1:$actualPort", "http://localhost:$actualPort")
+$version = '0.0.0'
+foreach ($vf in @((Join-Path $PSScriptRoot 'VERSION'), (Join-Path $Root 'VERSION'))) {
+    if (Test-Path -LiteralPath $vf -PathType Leaf) { $version = ([IO.File]::ReadAllText($vf)).Trim(); break }
+}
+$autoStop = (-not $Stay) -and ($env:SCRIMSHAW_AUTO_STOP -ne '0')
+$script:BeatSeen = $false
+$script:LastBeat = Get-Date
+$script:LeaveAt = $null
+$script:StopRequested = $false
+# Runtime file: pid, port, url and start time (never a token) so Stop-Scrimshaw.ps1 can find this server.
+$runtimeFile = $null
+try {
+    $logDir = Join-Path $PSScriptRoot 'logs'
+    if (-not (Test-Path -LiteralPath $logDir)) { [void](New-Item -ItemType Directory -Path $logDir) }
+    $runtimeFile = Join-Path $logDir "scrimshaw-server-$PID.json"
+    $rt = [ordered]@{ pid = $PID; port = $actualPort; url = $url; started = (Get-Date).ToString('o') } | ConvertTo-Json -Compress
+    [IO.File]::WriteAllText($runtimeFile, $rt, (New-Object System.Text.UTF8Encoding($false)))
+} catch { $runtimeFile = $null }
 try { $Host.UI.RawUI.WindowTitle = "Scrimshaw - $url" } catch { }
 Write-Host "Scrimshaw is running at $url" -ForegroundColor Green
 Write-Host 'Your projects are saved in the browser. Close this window to stop the server.'
@@ -106,9 +134,17 @@ if (-not $NoBrowser) { try { Start-Process $url } catch { Write-Host "Open $url 
 
 $lastRequest = Get-Date
 try {
-    while ($true) {
+    while (-not $script:StopRequested) {
         if (-not $listener.Pending()) {
             Start-Sleep -Milliseconds 50
+            if ($autoStop -and $script:BeatSeen) {
+                # The server writes nothing itself (projects live in the browser), so there is no write to wait for.
+                $now = Get-Date
+                if (($null -ne $script:LeaveAt -and ($now - $script:LeaveAt).TotalSeconds -ge 5) -or ($now - $script:LastBeat).TotalSeconds -ge 20) {
+                    Write-Host 'The browser tab closed; stopping.' -ForegroundColor Yellow
+                    break
+                }
+            }
             if ($IdleMinutes -gt 0 -and ((Get-Date) - $lastRequest).TotalMinutes -ge $IdleMinutes) {
                 Write-Host "No requests for $IdleMinutes minutes; stopping." -ForegroundColor Yellow
                 break
@@ -137,6 +173,48 @@ try {
             # Only answer requests addressed to this server (blocks DNS-rebinding pages).
             if ($allowedHosts -notcontains $hostValue) { Send-Text $stream 403 'Forbidden' 'Forbidden' $false; continue }
             $headOnly = $method -eq 'HEAD'
+            $route = ($target -split '\?')[0]
+            if ($route -eq '/__fleethacker/id' -or $route -eq '/__fleethacker/shutdown' -or $route -eq '/api/heartbeat') {
+                $hdr = @{}
+                foreach ($l in ($lines | Select-Object -Skip 1)) {
+                    $c = $l.IndexOf(':')
+                    if ($c -gt 0) { $hdr[$l.Substring(0, $c).Trim().ToLowerInvariant()] = $l.Substring($c + 1).Trim() }
+                }
+                $origin = if ($hdr.ContainsKey('origin')) { $hdr['origin'].ToLowerInvariant() } else { '' }
+                $remote = $client.Client.RemoteEndPoint
+                if (($origin -ne '' -and $allowedOrigins -notcontains $origin) -or -not [System.Net.IPAddress]::IsLoopback($remote.Address)) {
+                    Send-Text $stream 403 'Forbidden' 'Forbidden' $false; continue
+                }
+                if ($route -eq '/__fleethacker/id') {
+                    if ($method -ne 'GET' -and -not $headOnly) { Send-Text $stream 405 'Method Not Allowed' 'Method not allowed' $false; continue }
+                    $idJson = [ordered]@{ tool = 'scrimshaw'; version = $version; pid = $PID; path = $PSCommandPath } | ConvertTo-Json -Compress
+                    Send-Response $stream 200 'OK' 'application/json; charset=utf-8' ([Text.Encoding]::UTF8.GetBytes($idJson)) $headOnly
+                    continue
+                }
+                if ($method -ne 'POST') { Send-Text $stream 405 'Method Not Allowed' 'Method not allowed' $false; continue }
+                if ($route -eq '/__fleethacker/shutdown') {
+                    if (-not ($hdr.ContainsKey('x-fleethacker-shutdown') -and $hdr['x-fleethacker-shutdown'] -eq '1')) {
+                        Send-Text $stream 400 'Bad Request' 'Missing X-FleetHacker-Shutdown: 1' $false; continue
+                    }
+                    Send-Response $stream 200 'OK' 'application/json; charset=utf-8' ([Text.Encoding]::UTF8.GetBytes('{"stopping":true}')) $false
+                    Write-Host 'Shutdown requested; stopping.' -ForegroundColor Yellow
+                    $script:StopRequested = $true
+                    continue
+                }
+                # /api/heartbeat: a small JSON body, {"leaving":true} from the pagehide beacon.
+                $leaving = $false
+                $len = 0
+                if ($hdr.ContainsKey('content-length') -and [int]::TryParse($hdr['content-length'], [ref]$len) -and $len -gt 0 -and $len -le 1024) {
+                    $body = New-Object byte[] $len
+                    $got = 0
+                    while ($got -lt $len) { $n = $stream.Read($body, $got, $len - $got); if ($n -le 0) { break }; $got += $n }
+                    $leaving = [Text.Encoding]::UTF8.GetString($body, 0, $got) -match '"leaving"\s*:\s*true'
+                }
+                $script:BeatSeen = $true
+                if ($leaving) { $script:LeaveAt = Get-Date } else { $script:LastBeat = Get-Date; $script:LeaveAt = $null }
+                Send-Response $stream 204 'No Content' 'text/plain; charset=utf-8' ([byte[]]@()) $false
+                continue
+            }
             if ($method -ne 'GET' -and -not $headOnly) { Send-Text $stream 405 'Method Not Allowed' 'Method not allowed' $false; continue }
             $file = Resolve-StaticPath $target
             if (-not $file) { Send-Text $stream 404 'Not Found' 'Not found' $headOnly; continue }
@@ -151,4 +229,5 @@ try {
     }
 } finally {
     $listener.Stop()
+    if ($runtimeFile -and (Test-Path -LiteralPath $runtimeFile)) { Remove-Item -LiteralPath $runtimeFile -Force -ErrorAction SilentlyContinue }
 }
