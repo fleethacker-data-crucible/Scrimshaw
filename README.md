@@ -38,6 +38,11 @@ No admin rights, installer or Node.js needed: `dist/` is committed.
 **Anywhere:** open `dist/index.html` directly in Edge or Chrome. The app is one self-contained file
 and works from `file://`.
 
+The local server uses port **8775**, Scrimshaw's one-port block in the Fleet port registry
+(`PORTS.md` in edge-ops), so the browser keeps your projects under one address. If Scrimshaw is already
+running there, `Launch.bat` opens it instead of starting a second copy. `Start.ps1 -Port <n>` picks
+another port exactly; projects are stored per address, so they will not appear under a different port.
+
 Projects save automatically to the browser (IndexedDB). Use **File › Save to file** for a `.scrim`
 backup you can move between machines or share with another author.
 

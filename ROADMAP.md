@@ -77,7 +77,7 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 | cmi5 | ✅ | Fetch-token launch, LMS.LaunchData (context template, launch mode, mastery score), moveOn statements, cmi5.xml |
 | AICC | ⬜ | |
 | Word / PDF handout export | 🟡 | Printable HTML storyboard (slides, layers, triggers, answers, notes) to print or save as PDF; no .docx |
-| Video (MP4) export | ⬜ | |
+| Video (MP4) export | ⬜ | Gap, not built. A course is interactive (triggers, variables, layers, quizzes), so a video can only be a linear walk-through of chosen slides with narration, not the course. It needs a frame renderer for slides, an H.264 encoder (WebCodecs) and an MP4 muxer, none of which Scrimshaw has. Capstan already ships WebCodecs H.264 export and its own MP4 muxer, so the likely route is to hand Capstan plain files (slide images, TalkForge narration, timing) rather than a second encoder here. Decision for Jeremy: hand-off to Capstan, or a shared encoder module |
 | Publish-time validation | ✅ | Broken trigger targets, unanswerable questions, missing alt text |
 
 ## Platform
@@ -86,7 +86,8 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 | --- | --- | --- |
 | Local server (PowerShell 5.1, TcpListener) | ✅ | 127.0.0.1 only, Host check, no traversal |
 | Offline, no CDN | ✅ | |
-| Lifecycle rules | ✅ | Tab owns the server (heartbeat every 5 s, leaving beacon, stop after 20 s of silence), End session in the File menu, `Stop-Scrimshaw.ps1`, runtime file in `logs\`, `-Stay` and `SCRIMSHAW_AUTO_STOP=0`, Fleet `GET /__fleethacker/id` and `POST /__fleethacker/shutdown`. Port 8765 is inside SnapShackle's block in PORTS.md; Scrimshaw has no block of its own yet |
+| Lifecycle rules | ✅ | Tab owns the server (heartbeat every 5 s, leaving beacon, stop after 20 s of silence), End session in the File menu, `Stop-Scrimshaw.ps1`, runtime file in `logs\`, `-Stay` and `SCRIMSHAW_AUTO_STOP=0`, Fleet `GET /__fleethacker/id` and `POST /__fleethacker/shutdown`. Scrimshaw's port is 8775, its one-port block in the Fleet registry |
+| CLI and command registry | 🟡 | `node tools/scrimshaw.mjs commands --json` lists the commands (`course new`, `info`, `validate`, `export-texts`, `publish`); `--json` output is versioned, `--out` files are UTF-8 without a BOM, `--yes` / `--dry-run` are honoured, and a parity test fails when a File-menu action has no entry in `src/cli/gui-actions.ts`. Gaps (listed there): settings, find and replace, translation import, storyboard HTML, authoring operations; no loopback API or MCP server yet; needs Node 22.18+, so it runs on a build PC or agent host, not the locked-down workstation |
 | Autosave (IndexedDB) and .scrim files | ✅ | |
 | Light / dark theme, reduced motion | ✅ | UI kit tokens |
 | Import PowerPoint (.pptx) | 🟡 | Text boxes (size, bold, colour, alignment, bullets), pictures, solid backgrounds, speaker notes; no charts, tables, groups or animations |
