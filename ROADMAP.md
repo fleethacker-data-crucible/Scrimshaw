@@ -86,6 +86,7 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 | --- | --- | --- |
 | Local server (PowerShell 5.1, TcpListener) | ✅ | 127.0.0.1 only, Host check, no traversal |
 | Offline, no CDN | ✅ | |
+| CLI and command registry | 🟡 | `node tools/scrimshaw.mjs commands --json` lists the commands (`course new`, `info`, `validate`, `export-texts`, `publish`); `--json` output is versioned, `--out` files are UTF-8 without a BOM, `--yes` / `--dry-run` are honoured, and a parity test fails when a File-menu action has no entry in `src/cli/gui-actions.ts`. Gaps (listed there): settings, find and replace, translation import, storyboard HTML, authoring operations; no loopback API or MCP server yet; needs Node 22.18+, so it runs on a build PC or agent host, not the locked-down workstation |
 | Autosave (IndexedDB) and .scrim files | ✅ | |
 | Light / dark theme, reduced motion | ✅ | UI kit tokens |
 | Import PowerPoint (.pptx) | 🟡 | Text boxes (size, bold, colour, alignment, bullets), pictures, solid backgrounds, speaker notes; no charts, tables, groups or animations |
