@@ -47,27 +47,37 @@ jobs:
       - name: Server serves dist and refuses traversal and foreign hosts
         shell: powershell
         run: |
-          $job = Start-Job { param($d) & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $d 'Start.ps1') -Port 18765 -NoBrowser -IdleMinutes 2 } -ArgumentList $PWD.Path
+          # Scrimshaw's CI port is 18775 (reserved CI range 18000-18999; Shellback's CI uses 18765 and the runners run in parallel).
+          # If it is held, take the next free one up to 18799.
+          $port = 0
+          foreach ($p in 18775..18799) {
+            try { $l = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, $p); $l.Start(); $l.Stop(); $port = $p; break } catch { }
+          }
+          if (-not $port) { Write-Host '::error::no free CI port in 18775-18799'; exit 1 }
+          Write-Host "Smoke test port: $port"
+          $job = Start-Job { param($d, $p) & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $d 'Start.ps1') -Port $p -NoBrowser -IdleMinutes 2 } -ArgumentList $PWD.Path, $port
           Start-Sleep -Seconds 4
           function Status([string]$Url, [hashtable]$Headers = @{}) {
             try { (Invoke-WebRequest -UseBasicParsing -Uri $Url -Headers $Headers).StatusCode } catch { [int]$_.Exception.Response.StatusCode }
           }
           $fail = $false
-          if ((Status 'http://127.0.0.1:18765/') -ne 200) { Write-Host '::error::index.html not served'; $fail = $true }
-          if ((Status 'http://127.0.0.1:18765/%2e%2e/package.json') -ne 404) { Write-Host '::error::path traversal not blocked'; $fail = $true }
-          if ((Status 'http://127.0.0.1:18765/' @{ Host = 'evil.example:18765' }) -ne 403) { Write-Host '::error::foreign Host header not refused'; $fail = $true }
+          if ((Status "http://127.0.0.1:$port/") -ne 200) { Write-Host '::error::index.html not served'; $fail = $true }
+          if ((Status "http://127.0.0.1:$port/%2e%2e/package.json") -ne 404) { Write-Host '::error::path traversal not blocked'; $fail = $true }
+          if ((Status "http://127.0.0.1:$port/" @{ Host = "evil.example:$port" }) -ne 403) { Write-Host '::error::foreign Host header not refused'; $fail = $true }
           # Fleet lifecycle endpoints (edge-ops PORTS.md): id for self-detection, shutdown only with its header and no foreign Origin.
-          $id = try { Invoke-RestMethod -UseBasicParsing -Uri 'http://127.0.0.1:18765/__fleethacker/id' } catch { $null }
+          $id = try { Invoke-RestMethod -UseBasicParsing -Uri "http://127.0.0.1:$port/__fleethacker/id" } catch { $null }
           if (-not $id -or $id.tool -ne 'scrimshaw' -or -not $id.pid -or -not $id.version) { Write-Host '::error::/__fleethacker/id did not report scrimshaw'; $fail = $true }
-          if ((Status 'http://127.0.0.1:18765/__fleethacker/id' @{ Origin = 'http://evil.example' }) -ne 403) { Write-Host '::error::id endpoint accepted a foreign Origin'; $fail = $true }
+          if ((Status "http://127.0.0.1:$port/__fleethacker/id" @{ Origin = 'http://evil.example' }) -ne 403) { Write-Host '::error::id endpoint accepted a foreign Origin'; $fail = $true }
           function PostStatus([string]$Url, [hashtable]$Headers = @{}) {
             try { (Invoke-WebRequest -UseBasicParsing -Method Post -Uri $Url -Headers $Headers).StatusCode } catch { [int]$_.Exception.Response.StatusCode }
           }
-          if ((PostStatus 'http://127.0.0.1:18765/__fleethacker/shutdown') -ne 400) { Write-Host '::error::shutdown ran without X-FleetHacker-Shutdown: 1'; $fail = $true }
-          if ((PostStatus 'http://127.0.0.1:18765/__fleethacker/shutdown' @{ 'X-FleetHacker-Shutdown' = '1'; Origin = 'http://evil.example' }) -ne 403) { Write-Host '::error::shutdown accepted a foreign Origin'; $fail = $true }
-          if ((PostStatus 'http://127.0.0.1:18765/__fleethacker/shutdown' @{ 'X-FleetHacker-Shutdown' = '1' }) -ne 200) { Write-Host '::error::shutdown did not answer 200'; $fail = $true }
+          if ((PostStatus "http://127.0.0.1:$port/__fleethacker/shutdown") -ne 400) { Write-Host '::error::shutdown ran without X-FleetHacker-Shutdown: 1'; $fail = $true }
+          if ((PostStatus "http://127.0.0.1:$port/__fleethacker/shutdown" @{ 'X-FleetHacker-Shutdown' = '1'; Origin = 'http://evil.example' }) -ne 403) { Write-Host '::error::shutdown accepted a foreign Origin'; $fail = $true }
+          if ((PostStatus "http://127.0.0.1:$port/__fleethacker/shutdown" @{ 'X-FleetHacker-Shutdown' = '1' }) -ne 200) { Write-Host '::error::shutdown did not answer 200'; $fail = $true }
           Start-Sleep -Seconds 2
-          if ((Status 'http://127.0.0.1:18765/') -ne 0) { Write-Host '::error::server still answering after shutdown'; $fail = $true }
+          if ((Status "http://127.0.0.1:$port/") -ne 0) { Write-Host '::error::server still answering after shutdown'; $fail = $true }
+          # Stop-Job leaves the child powershell.exe running; ask it to exit so it cannot hold the port for the next run.
+          try { [void](Invoke-WebRequest -UseBasicParsing -Method Post -Uri "http://127.0.0.1:$port/__fleethacker/shutdown" -Headers @{ 'X-FleetHacker-Shutdown' = '1' }) } catch { }
           Stop-Job $job; Remove-Job $job -Force
           if ($fail) { exit 1 }
 
