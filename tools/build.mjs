@@ -77,7 +77,7 @@ function html(css, js) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="Scrimshaw ${pkg.version} (FleetHacker UI Kit ${kitVersion}, Fleet UI)">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob: file: https: http:; media-src 'self' data: blob: file: https: http:; font-src data:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob: file: https: http:; media-src 'self' data: blob: file: https: http:; font-src data:; connect-src 'self' http://127.0.0.1:8776 http://localhost:8776; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Scrimshaw</title>
 <link rel="icon" href="${FAVICON}">
 <style>${css}</style>

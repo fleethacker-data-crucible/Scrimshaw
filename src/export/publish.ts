@@ -8,8 +8,8 @@ import { manifest12, manifest2004 } from './scorm.ts';
 import { cmi5Xml, tincanXml } from './xapi.ts';
 
 export const COURSE_SCRIPT_ID = 'scrimshaw-course';
-/** The editor may call its own local server (heartbeat, end session); a published course never may, so this is put back to 'none'. */
-export const EDITOR_CONNECT_SRC = "connect-src 'self'";
+/** The editor may call its own local server (heartbeat, end session) and the local Fairlead router (drafts); a published course never may, so this is put back to 'none'. */
+export const EDITOR_CONNECT_SRC = "connect-src 'self' http://127.0.0.1:8776 http://localhost:8776";
 
 let shell: string | null = null;
 
