@@ -18,7 +18,7 @@ import { Button, IconButton, Menu, useUi, type MenuItem } from '../ui/kit.tsx';
 import { fileToAsset, imageSize, pickFile, withAsset } from './assets.ts';
 import { Canvas } from './Canvas.tsx';
 import { EditorProvider, useEditor } from './context.tsx';
-import { CourseDialog, FindReplaceDialog, ProjectsDialog, PublishDialog, ShortcutsDialog, VariablesDialog } from './Dialogs.tsx';
+import { CourseDialog, DraftDialog, FindReplaceDialog, ProjectsDialog, PublishDialog, ShortcutsDialog, VariablesDialog } from './Dialogs.tsx';
 import { applyTexts, csvToTexts, textsToCsv } from '../model/texts.ts';
 import { buildStoryboard, currentCss } from '../export/storyboard.tsx';
 import { Inspector } from './Inspector.tsx';
@@ -77,7 +77,7 @@ export function EditorRoot() {
   );
 }
 
-type DialogName = 'variables' | 'course' | 'projects' | 'publish' | 'shortcuts' | 'find' | null;
+type DialogName = 'variables' | 'course' | 'projects' | 'publish' | 'shortcuts' | 'find' | 'draft' | null;
 
 function EditorShell({ settings, setSettings, openCourse }: { settings: Settings; setSettings: (fn: (s: Settings) => Settings) => void; openCourse: (c: Course) => void }) {
   const ed = useEditor();
@@ -343,6 +343,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
           { label: 'Course settings…', icon: <SettingsIcon />, onSelect: () => setDialog('course') },
           { separator: true, label: '' },
           { label: 'Find and replace…', shortcut: 'Ctrl+H', onSelect: () => setDialog('find') },
+          { label: 'Draft with the router…', onSelect: () => setDialog('draft') },
           { label: 'Storyboard for review (printable HTML)', onSelect: () => download(fileName(course.title, 'storyboard.html'), buildStoryboard(course, currentCss(document)), 'text/html') },
           { label: 'Export text for translation (.csv)', onSelect: () => download(fileName(course.title, 'translation.csv'), textsToCsv(course), 'text/csv') },
           { label: 'Import translated text (.csv)…', onSelect: importTranslation },
@@ -442,6 +443,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
       {dialog === 'publish' && <PublishDialog onClose={() => setDialog(null)} />}
       {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}
       {dialog === 'find' && <FindReplaceDialog onClose={() => setDialog(null)} />}
+      {dialog === 'draft' && <DraftDialog onClose={() => setDialog(null)} />}
       {dialog === 'projects' && (
         <ProjectsDialog currentId={course.id} onClose={() => setDialog(null)} onImport={importFile}
           onOpen={async (id) => {
