@@ -21,6 +21,7 @@ import { EditorProvider, useEditor } from './context.tsx';
 import { CourseDialog, FindReplaceDialog, ProjectsDialog, PublishDialog, ShortcutsDialog, VariablesDialog } from './Dialogs.tsx';
 import { applyTexts, csvToTexts, textsToCsv } from '../model/texts.ts';
 import { buildStoryboard, currentCss } from '../export/storyboard.tsx';
+import { buildDocx } from '../export/docx.ts';
 import { Inspector } from './Inspector.tsx';
 import { LayersPanel } from './LayersPanel.tsx';
 import emblem from '../assets/emblem.webp';
@@ -365,6 +366,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
           { separator: true, label: '' },
           { label: 'Find and replace…', shortcut: 'Ctrl+H', onSelect: () => setDialog('find') },
           { label: 'Storyboard for review (printable HTML)', onSelect: () => download(fileName(course.title, 'storyboard.html'), buildStoryboard(course, currentCss(document)), 'text/html') },
+          { label: 'Handout for Word (.docx, text only)', onSelect: async () => { try { download(fileName(course.title, 'handout.docx'), await buildDocx(course)); } catch (e) { toast((e as Error).message, 'err'); } } },
           { label: 'Export text for translation (.csv)', onSelect: () => download(fileName(course.title, 'translation.csv'), textsToCsv(course), 'text/csv') },
           { label: 'Import translated text (.csv)…', onSelect: importTranslation },
         ]}>File<ChevronDown size={14} /></Menu>

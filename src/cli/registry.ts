@@ -9,6 +9,7 @@ import { allSlides } from '../model/query.ts';
 import { parseCourse, serializeCourse } from '../model/schema.ts';
 import { textsToCsv } from '../model/texts.ts';
 import { buildPlayerHtml, buildScormZip, buildXapiZip } from '../export/publish.ts';
+import { buildDocx } from '../export/docx.ts';
 
 /** Version of the JSON every command prints. Bump when a field is removed or changes meaning. */
 export const OUTPUT_SCHEMA = 1;
@@ -101,6 +102,11 @@ export const COMMANDS: CommandDef[] = [
     name: 'course export-texts', summary: 'Export every text for translation as CSV with stable keys.', args: [FILE, OUT, YES, DRY],
     output: { out: 'path written', bytes: 'size', written: 'false for --dry-run' }, writes: true, example: ['demo.scrim', '--out', 'texts.csv'],
     run: (a, io) => ({ data: writeOut(a, io, textsToCsv(load(a, io))) }),
+  },
+  {
+    name: 'course export-handout', summary: 'Write a text-only Word (.docx) handout: slide text, question setup and answers, triggers and notes.', args: [FILE, OUT, YES, DRY],
+    output: { out: 'path written', bytes: 'size', written: 'false for --dry-run' }, writes: true, example: ['demo.scrim', '--out', 'handout.docx'],
+    run: async (a, io) => ({ data: writeOut(a, io, new Uint8Array(await (await buildDocx(load(a, io))).arrayBuffer())) }),
   },
   {
     name: 'course publish', summary: 'Build a standalone player or an LMS package from a course. Uses the built app in dist/index.html as the shell.',

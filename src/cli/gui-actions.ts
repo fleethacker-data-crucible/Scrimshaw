@@ -23,6 +23,7 @@ export const GUI_ACTIONS: GuiAction[] = [
   { label: 'Course settings…', where: 'File menu', command: null, gap: 'Needs a "course set" command that edits a .scrim file.' },
   { label: 'Find and replace…', where: 'File menu', command: null, gap: 'Needs a "course replace" command.' },
   { label: 'Storyboard for review (printable HTML)', where: 'File menu', command: null, gap: 'src/export/storyboard.tsx renders with React; needs a string renderer first.' },
+  { label: 'Handout for Word (.docx, text only)', where: 'File menu', command: 'course export-handout' },
   { label: 'Export text for translation (.csv)', where: 'File menu', command: 'course export-texts' },
   { label: 'Import translated text (.csv)…', where: 'File menu', command: null, gap: 'Needs a "course import-texts" command (applyTexts exists in src/model/texts.ts).' },
   { label: 'Web (standalone HTML)', where: 'Publish dialog', command: 'course publish' },
