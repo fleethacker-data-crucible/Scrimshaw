@@ -77,7 +77,7 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 | cmi5 | ✅ | Fetch-token launch, LMS.LaunchData (context template, launch mode, mastery score), moveOn statements, cmi5.xml |
 | AICC | ⬜ | |
 | Word / PDF handout export | 🟡 | Printable HTML storyboard (slides, layers, triggers, answers, notes) to print or save as PDF; no .docx |
-| Video (MP4) export | ⬜ | |
+| Video (MP4) export | ⬜ | Gap, not built. A course is interactive (triggers, variables, layers, quizzes), so a video can only be a linear walk-through of chosen slides with narration, not the course. It needs a frame renderer for slides, an H.264 encoder (WebCodecs) and an MP4 muxer, none of which Scrimshaw has. Capstan already ships WebCodecs H.264 export and its own MP4 muxer, so the likely route is to hand Capstan plain files (slide images, TalkForge narration, timing) rather than a second encoder here. Decision for Jeremy: hand-off to Capstan, or a shared encoder module |
 | Publish-time validation | ✅ | Broken trigger targets, unanswerable questions, missing alt text |
 
 ## Platform
