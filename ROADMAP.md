@@ -76,7 +76,7 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 | xAPI (Tin Can) | ✅ | Tin Can launch, initialized/answered/passed/failed/completed/terminated statements, State API resume |
 | cmi5 | ✅ | Fetch-token launch, LMS.LaunchData (context template, launch mode, mastery score), moveOn statements, cmi5.xml |
 | AICC | ⬜ | |
-| Word / PDF handout export | 🟡 | Printable HTML storyboard (slides, layers, triggers, answers, notes) to print or save as PDF; no .docx |
+| Word / PDF handout export | ✅ | Printable HTML storyboard (slide pictures, layers, triggers, answers, notes) to print or save as PDF, and a text-only Word .docx handout (slide text, question setup and answers, triggers, notes; no slide pictures) |
 | Video (MP4) export | ⬜ | |
 | Publish-time validation | ✅ | Broken trigger targets, unanswerable questions, missing alt text |
 
