@@ -17,6 +17,7 @@ import {
 import { Button, IconButton, Menu, useUi, type MenuItem } from '../ui/kit.tsx';
 import { fileToAsset, imageSize, pickFile, pickFiles, withAsset } from './assets.ts';
 import { applyImport, planImport } from '../import/media.ts';
+import { endSession } from '../lifecycle.ts';
 import { Canvas } from './Canvas.tsx';
 import { EditorProvider, useEditor } from './context.tsx';
 import { CourseDialog, FindReplaceDialog, ProjectsDialog, PublishDialog, ShortcutsDialog, VariablesDialog } from './Dialogs.tsx';
@@ -272,6 +273,12 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
       toast(n ? `Added ${n} slide${n === 1 ? '' : 's'} in a new scene "Imported media".${skipped ? ` ${skipped} file${skipped === 1 ? '' : 's'} skipped or adjusted. ${detail}` : ''} Undo reverts it.` : `Nothing imported. ${detail}`, n ? (skipped ? 'warn' : 'ok') : 'err');
     } catch (e) { toast((e as Error).message, 'err'); }
   };
+  const endServerSession = async () => {
+    if (!(await confirm({ title: 'End this session?', message: 'The local Scrimshaw server stops and this tab can be closed. Your projects stay saved in this browser; start Scrimshaw again to keep working.', ok: 'End session' }))) return;
+    if (!(await saveBeforeLeaving())) return;
+    if (await endSession()) toast('Scrimshaw has stopped. You can close this tab.', 'ok');
+    else toast('Could not stop the server from here (it may already be stopped, or this is a development build). Close its window instead.', 'warn');
+  };
   const openNew = async (c: Course) => { if (!(await saveBeforeLeaving())) return; await saveProject(c).catch(() => {}); setDialog(null); openCourse(c); };
 
   // ---- keyboard ----
@@ -383,6 +390,8 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
           { label: 'Export text for translation (.csv)', onSelect: () => download(fileName(course.title, 'translation.csv'), textsToCsv(course), 'text/csv') },
           { label: 'Import translated text (.csv)…', onSelect: importTranslation },
           { label: 'Import Fleet media (video, captions, PNG, WAV)…', onSelect: importFleetMedia },
+          { separator: true, label: '' },
+          { label: 'End session (stop the local server)', onSelect: () => { void endServerSession(); } },
         ]}>File<ChevronDown size={14} /></Menu>
         {(saveStatus === 'error' || saveStatus === 'full') && <Button onClick={saveToFile}>Save to file</Button>}
         <span className="spacer" />

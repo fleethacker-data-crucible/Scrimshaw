@@ -27,6 +27,7 @@ export const GUI_ACTIONS: GuiAction[] = [
   { label: 'Export text for translation (.csv)', where: 'File menu', command: 'course export-texts' },
   { label: 'Import translated text (.csv)…', where: 'File menu', command: null, gap: 'Needs a "course import-texts" command (applyTexts exists in src/model/texts.ts).' },
   { label: 'Import Fleet media (video, captions, PNG, WAV)…', where: 'File menu', command: null, gap: 'Needs a "media import" command that edits a .scrim file; planImport and applyImport in src/import/media.ts are already pure and tested.' },
+  { label: 'End session (stop the local server)', where: 'File menu', command: null, gap: 'Server lifecycle, not a course operation: Stop-Scrimshaw.ps1 or POST /__fleethacker/shutdown (X-FleetHacker-Shutdown: 1) does the same from a shell.' },
   { label: 'Web (standalone HTML)', where: 'Publish dialog', command: 'course publish' },
   { label: 'SCORM 1.2', where: 'Publish dialog', command: 'course publish' },
   { label: 'SCORM 2004', where: 'Publish dialog', command: 'course publish' },
