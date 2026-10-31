@@ -302,7 +302,13 @@ export function newLikertSlide(): Slide {
       style: baseStyle({ fontSize: 15, align: 'center', valign: 'middle', fill: '#f4f4f2', stroke: '#dddcd6', strokeWidth: 1, radius: 8 }),
     }));
   });
-  // Ungraded: one shared "Thanks" layer instead of right/wrong feedback.
+  surveyFeedback(slide);
+  return slide;
+}
+
+/** Ungraded: one shared "Thanks" layer instead of right/wrong feedback. */
+function surveyFeedback(slide: Slide) {
+  const q = slide.question!;
   const correct = slide.layers.find((l) => l.id === q.correctLayerId)!;
   correct.name = 'Thanks';
   const msg = correct.objects.find((o) => o.kind === 'text');
@@ -310,6 +316,31 @@ export function newLikertSlide(): Slide {
   slide.layers = slide.layers.filter((l) => l.base || l.id === correct.id);
   q.incorrectLayerId = correct.id;
   q.tryAgainLayerId = null;
+}
+
+/** Ranking (survey): drag items into the learner's own order. Any order is accepted; the order is recorded, not scored. */
+export function newRankingSlide(): Slide {
+  const slide = newQuestionSlide('drag-drop');
+  slide.title = 'Ranking';
+  const q = slide.question!;
+  q.graded = false;
+  q.points = 0;
+  q.attempts = 1;
+  const base = slide.layers[0];
+  base.objects[0].text = 'Drag the items into your order of preference, most important first.';
+  base.objects = base.objects.filter((o) => !o.draggable && !o.dropTarget);
+  const choices = ['Practical examples', 'Time to complete', 'Feedback on answers', 'Quality of the materials'];
+  const slots = choices.map((_, i) => newObject('shape', {
+    name: `Rank ${i + 1}`, x: 500, y: 130 + i * 80, w: 400, h: 64, shape: 'round', text: `${i + 1}`, dropTarget: true,
+    style: baseStyle({ fill: '#f4f4f2', stroke: '#9a988f', strokeWidth: 2, radius: 8, color: '#52514e', fontSize: 20, fontWeight: 600, valign: 'middle', padding: 14 }),
+  }));
+  // correctTargetId only marks the item as part of the question; an ungraded ranking accepts any order.
+  const items = choices.map((label, i) => newObject('shape', {
+    name: label, x: 60, y: 140 + i * 80, w: 320, h: 48, shape: 'round', text: label, draggable: true, correctTargetId: slots[i].id,
+    style: baseStyle({ fill: '#2f74c8', color: '#ffffff', radius: 8, fontWeight: 600, fontSize: 15, align: 'center', valign: 'middle', padding: 6 }),
+  }));
+  base.objects.splice(1, 0, ...slots, ...items);
+  surveyFeedback(slide);
   return slide;
 }
 

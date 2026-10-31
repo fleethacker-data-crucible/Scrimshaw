@@ -559,3 +559,43 @@ test('resume rebuilds the play order when the course gained slides', () => {
   const r = E.start(c, { sequence: s.sequence });
   assert.ok(r.sequence.includes(extra.id));
 });
+
+test('ranking survey: any order is accepted, recorded in order, and nothing is scored', async () => {
+  const { newRankingSlide } = await import('../src/model/factory.ts');
+  const { validateCourse } = await import('../src/model/describe.ts');
+  const c = newCourse('Ranking');
+  const r = newRankingSlide();
+  c.scenes[0].slides = [r];
+  assert.equal(r.question?.graded, false);
+  const items = slideObjects(r).filter((o) => o.draggable);
+  const slots = slideObjects(r).filter((o) => o.dropTarget);
+  assert.equal(items.length, 4);
+  assert.deepEqual(slots.map((o) => o.name), ['Rank 1', 'Rank 2', 'Rank 3', 'Rank 4']);
+  const submit = slideObjects(r).find((o) => o.name === 'Submit')!.id;
+  let s = E.start(c);
+  // Submitting with nothing placed still asks the learner to drag something.
+  s = E.click(c, s, submit);
+  assert.equal(s.answers[r.id], undefined);
+  // The reverse of the template order is just as valid.
+  [...items].reverse().forEach((it, i) => { s = E.drop(c, s, it.id, slots[i].id); });
+  s = E.click(c, s, submit);
+  const a = s.answers[r.id];
+  assert.equal(a.correct, true);
+  assert.equal(a.graded, false);
+  assert.equal(a.response, items.slice().reverse().map((it, i) => `${it.name} → Rank ${i + 1}`).join('; '));
+  assert.deepEqual(s.layers, [r.question!.correctLayerId]);
+  assert.equal(E.results(c, s).hasQuiz, false);
+  assert.deepEqual(validateCourse(c), []);
+});
+
+test('a graded drag and drop still needs every item on its target', async () => {
+  const { newSequenceSlide } = await import('../src/model/factory.ts');
+  const c = newCourse('Seq2');
+  const q = newSequenceSlide();
+  c.scenes[0].slides = [q];
+  const items = slideObjects(q).filter((o) => o.draggable);
+  let s = E.start(c);
+  items.forEach((it, i) => { s = E.drop(c, s, it.id, items[(i + 1) % items.length].correctTargetId!); });
+  s = E.click(c, s, slideObjects(q).find((o) => o.name === 'Submit')!.id);
+  assert.equal(s.answers[q.id].correct, false);
+});

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { newLikertSlide, newQuestionSlide, newResultsSlide, newSequenceSlide, newSlide, newWordBankSlide } from '../model/factory.ts';
+import { newLikertSlide, newQuestionSlide, newRankingSlide, newResultsSlide, newSequenceSlide, newSlide, newWordBankSlide } from '../model/factory.ts';
 import { allSlides, findSlide, sceneOfSlide } from '../model/query.ts';
 import type { ID, QuestionKind, Slide } from '../model/types.ts';
 import { SlideThumb } from '../render/SlideView.tsx';
@@ -35,6 +35,7 @@ export function useNewSlideItems(afterId: () => ID | null): MenuItem[] {
     { label: 'Word bank (fill the blanks)', icon: <ListChecks />, onSelect: () => add('New word bank question', () => newWordBankSlide()) },
     { label: 'Sequence (put in order)', icon: <ListChecks />, onSelect: () => add('New sequence question', () => newSequenceSlide()) },
     { label: 'Likert scale (survey)', icon: <ListChecks />, onSelect: () => add('New Likert scale', () => newLikertSlide()) },
+    { label: 'Ranking (survey)', icon: <ListChecks />, onSelect: () => add('New ranking question', () => newRankingSlide()) },
     { label: 'Results slide', icon: <Trophy />, onSelect: () => add('New results slide', () => newResultsSlide()) },
     { separator: true, label: '' },
     { label: 'Import from PowerPoint (.pptx)…', icon: <Upload />, onSelect: async () => {
