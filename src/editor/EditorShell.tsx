@@ -98,16 +98,31 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
   // ---- autosave to IndexedDB ----
   const latest = useRef(course);
   latest.current = course;
+  // A status message is not proof that the current revision reached durable storage.
+  const persisted = useRef<Course | null>(null);
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const saveRequest = useRef(0);
   const saveNow = useCallback(async () => {
+    const snapshot = latest.current;
+    const request = ++saveRequest.current;
     setSaveStatus('saving');
-    try { await saveProject(latest.current); setSaveStatus('saved'); }
+    // Keep overlapping autosave/manual writes ordered so an older save cannot overwrite a newer one.
+    const operation = saveQueue.current.then(() => saveProject(snapshot));
+    saveQueue.current = operation.catch(() => {});
+    try {
+      await operation;
+      persisted.current = snapshot;
+      if (request === saveRequest.current) setSaveStatus(latest.current === snapshot ? 'saved' : 'unsaved');
+      return latest.current === persisted.current;
+    }
     catch (e) {
       const full = e instanceof DOMException && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED');
-      setSaveStatus(full ? 'full' : 'error');
+      if (request === saveRequest.current) setSaveStatus(full ? 'full' : 'error');
       if (full && !warnedFull.current) {
         warnedFull.current = true;
         toast('Browser storage is full, so changes are not being saved here. Use File › Save to file now, then remove unused media or old projects.', 'err');
       }
+      return false;
     }
   }, []);
   useEffect(() => {
@@ -117,10 +132,10 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
     return () => clearTimeout(t);
   }, [state.revision]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    const warn = (e: BeforeUnloadEvent) => { if (saveStatus === 'unsaved' || saveStatus === 'saving') e.preventDefault(); };
+    const warn = (e: BeforeUnloadEvent) => { if (latest.current !== persisted.current) e.preventDefault(); };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [saveStatus]);
+  }, []);
 
   // ---- inserting ----
   const insert = useCallback((kind: ObjectKind, over: Partial<SlideObject> = {}) => {
@@ -216,11 +231,17 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
 
   // ---- files ----
   const saveToFile = () => download(fileName(course.title, 'scrim'), serializeCourse(course), 'application/json');
+  const saveBeforeLeaving = async () => (await saveNow()) || await confirm({
+    title: 'Leave this unsaved course?',
+    message: 'The current course could not be saved in this browser. Cancel and use Save to file to keep a copy before opening another course.',
+    ok: 'Leave without saving', danger: true,
+  });
   const importFile = async () => {
     const f = await pickFile('.scrim,.json,application/json');
     if (!f) return;
     try {
       const c = parseCourse(await f.text());
+      if (!(await saveBeforeLeaving())) return;
       await saveProject(c).catch(() => {});
       setDialog(null);
       openCourse(c);
@@ -250,7 +271,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
       toast(n ? `Added ${n} slide${n === 1 ? '' : 's'} in a new scene "Imported media".${skipped ? ` ${skipped} file${skipped === 1 ? '' : 's'} skipped or adjusted. ${detail}` : ''} Undo reverts it.` : `Nothing imported. ${detail}`, n ? (skipped ? 'warn' : 'ok') : 'err');
     } catch (e) { toast((e as Error).message, 'err'); }
   };
-  const openNew = async (c: Course) => { await saveNow(); await saveProject(c).catch(() => {}); setDialog(null); openCourse(c); };
+  const openNew = async (c: Course) => { if (!(await saveBeforeLeaving())) return; await saveProject(c).catch(() => {}); setDialog(null); openCourse(c); };
 
   // ---- keyboard ----
   const slides = allSlides(course);
@@ -259,7 +280,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
       if (preview) return;
       const mod = e.ctrlKey || e.metaKey;
       const k = e.key;
-      if (mod && k.toLowerCase() === 's') { e.preventDefault(); void saveNow(); toast('Saved in this browser.', 'ok'); return; }
+      if (mod && k.toLowerCase() === 's') { e.preventDefault(); void saveNow().then((saved) => { if (saved) toast('Saved in this browser.', 'ok'); }); return; }
       if (document.querySelector('dialog[open]')) return;
       if (k === 'F5') { e.preventDefault(); setPreview({ from: e.shiftKey || state.sel.slideId === course.master.id ? null : state.sel.slideId }); return; }
       if (isTyping(e.target)) return;
@@ -361,6 +382,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
           { label: 'Import translated text (.csv)…', onSelect: importTranslation },
           { label: 'Import Fleet media (video, captions, PNG, WAV)…', onSelect: importFleetMedia },
         ]}>File<ChevronDown size={14} /></Menu>
+        {(saveStatus === 'error' || saveStatus === 'full') && <Button onClick={saveToFile}>Save to file</Button>}
         <span className="spacer" />
         <IconButton label={undo ? `Undo ${undo} (Ctrl+Z)` : 'Nothing to undo'} disabled={!undo} onClick={() => dispatch({ type: 'undo' })}><Undo2 /></IconButton>
         <IconButton label={redo ? `Redo ${redo} (Ctrl+Y)` : 'Nothing to redo'} disabled={!redo} onClick={() => dispatch({ type: 'redo' })}><Redo2 /></IconButton>
@@ -459,7 +481,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
       {dialog === 'projects' && (
         <ProjectsDialog currentId={course.id} onClose={() => setDialog(null)} onImport={importFile}
           onOpen={async (id) => {
-            await saveNow();
+            if (!(await saveBeforeLeaving())) return;
             try { const c = await loadProject(id); if (c) { setDialog(null); openCourse(c); } } catch (e) { toast((e as Error).message, 'err'); }
           }}
           onNew={() => openNew(newCourse())}
