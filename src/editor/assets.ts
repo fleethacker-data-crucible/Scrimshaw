@@ -49,6 +49,18 @@ export function pickFile(accept: string): Promise<File | null> {
   });
 }
 
+export function pickFiles(accept: string): Promise<File[]> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.multiple = true;
+    input.onchange = () => resolve(Array.from(input.files ?? []));
+    input.addEventListener('cancel', () => resolve([]));
+    input.click();
+  });
+}
+
 /** Reads a WebVTT captions file into an asset. */
 export async function captionsToAsset(file: File): Promise<Asset> {
   if (!/\.vtt$/i.test(file.name) && file.type !== 'text/vtt') throw new Error(`“${file.name}” is not a WebVTT (.vtt) captions file.`);
