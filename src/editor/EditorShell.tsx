@@ -15,7 +15,8 @@ import {
   Variable, Video, Volume2, Gauge, Workflow, ZoomIn, ZoomOut, Clock,
 } from '../ui/icons.tsx';
 import { Button, IconButton, Menu, useUi, type MenuItem } from '../ui/kit.tsx';
-import { fileToAsset, imageSize, pickFile, withAsset } from './assets.ts';
+import { fileToAsset, imageSize, pickFile, pickFiles, withAsset } from './assets.ts';
+import { applyImport, planImport } from '../import/media.ts';
 import { Canvas } from './Canvas.tsx';
 import { EditorProvider, useEditor } from './context.tsx';
 import { CourseDialog, FindReplaceDialog, ProjectsDialog, PublishDialog, ShortcutsDialog, VariablesDialog } from './Dialogs.tsx';
@@ -259,6 +260,18 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
       toast(n ? `Updated ${n} text${n === 1 ? '' : 's'} from the translation. Undo reverts it.` : 'No translated rows matched this course.', n ? 'ok' : 'warn');
     } catch (e) { toast((e as Error).message, 'err'); }
   };
+  const importFleetMedia = async () => {
+    const picked = await pickFiles('.mp4,.m4v,.webm,.vtt,.txt,.png,.json,.wav');
+    if (!picked.length) return;
+    try {
+      const plan = planImport(await Promise.all(picked.map(async (f) => ({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) }))));
+      const n = plan.videos.length + plan.images.length + plan.audio.length;
+      if (n) { edit('Import Fleet media', (c) => { applyImport(c, plan); }); }
+      const skipped = plan.rejected.length + plan.warnings.length;
+      const detail = [...plan.rejected.map((r) => r.reason), ...plan.warnings].slice(0, 3).join(' ');
+      toast(n ? `Added ${n} slide${n === 1 ? '' : 's'} in a new scene "Imported media".${skipped ? ` ${skipped} file${skipped === 1 ? '' : 's'} skipped or adjusted. ${detail}` : ''} Undo reverts it.` : `Nothing imported. ${detail}`, n ? (skipped ? 'warn' : 'ok') : 'err');
+    } catch (e) { toast((e as Error).message, 'err'); }
+  };
   const openNew = async (c: Course) => { if (!(await saveBeforeLeaving())) return; await saveProject(c).catch(() => {}); setDialog(null); openCourse(c); };
 
   // ---- keyboard ----
@@ -369,6 +382,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
           { label: 'Handout for Word (.docx, text only)', onSelect: async () => { try { download(fileName(course.title, 'handout.docx'), await buildDocx(course)); } catch (e) { toast((e as Error).message, 'err'); } } },
           { label: 'Export text for translation (.csv)', onSelect: () => download(fileName(course.title, 'translation.csv'), textsToCsv(course), 'text/csv') },
           { label: 'Import translated text (.csv)…', onSelect: importTranslation },
+          { label: 'Import Fleet media (video, captions, PNG, WAV)…', onSelect: importFleetMedia },
         ]}>File<ChevronDown size={14} /></Menu>
         {(saveStatus === 'error' || saveStatus === 'full') && <Button onClick={saveToFile}>Save to file</Button>}
         <span className="spacer" />

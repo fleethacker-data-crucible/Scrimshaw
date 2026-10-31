@@ -90,6 +90,7 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 | Autosave (IndexedDB) and .scrim files | ✅ | |
 | Light / dark theme, reduced motion | ✅ | UI kit tokens |
 | Import PowerPoint (.pptx) | 🟡 | Text boxes (size, bold, colour, alignment, bullets), pictures, solid backgrounds, speaker notes; no charts, tables, groups or animations |
+| Import Fleet media | ✅ | Capstan MP4/WebM, WebVTT captions and chapters (.vtt or "0:00 Title" list), SnapShackle PNG with its `.meta.json`, TalkForge WAV; checked by their bytes, one scene of slides per import. Chapters go to slide notes (no cue-point markers yet); TalkForge `timing.json` is not read yet |
 | Import other authoring tools' files | ⬜ | The formats are proprietary; a best-effort importer is a stretch goal |
 | Collaboration / review comments | ⬜ | |
 | Rust → WebAssembly compute | ⬜ | Not needed yet; reserved for heavy work such as video export |

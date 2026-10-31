@@ -26,6 +26,7 @@ export const GUI_ACTIONS: GuiAction[] = [
   { label: 'Handout for Word (.docx, text only)', where: 'File menu', command: 'course export-handout' },
   { label: 'Export text for translation (.csv)', where: 'File menu', command: 'course export-texts' },
   { label: 'Import translated text (.csv)…', where: 'File menu', command: null, gap: 'Needs a "course import-texts" command (applyTexts exists in src/model/texts.ts).' },
+  { label: 'Import Fleet media (video, captions, PNG, WAV)…', where: 'File menu', command: null, gap: 'Needs a "media import" command that edits a .scrim file; planImport and applyImport in src/import/media.ts are already pure and tested.' },
   { label: 'Web (standalone HTML)', where: 'Publish dialog', command: 'course publish' },
   { label: 'SCORM 1.2', where: 'Publish dialog', command: 'course publish' },
   { label: 'SCORM 2004', where: 'Publish dialog', command: 'course publish' },
