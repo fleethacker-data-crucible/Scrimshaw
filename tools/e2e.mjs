@@ -2,6 +2,7 @@
 // the player, publishes a package, and plays the published package. Screenshots go to .build/e2e/.
 //   node tools/e2e.mjs [--headed]
 import { chromium } from 'playwright';
+import { verifySaveRecovery } from './save-recovery.mjs';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -46,6 +47,7 @@ async function newPage(theme = 'dark') {
 }
 
 try {
+  await verifySaveRecovery(browser, url);
   // ---------- editor ----------
   const page = await newPage();
   await page.goto(url);

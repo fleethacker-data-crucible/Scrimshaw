@@ -5,8 +5,8 @@
   browser. Per the TechStack: no admin rights, no installer, no service, nothing leaves the machine.
   Projects are stored in the browser (IndexedDB), so this server only serves static files.
 
-    Start.ps1                 pick a free port (prefers 8765) and open the browser
-    Start.ps1 -Port 9000      use a specific port
+    Start.ps1                 use port 8775 (Scrimshaw's Fleet port) and open the browser
+    Start.ps1 -Port 9000      use a specific port exactly (an error if it is busy)
     Start.ps1 -NoBrowser      print the URL instead of opening it
     Start.ps1 -IdleMinutes 0  never stop on idle (default: stop after 240 idle minutes)
 
@@ -37,18 +37,61 @@ $Mime = @{
     '.wasm' = 'application/wasm'; '.zip' = 'application/zip'
 }
 
+# Scrimshaw's block in the Fleet port registry (edge-ops PORTS.md) is the single port 8775, policy "reuse".
+# Browser data is keyed to the origin, so the port never moves: no walking, no port 0.
+$FleetPort = 8775
+$ownVersion = '0.0.0'
+foreach ($vf in @((Join-Path $PSScriptRoot 'VERSION'), (Join-Path $Root 'VERSION'))) {
+    if (Test-Path -LiteralPath $vf -PathType Leaf) { $ownVersion = ([IO.File]::ReadAllText($vf)).Trim(); break }
+}
+
+function Get-RunningScrimshaw([int]$P) {
+    # Answers only for a Scrimshaw that serves the Fleet id endpoint; anything else (or silence) is "not ours".
+    try {
+        $r = Invoke-RestMethod -UseBasicParsing -Uri "http://127.0.0.1:$P/__fleethacker/id" -TimeoutSec 2
+        if ($r -and $r.tool -eq 'scrimshaw') { return $r }
+    } catch { }
+    return $null
+}
+
+function Compare-DottedVersion([string]$A, [string]$B) {
+    # Dotted numbers; a -suffix is ignored; a version that does not parse counts as older.
+    $pa = @(($A -split '-')[0] -split '\.'); $pb = @(($B -split '-')[0] -split '\.')
+    for ($i = 0; $i -lt [Math]::Max($pa.Count, $pb.Count); $i++) {
+        $x = 0; $y = 0
+        if ($i -lt $pa.Count -and -not [int]::TryParse($pa[$i], [ref]$x)) { return -1 }
+        if ($i -lt $pb.Count) { [void][int]::TryParse($pb[$i], [ref]$y) }
+        if ($x -ne $y) { if ($x -lt $y) { return -1 } else { return 1 } }
+    }
+    return 0
+}
+
 function New-Listener([int]$Preferred) {
-    # A port given with -Port must be free; otherwise prefer 8765, then any free port.
-    $candidates = if ($Preferred -gt 0) { @($Preferred) } else { @(8765, 0) }
-    foreach ($p in $candidates) {
+    # A port given with -Port is used exactly (busy means an error). Otherwise the Fleet port, under the "reuse" policy:
+    # the same or a newer Scrimshaw already there -> open the browser to it and exit; an older one -> stop it, then start.
+    $p = if ($Preferred -gt 0) { $Preferred } else { $FleetPort }
+    for ($attempt = 0; $attempt -lt 2; $attempt++) {
         try {
             $l = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, $p)
             $l.Start()
             return $l
         } catch {
-            if ($p -eq $candidates[-1]) { throw "Port $p is not available: $($_.Exception.Message)" }
+            if ($Preferred -gt 0) { throw "Port $p is not available: $($_.Exception.Message)" }
+            $running = Get-RunningScrimshaw $p
+            if (-not $running) { throw "Port $p (Scrimshaw's port in the Fleet registry) is in use by another program, or by a Scrimshaw too old to identify itself. Close it, or run Start.ps1 -Port <n>." }
+            $existing = "http://127.0.0.1:$p/"
+            if ((Compare-DottedVersion ([string]$running.version) $ownVersion) -ge 0) {
+                Write-Host "Scrimshaw $($running.version) is already running at $existing" -ForegroundColor Green
+                if (-not $NoBrowser) { try { Start-Process $existing } catch { Write-Host "Open $existing in Edge or Chrome." -ForegroundColor Yellow } }
+                exit 0
+            }
+            Write-Host "An older Scrimshaw ($($running.version)) is running on port $p; stopping it." -ForegroundColor Yellow
+            try { [void](Invoke-WebRequest -UseBasicParsing -Method Post -Uri "${existing}__fleethacker/shutdown" -Headers @{ 'X-FleetHacker-Shutdown' = '1' } -TimeoutSec 3) } catch { }
+            $deadline = (Get-Date).AddSeconds(5)
+            while ((Get-RunningScrimshaw $p) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 200 }
         }
     }
+    throw "An older Scrimshaw is still running on port $p; close its window and relaunch."
 }
 
 function Send-Response($Stream, [int]$Status, [string]$Reason, [string]$Type, [byte[]]$Body, [bool]$HeadOnly) {
