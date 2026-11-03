@@ -120,13 +120,19 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $roots = New-Object System.Collections.Generic.List[string]
+          $pf86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
           foreach ($p in @(
-            "$env:ProgramFiles\nodejs", "${env:ProgramFiles(x86)}\nodejs", "$env:LOCALAPPDATA\Programs\nodejs",
-            "$env:APPDATA\npm", "$env:USERPROFILE\.volta\bin", "$env:USERPROFILE\scoop\shims",
+            (Join-Path $env:ProgramFiles 'nodejs'),
+            $(if ($pf86) { Join-Path $pf86 'nodejs' }),
+            (Join-Path $env:LOCALAPPDATA 'Programs\nodejs'),
+            (Join-Path $env:APPDATA 'npm'),
+            (Join-Path $env:USERPROFILE '.volta\bin'),
+            (Join-Path $env:USERPROFILE 'scoop\shims'),
             'C:\nodejs', 'D:\nodejs', 'C:\tools\nodejs', 'D:\tools\nodejs'
-          )) { if ($p) { [void]$roots.Add($p) } }
+          )) { if ($p) { [void]$roots.Add([string]$p) } }
           foreach ($name in @('NVM_SYMLINK','NVM_HOME','FNM_MULTISHELL_PATH','FNM_DIR')) {
-            if ($env:($name) -and (Test-Path -LiteralPath $env:($name))) { [void]$roots.Add($env:($name)) }
+            $val = [Environment]::GetEnvironmentVariable($name)
+            if ($val -and (Test-Path -LiteralPath $val)) { [void]$roots.Add($val) }
           }
           foreach ($userRoot in @('C:\Users','D:\Users')) {
             if (-not (Test-Path -LiteralPath $userRoot)) { continue }
@@ -158,6 +164,9 @@ jobs:
             }
           }
           if (-not $npm) {
+            Write-Host "GITHUB_WORKSPACE=$env:GITHUB_WORKSPACE"
+            Write-Host "ProgramFiles=$env:ProgramFiles user=$env:USERNAME"
+            Get-ChildItem -LiteralPath $env:ProgramFiles -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'node|nvm|fnm' } | ForEach-Object { Write-Host $_.FullName }
             Write-Host '::error::Runner gap: npm is not on PATH for this self-hosted runner, and it was not found under Program Files, nvm, fnm, volta, scoop, per-user Node installs, or the runner externals folder. The UI job needs Node.js 22.18+ on the machine. Nothing was installed.'
             exit 1
           }
