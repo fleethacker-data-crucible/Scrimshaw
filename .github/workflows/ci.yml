@@ -86,18 +86,10 @@ jobs:
     runs-on: [self-hosted, Windows, X64]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - name: Install Pester 5 if the machine does not have it
-        shell: powershell
-        run: |
-          $have = @(Get-Module -ListAvailable Pester | Where-Object { $_.Version.Major -eq 5 })
-          if (-not $have.Count) {
-            Install-Module Pester -RequiredVersion 5.7.1 -Force -Scope CurrentUser -SkipPublisherCheck
-          }
-          Import-Module Pester -MinimumVersion 5.0.0
       - name: Run action tests
         shell: powershell
         run: |
-          Import-Module Pester -MinimumVersion 5.0.0
+          Import-Module (Join-Path $PWD 'vendor/Pester/Pester.psd1') -Force
           $cfg = New-PesterConfiguration
           $cfg.Run.Path = @('tests/FleetAction.Tests.ps1', 'tests/Conformance.Tests.ps1')
           $cfg.Run.Exit = $true

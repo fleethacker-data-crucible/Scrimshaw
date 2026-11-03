@@ -221,6 +221,7 @@ export function Menu({ label, items, children, align = 'left', buttonClass, vari
             <button key={i} type="button" role="menuitem" tabIndex={-1} data-action={it.action}
               aria-disabled={it.disabled || undefined} aria-busy={it.busy || undefined}
               className={cn('flex items-center gap-2', it.danger && 'danger')}
+              style={{ width: '100%', border: 0, background: 'transparent', font: 'inherit', textAlign: 'left', color: 'inherit' }}
               onClick={() => { if (it.disabled) return; close(); it.onSelect?.(); }}>
               {it.icon}<span className="flex-1">{it.label}</span>
               {it.shortcut && <kbd className="text-[11px]">{it.shortcut}</kbd>}
