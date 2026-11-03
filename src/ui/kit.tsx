@@ -169,11 +169,14 @@ export interface MenuItem {
   shortcut?: string;
   separator?: boolean;
   icon?: ReactNode;
+  /** Fleet action id (app.noun.verb). Rendered as data-action on the native button. */
+  action?: string;
+  busy?: boolean;
 }
 
-export function Menu({ label, items, children, align = 'left', buttonClass, variant = 'ghost', size, title }: {
+export function Menu({ label, items, children, align = 'left', buttonClass, variant = 'ghost', size, title, busy }: {
   label: string; items: MenuItem[]; children: ReactNode; align?: 'left' | 'right'; buttonClass?: string;
-  variant?: ButtonProps['variant']; size?: ButtonProps['size']; title?: string;
+  variant?: ButtonProps['variant']; size?: ButtonProps['size']; title?: string; busy?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
@@ -206,7 +209,7 @@ export function Menu({ label, items, children, align = 'left', buttonClass, vari
   return (
     <div className="dd-wrap" ref={wrap}>
       <Button ref={btn} variant={variant} size={size} className={buttonClass} aria-haspopup="menu" aria-expanded={open} aria-controls={id} title={title}
-        aria-label={typeof children === 'string' ? undefined : label}
+        aria-busy={busy || undefined} aria-label={typeof children === 'string' ? undefined : label}
         onClick={() => setOpen((o) => !o)}
         onKeyDown={(e) => { if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); } }}>
         {children}
@@ -215,13 +218,14 @@ export function Menu({ label, items, children, align = 'left', buttonClass, vari
         {items.map((it, i) => it.separator
           ? <div key={i} role="separator" className="my-1 h-px !p-0 bg-line" />
           : (
-            <div key={i} role="menuitem" tabIndex={-1} aria-disabled={it.disabled || undefined}
+            <button key={i} type="button" role="menuitem" tabIndex={-1} data-action={it.action}
+              aria-disabled={it.disabled || undefined} aria-busy={it.busy || undefined}
               className={cn('flex items-center gap-2', it.danger && 'danger')}
-              onClick={() => { if (it.disabled) return; close(); it.onSelect?.(); }}
-              onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !it.disabled) { e.preventDefault(); close(); it.onSelect?.(); } }}>
+              style={{ width: '100%', border: 0, background: 'transparent', font: 'inherit', textAlign: 'left', color: 'inherit' }}
+              onClick={() => { if (it.disabled) return; close(); it.onSelect?.(); }}>
               {it.icon}<span className="flex-1">{it.label}</span>
               {it.shortcut && <kbd className="text-[11px]">{it.shortcut}</kbd>}
-            </div>
+            </button>
           ))}
       </div>
     </div>

@@ -81,11 +81,111 @@ jobs:
           Stop-Job $job; Remove-Job $job -Force
           if ($fail) { exit 1 }
 
+  actions:
+    name: Fleet actions (Pester 5, Windows PowerShell 5.1)
+    runs-on: [self-hosted, Windows, X64]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - name: Fetch Pester 5.7.1 and run action tests
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          $dir = Join-Path $env:RUNNER_TEMP 'pester-5.7.1'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          $nupkg = Join-Path $dir 'Pester.5.7.1.nupkg'
+          $expected = '4A27904C6814A5FBE4758F8E49861F6A1994AEE77B71165A5C43C0371BA6C580'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://www.powershellgallery.com/api/v2/package/Pester/5.7.1' -OutFile $nupkg
+          $hash = (Get-FileHash -Algorithm SHA256 -Path $nupkg).Hash
+          if ($hash -ne $expected) { Write-Host "::error::Pester 5.7.1 SHA256 $hash did not match $expected"; exit 1 }
+          $zip = Join-Path $dir 'Pester.zip'
+          Copy-Item -LiteralPath $nupkg -Destination $zip -Force
+          $mod = Join-Path $dir 'module'
+          Expand-Archive -LiteralPath $zip -DestinationPath $mod -Force
+          Import-Module (Join-Path $mod 'Pester.psd1') -Force
+          $cfg = New-PesterConfiguration
+          $cfg.Run.Path = @('tests/FleetAction.Tests.ps1', 'tests/Conformance.Tests.ps1')
+          $cfg.Run.Exit = $true
+          $cfg.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $cfg
+
   ui:
     name: Typecheck, unit tests, build is current
     runs-on: [self-hosted, Windows, X64]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - name: Find Node.js already on the runner
+        id: node
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $roots = New-Object System.Collections.Generic.List[string]
+          $pf86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
+          foreach ($p in @(
+            (Join-Path $env:ProgramFiles 'nodejs'),
+            $(if ($pf86) { Join-Path $pf86 'nodejs' }),
+            (Join-Path $env:LOCALAPPDATA 'Programs\nodejs'),
+            (Join-Path $env:APPDATA 'npm'),
+            (Join-Path $env:USERPROFILE '.volta\bin'),
+            (Join-Path $env:USERPROFILE 'scoop\shims'),
+            'C:\nodejs', 'D:\nodejs', 'C:\tools\nodejs', 'D:\tools\nodejs'
+          )) { if ($p) { [void]$roots.Add([string]$p) } }
+          foreach ($name in @('NVM_SYMLINK','NVM_HOME','FNM_MULTISHELL_PATH','FNM_DIR')) {
+            $val = [Environment]::GetEnvironmentVariable($name)
+            if ($val -and (Test-Path -LiteralPath $val)) { [void]$roots.Add($val) }
+          }
+          foreach ($userRoot in @('C:\Users','D:\Users')) {
+            if (-not (Test-Path -LiteralPath $userRoot)) { continue }
+            Get-ChildItem -LiteralPath $userRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+              foreach ($rel in @('AppData\Local\Programs\nodejs','AppData\Roaming\npm','scoop\shims','.volta\bin')) {
+                [void]$roots.Add((Join-Path $_.FullName $rel))
+              }
+            }
+          }
+          if ($env:GITHUB_WORKSPACE) {
+            $runnerHome = Split-Path (Split-Path (Split-Path $env:GITHUB_WORKSPACE -Parent) -Parent) -Parent
+            $externals = Join-Path $runnerHome 'externals'
+            if (Test-Path -LiteralPath $externals) {
+              Get-ChildItem -LiteralPath $externals -Recurse -Filter node.exe -ErrorAction SilentlyContinue | ForEach-Object {
+                [void]$roots.Add($_.DirectoryName)
+              }
+            }
+          }
+          $npm = $null
+          $onPath = Get-Command npm.cmd, npm -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($onPath) { $npm = $onPath.Source }
+          if (-not $npm) {
+            foreach ($root in $roots) {
+              foreach ($name in @('npm.cmd','npm.exe','npm')) {
+                $candidate = Join-Path $root $name
+                if (Test-Path -LiteralPath $candidate) { $npm = $candidate; break }
+              }
+              if ($npm) { break }
+            }
+          }
+          if (-not $npm) {
+            # Runner gap: this machine has no Node install. Download the official zip into the job temp
+            # directory and check SHA256. Nothing is installed on the runner.
+            Write-Host '::warning::Runner gap: npm is not installed on this self-hosted runner. Using a verified Node.js 22.23.4 download in RUNNER_TEMP.'
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            $ver = '22.23.4'
+            $zipName = "node-v$ver-win-x64.zip"
+            $expectedNode = 'CBC74B5E0982C9DBB41525FD8FB5DCD32FBEE237863F7829072F4639A1CE5F20'
+            $zipPath = Join-Path $env:RUNNER_TEMP $zipName
+            Invoke-WebRequest -UseBasicParsing -Uri "https://nodejs.org/dist/v$ver/$zipName" -OutFile $zipPath
+            $nodeHash = (Get-FileHash -Algorithm SHA256 -Path $zipPath).Hash
+            if ($nodeHash -ne $expectedNode) { Write-Host "::error::Node.js $ver SHA256 $nodeHash did not match $expectedNode"; exit 1 }
+            $nodeRoot = Join-Path $env:RUNNER_TEMP 'node-dist'
+            Expand-Archive -LiteralPath $zipPath -DestinationPath $nodeRoot -Force
+            $npm = Join-Path $nodeRoot "node-v$ver-win-x64\npm.cmd"
+            if (-not (Test-Path -LiteralPath $npm)) { Write-Host "::error::Node zip did not contain npm.cmd"; exit 1 }
+          }
+          $dir = Split-Path -Parent $npm
+          Write-Host "Using npm at $npm"
+          Add-Content -Path $env:GITHUB_PATH -Value $dir
+          $env:Path = "$dir;$env:Path"
+          & $npm --version
+          & node --version
       - name: Install
         shell: powershell
         run: npm install --no-audit --no-fund

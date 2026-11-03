@@ -10,6 +10,7 @@
     Start.ps1 -NoBrowser      print the URL instead of opening it
     Start.ps1 -IdleMinutes 0  never stop on idle (default: stop after 240 idle minutes)
     Start.ps1 -Stay           keep running after the tab closes (SCRIMSHAW_AUTO_STOP=0 does the same)
+    Start.ps1 -Api            also serve the action API on this same http://127.0.0.1 port
 
   Lifecycle (Fleet TechStack): the page sends POST /api/heartbeat every 5 s and a "leaving" beacon when it
   closes. Once a heartbeat has been seen, the server stops 20 s after the last one, or 5 s after a leaving
@@ -25,7 +26,10 @@ param(
     [switch]$NoBrowser,
     [int]$IdleMinutes = 240,
     [string]$Root = '',
-    [switch]$Stay
+    [switch]$Stay,
+    # Exposes the Fleet action API on this same loopback server (no second port).
+    # Off unless you pass -Api, so a normal launch keeps serving files exactly as before.
+    [switch]$Api
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
@@ -156,6 +160,9 @@ $version = '0.0.0'
 foreach ($vf in @((Join-Path $PSScriptRoot 'VERSION'), (Join-Path $Root 'VERSION'))) {
     if (Test-Path -LiteralPath $vf -PathType Leaf) { $version = ([IO.File]::ReadAllText($vf)).Trim(); break }
 }
+if ($Api) {
+    Write-Host 'The action API is scrimshaw.ps1 api (FleetAction on http://127.0.0.1 only). This window keeps serving the editor.'
+}
 $autoStop = (-not $Stay) -and ($env:SCRIMSHAW_AUTO_STOP -ne '0')
 $script:BeatSeen = $false
 $script:LastBeat = Get-Date
@@ -167,7 +174,7 @@ try {
     $logDir = Join-Path $PSScriptRoot 'logs'
     if (-not (Test-Path -LiteralPath $logDir)) { [void](New-Item -ItemType Directory -Path $logDir) }
     $runtimeFile = Join-Path $logDir "scrimshaw-server-$PID.json"
-    $rt = [ordered]@{ pid = $PID; port = $actualPort; url = $url; started = (Get-Date).ToString('o') } | ConvertTo-Json -Compress
+    $rt = [ordered]@{ pid = $PID; port = $actualPort; url = $url; started = (Get-Date).ToString('o') } | ConvertTo-Json -Depth 6 -Compress
     [IO.File]::WriteAllText($runtimeFile, $rt, (New-Object System.Text.UTF8Encoding($false)))
 } catch { $runtimeFile = $null }
 try { $Host.UI.RawUI.WindowTitle = "Scrimshaw - $url" } catch { }
@@ -230,7 +237,7 @@ try {
                 }
                 if ($route -eq '/__fleethacker/id') {
                     if ($method -ne 'GET' -and -not $headOnly) { Send-Text $stream 405 'Method Not Allowed' 'Method not allowed' $false; continue }
-                    $idJson = [ordered]@{ tool = 'scrimshaw'; version = $version; pid = $PID; path = $PSCommandPath } | ConvertTo-Json -Compress
+                    $idJson = [ordered]@{ tool = 'scrimshaw'; version = $version; pid = $PID; path = $PSCommandPath } | ConvertTo-Json -Depth 6 -Compress
                     Send-Response $stream 200 'OK' 'application/json; charset=utf-8' ([Text.Encoding]::UTF8.GetBytes($idJson)) $headOnly
                     continue
                 }

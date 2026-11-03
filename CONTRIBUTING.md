@@ -37,7 +37,7 @@ CI (on the self-hosted Windows build PC) fails when `dist/` doesn't match the so
 | How objects look | `src/render/SlideView.tsx` (shared by canvas, thumbnails, player) |
 | Editing | `src/store/ops.ts` for operations, `src/editor/*` for UI; every change goes through `edit()` so it can be undone |
 | Publishing | `src/export/*` |
-| A new thing a person can do in the editor | A command in `src/cli/registry.ts` and a line in `src/cli/gui-actions.ts` (the parity test in `tests/cli.test.ts` fails without it) |
+| A new thing a person can do in the editor | A Fleet action in `actions/Scrimshaw.Actions.psm1` when it can run without the page (`scrimshaw <noun> <verb>`, `data-action` on the button), plus a line in `src/cli/gui-actions.ts` |
 
 Engine changes need unit tests. UI changes that affect a learner or author flow need a step in
 `tools/e2e.mjs`.

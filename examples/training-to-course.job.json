@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "steps": [
+    {
+      "id": "make",
+      "app": "scrimshaw",
+      "noun": "course",
+      "verb": "new",
+      "args": {
+        "title": "Bridge watch",
+        "dest": "bridge-watch.scrim",
+        "replace": true
+      }
+    },
+    {
+      "id": "media",
+      "app": "scrimshaw",
+      "noun": "media",
+      "verb": "import",
+      "confirmed": true,
+      "args": {
+        "course": "bridge-watch.scrim",
+        "dest": "bridge-watch.scrim",
+        "replace": true,
+        "media": "examples/fixtures/capstan-bridge.mp4|examples/fixtures/capstan-bridge.vtt|examples/fixtures/snapshackle-quarterdeck.png|examples/fixtures/snapshackle-quarterdeck.png.meta.json"
+      }
+    },
+    {
+      "id": "check",
+      "app": "scrimshaw",
+      "noun": "course",
+      "verb": "validate",
+      "args": {
+        "course": "bridge-watch.scrim"
+      }
+    },
+    {
+      "id": "publish",
+      "app": "scrimshaw",
+      "noun": "course",
+      "verb": "publish",
+      "args": {
+        "course": "bridge-watch.scrim",
+        "format": "html",
+        "shell": "dist/index.html",
+        "dest": "bridge-watch.html",
+        "replace": true
+      }
+    }
+  ]
+}
