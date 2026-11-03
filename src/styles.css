@@ -188,3 +188,14 @@
   @keyframes scr-wipe { from { clip-path: inset(0 100% 0 0) } to { clip-path: inset(0 0 0 0) } }
   @keyframes scr-out-fade { to { opacity: 0 } }
 }
+
+/* Menu rows are native buttons so data-action sits on a real control. Reset the browser button chrome. */
+.dd-menu > button[role="menuitem"] {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+}
+.dd-menu > button[role="menuitem"][aria-busy="true"] { cursor: progress; }

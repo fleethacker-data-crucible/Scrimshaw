@@ -22,6 +22,7 @@ import { Canvas } from './Canvas.tsx';
 import { EditorProvider, useEditor } from './context.tsx';
 import { CourseDialog, DraftDialog, FindReplaceDialog, ProjectsDialog, PublishDialog, ShortcutsDialog, VariablesDialog } from './Dialogs.tsx';
 import { applyTexts, csvToTexts, textsToCsv } from '../model/texts.ts';
+import { adoptCourse, bytesToBase64, callFleetAction, fleetApiReady } from './fleetAction.ts';
 import { buildStoryboard, currentCss } from '../export/storyboard.tsx';
 import { buildDocx } from '../export/docx.ts';
 import { Inspector } from './Inspector.tsx';
@@ -94,6 +95,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
   const [previewStates, setPreviewStates] = useState<Record<ID, string>>({});
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | 'full' | 'unsaved'>('saved');
   const [welcome, setWelcome] = useState(() => !welcomeSeen());
+  const [busyAction, setBusyAction] = useState<string | null>(null);
   const warnedFull = useRef(false);
   const newSlideItems = useNewSlideItems(() => state.sel.slideId);
 
@@ -250,31 +252,75 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
       toast(`Opened “${c.title}”.`, 'ok');
     } catch (e) { toast((e as Error).message, 'err'); }
   };
+  const exportTexts = async () => {
+    const local = () => download(fileName(course.title, 'translation.csv'), textsToCsv(course), 'text/csv');
+    if (!(await fleetApiReady())) { local(); return; }
+    setBusyAction('scrimshaw.course.export-texts');
+    try {
+      const result = await callFleetAction('scrimshaw.course.export-texts', { scrim: serializeCourse(course), inline: true });
+      if (!result.ok) { toast(result.error.message, 'err'); return; }
+      if (typeof result.data.csv !== 'string') { toast('The export did not return any text.', 'err'); return; }
+      download(fileName(course.title, 'translation.csv'), result.data.csv, 'text/csv');
+      toast('Exported the text for translation.', 'ok');
+    } finally { setBusyAction(null); }
+  };
   const importTranslation = async () => {
     const f = await pickFile('.csv,text/csv');
     if (!f) return;
-    try {
-      const values = csvToTexts(await f.text());
-      // Count on a copy first: the reducer applies the edit later, during React's next render.
+    const csv = await f.text();
+    const local = () => {
+      const values = csvToTexts(csv);
       const n = applyTexts(structuredClone(course), values);
       edit('Import translation', (c) => { applyTexts(c, values); });
       toast(n ? `Updated ${n} text${n === 1 ? '' : 's'} from the translation. Undo reverts it.` : 'No translated rows matched this course.', n ? 'ok' : 'warn');
+    };
+    try {
+      if (!(await fleetApiReady())) { local(); return; }
+      if (!(await confirm({ title: 'Import this translation?', message: 'Translated rows replace the matching text in this course. Cancel leaves the course as it is.', ok: 'Import', danger: true }))) return;
+      setBusyAction('scrimshaw.course.import-texts');
+      const result = await callFleetAction('scrimshaw.course.import-texts', { scrim: serializeCourse(course), csv, inline: true, confirmed: true });
+      if (!result.ok) { toast(result.error.message, 'err'); return; }
+      if (typeof result.data.scrim !== 'string') { toast('The import did not return a course.', 'err'); return; }
+      const next = parseCourse(result.data.scrim);
+      const applied = Number(result.data.applied) || 0;
+      edit('Import translation', (c) => { adoptCourse(c, next); });
+      toast(applied ? `Updated ${applied} text${applied === 1 ? '' : 's'} from the translation. Undo reverts it.` : 'No translated rows matched this course.', applied ? 'ok' : 'warn');
     } catch (e) { toast((e as Error).message, 'err'); }
+    finally { setBusyAction(null); }
   };
   const importFleetMedia = async () => {
     const picked = await pickFiles('.mp4,.m4v,.webm,.vtt,.txt,.png,.json,.wav');
     if (!picked.length) return;
     try {
-      const plan = planImport(await Promise.all(picked.map(async (f) => ({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) }))));
-      const n = plan.videos.length + plan.images.length + plan.audio.length;
-      if (n) { edit('Import Fleet media', (c) => { applyImport(c, plan); }); }
-      const skipped = plan.rejected.length + plan.warnings.length;
-      const detail = [...plan.rejected.map((r) => r.reason), ...plan.warnings].slice(0, 3).join(' ');
-      toast(n ? `Added ${n} slide${n === 1 ? '' : 's'} in a new scene "Imported media".${skipped ? ` ${skipped} file${skipped === 1 ? '' : 's'} skipped or adjusted. ${detail}` : ''} Undo reverts it.` : `Nothing imported. ${detail}`, n ? (skipped ? 'warn' : 'ok') : 'err');
+      if (!(await fleetApiReady())) {
+        const plan = planImport(await Promise.all(picked.map(async (f) => ({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) }))));
+        const n = plan.videos.length + plan.images.length + plan.audio.length;
+        if (n) { edit('Import Fleet media', (c) => { applyImport(c, plan); }); }
+        const skipped = plan.rejected.length + plan.warnings.length;
+        const detail = [...plan.rejected.map((r) => r.reason), ...plan.warnings].slice(0, 3).join(' ');
+        toast(n ? `Added ${n} slide${n === 1 ? '' : 's'} in a new scene "Imported media".${skipped ? ` ${skipped} file${skipped === 1 ? '' : 's'} skipped or adjusted. ${detail}` : ''} Undo reverts it.` : `Nothing imported. ${detail}`, n ? (skipped ? 'warn' : 'ok') : 'err');
+        return;
+      }
+      if (!(await confirm({ title: 'Import this Fleet media?', message: 'Scrimshaw adds a new scene to this course. Cancel leaves the course as it is.', ok: 'Import', danger: true }))) return;
+      setBusyAction('scrimshaw.media.import');
+      const media = await Promise.all(picked.map(async (file) => ({ name: file.name, base64: bytesToBase64(new Uint8Array(await file.arrayBuffer())) })));
+      const result = await callFleetAction('scrimshaw.media.import', { scrim: serializeCourse(course), media, inline: true, confirmed: true });
+      if (!result.ok) { toast(result.error.message, 'err'); return; }
+      if (typeof result.data.scrim !== 'string') { toast('The import did not return a course.', 'err'); return; }
+      const next = parseCourse(result.data.scrim);
+      const n = Number(result.data.slides) || 0;
+      const rejected = Array.isArray(result.data.rejected) ? result.data.rejected.map(String) : [];
+      const warnings = Array.isArray(result.data.warnings) ? result.data.warnings.map(String) : [];
+      if (n) edit('Import Fleet media', (c) => { adoptCourse(c, next); });
+      const detail = [...rejected, ...warnings].slice(0, 3).join(' ');
+      const skipped = rejected.length + warnings.length;
+      toast(n ? `Added ${n} slide${n === 1 ? '' : 's'} in a new scene "Imported media".${skipped ? ` ${skipped} skipped or adjusted. ${detail}` : ''} Undo reverts it.` : `Nothing imported. ${detail}`, n ? (skipped ? 'warn' : 'ok') : 'err');
     } catch (e) { toast((e as Error).message, 'err'); }
+    finally { setBusyAction(null); }
   };
   const endServerSession = async () => {
-    if (!(await confirm({ title: 'End this session?', message: 'The local Scrimshaw server stops and this tab can be closed. Your projects stay saved in this browser; start Scrimshaw again to keep working.', ok: 'End session' }))) return;
+    // Cancel is the default: stopping the server is destructive, and this server can only handle one request at a time, so the page calls the shutdown endpoint itself rather than waiting inside an action call.
+    if (!(await confirm({ title: 'End this session?', message: 'The local Scrimshaw server stops and this tab can be closed. Your projects stay saved in this browser; start Scrimshaw again to keep working.', ok: 'End session', danger: true }))) return;
     if (!(await saveBeforeLeaving())) return;
     if (await endSession()) toast('Scrimshaw has stopped. You can close this tab.', 'ok');
     else toast('Could not stop the server from here (it may already be stopped, or this is a development build). Close its window instead.', 'warn');
@@ -374,25 +420,25 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
       <a className="skip" href="#main">Skip to canvas</a>
       <header className="topbar">
         <span className="brand"><img className="logo" src={emblem} alt="" width={40} height={40} /><span><h1>Scrimshaw</h1><span className="sub">{course.title || 'Untitled'} · <span role="status" className={saveStatus === 'error' || saveStatus === 'full' ? 'err' : undefined}>{statusText}</span></span></span></span>
-        <Menu label="File" items={[
+        <Menu label="File" busy={busyAction !== null} items={[
           { label: 'Projects…', icon: <FolderOpen />, onSelect: () => setDialog('projects') },
-          { label: 'New course', onSelect: () => openNew(newCourse()) },
+          { label: 'New course', action: 'scrimshaw.course.new', busy: busyAction === 'scrimshaw.course.new', onSelect: () => openNew(newCourse()) },
           { label: 'Open a .scrim file…', icon: <FileBraces />, onSelect: importFile },
           { separator: true, label: '' },
           { label: 'Save now', icon: <Save />, shortcut: 'Ctrl+S', onSelect: () => { void saveNow(); } },
-          { label: 'Save to file (.scrim)', onSelect: saveToFile },
+          { label: 'Save to file (.scrim)', action: 'scrimshaw.course.save', onSelect: saveToFile },
           { separator: true, label: '' },
-          { label: 'Course settings…', icon: <SettingsIcon />, onSelect: () => setDialog('course') },
+          { label: 'Course settings…', icon: <SettingsIcon />, action: 'scrimshaw.course.settings', onSelect: () => setDialog('course') },
           { separator: true, label: '' },
-          { label: 'Find and replace…', shortcut: 'Ctrl+H', onSelect: () => setDialog('find') },
+          { label: 'Find and replace…', shortcut: 'Ctrl+H', action: 'scrimshaw.course.replace', onSelect: () => setDialog('find') },
           { label: 'Draft with the router…', onSelect: () => setDialog('draft') },
           { label: 'Storyboard for review (printable HTML)', onSelect: () => download(fileName(course.title, 'storyboard.html'), buildStoryboard(course, currentCss(document)), 'text/html') },
           { label: 'Handout for Word (.docx, text only)', onSelect: async () => { try { download(fileName(course.title, 'handout.docx'), await buildDocx(course)); } catch (e) { toast((e as Error).message, 'err'); } } },
-          { label: 'Export text for translation (.csv)', onSelect: () => download(fileName(course.title, 'translation.csv'), textsToCsv(course), 'text/csv') },
-          { label: 'Import translated text (.csv)…', onSelect: importTranslation },
-          { label: 'Import Fleet media (video, captions, PNG, WAV)…', onSelect: importFleetMedia },
+          { label: 'Export text for translation (.csv)', action: 'scrimshaw.course.export-texts', busy: busyAction === 'scrimshaw.course.export-texts', onSelect: () => { void exportTexts(); } },
+          { label: 'Import translated text (.csv)…', action: 'scrimshaw.course.import-texts', busy: busyAction === 'scrimshaw.course.import-texts', onSelect: () => { void importTranslation(); } },
+          { label: 'Import Fleet media (video, captions, PNG, WAV)…', action: 'scrimshaw.media.import', busy: busyAction === 'scrimshaw.media.import', onSelect: () => { void importFleetMedia(); } },
           { separator: true, label: '' },
-          { label: 'End session (stop the local server)', onSelect: () => { void endServerSession(); } },
+          { label: 'End session (stop the local server)', action: 'scrimshaw.session.stop', onSelect: () => { void endServerSession(); } },
         ]}>File<ChevronDown size={14} /></Menu>
         {(saveStatus === 'error' || saveStatus === 'full') && <Button onClick={saveToFile}>Save to file</Button>}
         <span className="spacer" />

@@ -81,6 +81,29 @@ jobs:
           Stop-Job $job; Remove-Job $job -Force
           if ($fail) { exit 1 }
 
+  actions:
+    name: Fleet actions (Pester 5, Windows PowerShell 5.1)
+    runs-on: [self-hosted, Windows, X64]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - name: Install Pester 5 if the machine does not have it
+        shell: powershell
+        run: |
+          $have = @(Get-Module -ListAvailable Pester | Where-Object { $_.Version.Major -eq 5 })
+          if (-not $have.Count) {
+            Install-Module Pester -RequiredVersion 5.7.1 -Force -Scope CurrentUser -SkipPublisherCheck
+          }
+          Import-Module Pester -MinimumVersion 5.0.0
+      - name: Run action tests
+        shell: powershell
+        run: |
+          Import-Module Pester -MinimumVersion 5.0.0
+          $cfg = New-PesterConfiguration
+          $cfg.Run.Path = @('tests/FleetAction.Tests.ps1', 'tests/Conformance.Tests.ps1')
+          $cfg.Run.Exit = $true
+          $cfg.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $cfg
+
   ui:
     name: Typecheck, unit tests, build is current
     runs-on: [self-hosted, Windows, X64]

@@ -1,0 +1,10 @@
+{
+  "module": "FleetAction",
+  "path": "vendor/FleetAction/FleetAction.psm1",
+  "intendedSource": "fleethacker-data-crucible/fleet-action-baseline src/FleetAction at v1.0.0",
+  "fallbackSource": "fleethacker-data-crucible/edge-ops tools/fleet-action/FleetAction.psm1 from PR 50",
+  "sourceCommit": null,
+  "sourceAvailable": false,
+  "reason": "The token for this run got HTTP 404 for fleethacker-data-crucible/fleet-action-baseline, fleethacker-data-crucible/edge-ops, and fleethacker-data-crucible/fleethacker-comms-data-crucible (PR 221 and the cli-parity docs). This file is a local PowerShell 5.1 implementation of the action contract (app.noun.verb ids, commands --json with help --json as an alias, JSON-only jobs, -Confirmed, no secrets in logs). Replace it with the baseline v1.0.0 module when that commit can be read.",
+  "sha256": "5c8758e5b7376c6d4a411b66d36140131c4bb64236ed3c3ae4c13af68068806a"
+}

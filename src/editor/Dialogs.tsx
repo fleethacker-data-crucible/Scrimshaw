@@ -5,7 +5,8 @@ import { validateCourse } from '../model/describe.ts';
 import { allSlides, slideTriggers } from '../model/query.ts';
 import type { Course, ID, VariableType } from '../model/types.ts';
 import { buildPlayerHtml, buildScormZip, buildXapiZip, canPublish, download, fileName } from '../export/publish.ts';
-import { serializeCourse } from '../model/schema.ts';
+import { parseCourse, serializeCourse } from '../model/schema.ts';
+import { adoptCourse, base64ToBytes, callFleetAction, fleetApiReady } from './fleetAction.ts';
 import { contrast, findTexts, replaceAll } from '../model/texts.ts';
 import { recolor } from '../store/ops.ts';
 import { deleteProject, listProjects, type ProjectMeta } from '../store/persist.ts';
@@ -263,13 +264,31 @@ export function PublishDialog({ onClose }: { onClose: () => void }) {
   const run = async (kind: 'html' | 'scorm' | 'scorm2004' | 'xapi' | 'cmi5' | 'json') => {
     setBusy(true);
     try {
-      if (kind === 'json') download(fileName(course.title, 'scrim'), serializeCourse(course), 'application/json');
+      if (kind === 'json') {
+        download(fileName(course.title, 'scrim'), serializeCourse(course), 'application/json');
+        toast('Downloaded.', 'ok');
+        return;
+      }
+      const format = kind === 'scorm' ? 'scorm12' : kind === 'scorm2004' ? 'scorm2004' : kind;
+      if (await fleetApiReady()) {
+        const result = await callFleetAction('scrimshaw.course.publish', { scrim: serializeCourse(course), format, inline: true });
+        if (!result.ok) { toast(result.error.message, 'err'); return; }
+        if (typeof result.data.base64 !== 'string') { toast('Publishing did not return a file.', 'err'); return; }
+        const raw = base64ToBytes(result.data.base64);
+        const copy = new ArrayBuffer(raw.byteLength);
+        new Uint8Array(copy).set(raw);
+        const ext = format === 'html' ? 'html' : format === 'scorm12' ? 'scorm12.zip' : format === 'scorm2004' ? 'scorm2004.zip' : `${format}.zip`;
+        const mime = format === 'html' ? 'text/html' : 'application/zip';
+        download(fileName(course.title, ext), new Blob([copy]), mime);
+        toast(format === 'html' ? 'Downloaded.' : 'Package downloaded. Upload the zip to your LMS.', 'ok');
+        return;
+      }
       if (kind === 'html') download(fileName(course.title, 'html'), buildPlayerHtml(course), 'text/html');
       if (kind === 'scorm') download(fileName(course.title, 'scorm12.zip'), await buildScormZip(course));
       if (kind === 'scorm2004') download(fileName(course.title, 'scorm2004.zip'), await buildScormZip(course, undefined, '2004'));
       if (kind === 'xapi') download(fileName(course.title, 'xapi.zip'), await buildXapiZip(course));
       if (kind === 'cmi5') download(fileName(course.title, 'cmi5.zip'), await buildXapiZip(course, undefined, 'cmi5'));
-      toast(kind !== 'html' && kind !== 'json' ? 'Package downloaded. Upload the zip to your LMS.' : 'Downloaded.', 'ok');
+      toast(kind !== 'html' ? 'Package downloaded. Upload the zip to your LMS.' : 'Downloaded.', 'ok');
     } catch (e) {
       toast(`Publishing failed: ${(e as Error).message}`, 'err');
     } finally { setBusy(false); }
@@ -290,24 +309,24 @@ export function PublishDialog({ onClose }: { onClose: () => void }) {
         <div className="box flex items-center gap-3">
           <Package size={22} />
           <div className="flex-1"><b>SCORM package</b><p className="muted text-[12px] !m-0">A zip for your LMS: SCORM 1.2 (widest support) or SCORM 2004 3rd Edition. Reports completion, pass/fail, score and time, and resumes where the learner left off.</p></div>
-          <Button disabled={!ready || busy} onClick={() => run('scorm')} aria-label="Download SCORM 1.2 zip"><Download />1.2</Button>
-          <Button disabled={!ready || busy} onClick={() => run('scorm2004')} aria-label="Download SCORM 2004 zip"><Download />2004</Button>
+          <Button data-action="scrimshaw.course.publish" data-format="scorm12" aria-busy={busy || undefined} aria-disabled={!ready || busy || undefined} disabled={!ready || busy} onClick={() => run('scorm')} aria-label="Download SCORM 1.2 zip"><Download />1.2</Button>
+          <Button data-action="scrimshaw.course.publish" data-format="scorm2004" aria-busy={busy || undefined} aria-disabled={!ready || busy || undefined} disabled={!ready || busy} onClick={() => run('scorm2004')} aria-label="Download SCORM 2004 zip"><Download />2004</Button>
         </div>
         <div className="box flex items-center gap-3">
           <Package size={22} />
           <div className="flex-1"><b>xAPI package</b><p className="muted text-[12px] !m-0">For an LRS-backed LMS: Tin Can, or cmi5 (the xAPI profile newer LMSs prefer). Sends statements for the attempt, answers and result, and resumes through the xAPI State API.</p></div>
-          <Button disabled={!ready || busy} onClick={() => run('xapi')} aria-label="Download xAPI Tin Can zip"><Download />Tin Can</Button>
-          <Button disabled={!ready || busy} onClick={() => run('cmi5')} aria-label="Download cmi5 zip"><Download />cmi5</Button>
+          <Button data-action="scrimshaw.course.publish" data-format="xapi" aria-busy={busy || undefined} aria-disabled={!ready || busy || undefined} disabled={!ready || busy} onClick={() => run('xapi')} aria-label="Download xAPI Tin Can zip"><Download />Tin Can</Button>
+          <Button data-action="scrimshaw.course.publish" data-format="cmi5" aria-busy={busy || undefined} aria-disabled={!ready || busy || undefined} disabled={!ready || busy} onClick={() => run('cmi5')} aria-label="Download cmi5 zip"><Download />cmi5</Button>
         </div>
         <div className="box flex items-center gap-3">
           <Globe size={22} />
           <div className="flex-1"><b>Web page</b><p className="muted text-[12px] !m-0">One self-contained HTML file. Works offline, from a file share, or on any web server.</p></div>
-          <Button disabled={!ready || busy} onClick={() => run('html')}><Download />HTML</Button>
+          <Button data-action="scrimshaw.course.publish" data-format="html" aria-busy={busy || undefined} aria-disabled={!ready || busy || undefined} disabled={!ready || busy} onClick={() => run('html')}><Download />HTML</Button>
         </div>
         <div className="box flex items-center gap-3">
           <FileBraces size={22} />
           <div className="flex-1"><b>Project file</b><p className="muted text-[12px] !m-0">The editable .scrim source, to back up or share with another author.</p></div>
-          <Button variant="ghost" disabled={busy} onClick={() => run('json')}><Download />.scrim</Button>
+          <Button variant="ghost" data-action="scrimshaw.course.save" aria-busy={busy || undefined} aria-disabled={busy || undefined} disabled={busy} onClick={() => run('json')}><Download />.scrim</Button>
         </div>
       </div>
     </Dialog>
@@ -342,21 +361,39 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
 
 export function FindReplaceDialog({ onClose }: { onClose: () => void }) {
   const { course, edit, select } = useEditor();
-  const { toast } = useUi();
+  const { toast, confirm } = useUi();
   const [find, setFind] = useState('');
   const [replace, setReplace] = useState('');
   const [matchCase, setMatchCase] = useState(false);
+  const [busy, setBusy] = useState(false);
   const hits = findTexts(course, find, matchCase);
+  const replaceAllNow = async () => {
+    const local = () => {
+      const n = replaceAll(structuredClone(course), find, replace, matchCase);
+      edit('Replace all', (c) => { replaceAll(c, find, replace, matchCase); });
+      toast(`Replaced ${n} occurrence${n === 1 ? '' : 's'}.`, 'ok');
+    };
+    if (!(await fleetApiReady())) { local(); return; }
+    if (!(await confirm({ title: 'Replace every match?', message: 'This replaces the text everywhere it was found. Cancel leaves the course as it is.', ok: 'Replace', danger: true }))) return;
+    setBusy(true);
+    try {
+      const result = await callFleetAction('scrimshaw.course.replace', {
+        scrim: serializeCourse(course), find, replacement: replace, matchCase, inline: true, confirmed: true,
+      });
+      if (!result.ok) { toast(result.error.message, 'err'); return; }
+      if (typeof result.data.scrim !== 'string') { toast('The replace did not return a course.', 'err'); return; }
+      const next = parseCourse(result.data.scrim);
+      const n = Number(result.data.replaced) || 0;
+      edit('Replace all', (c) => { adoptCourse(c, next); });
+      toast(`Replaced ${n} occurrence${n === 1 ? '' : 's'}.`, 'ok');
+    } catch (e) { toast((e as Error).message, 'err'); }
+    finally { setBusy(false); }
+  };
   return (
     <Dialog title="Find and replace" onClose={onClose} wide={620} footer={
       <>
         <Button variant="ghost" onClick={onClose}>Close</Button>
-        <Button disabled={!find || hits.length === 0} onClick={() => {
-          // Count on a copy first: the reducer applies the edit later, during React's next render.
-          const n = replaceAll(structuredClone(course), find, replace, matchCase);
-          edit('Replace all', (c) => { replaceAll(c, find, replace, matchCase); });
-          toast(`Replaced ${n} occurrence${n === 1 ? '' : 's'}.`, 'ok');
-        }}>Replace all</Button>
+        <Button data-action="scrimshaw.course.replace" aria-busy={busy || undefined} aria-disabled={!find || hits.length === 0 || busy || undefined} disabled={!find || hits.length === 0 || busy} onClick={() => { void replaceAllNow(); }}>Replace all</Button>
       </>
     }>
       <div className="grid grid-cols-2 gap-2">
