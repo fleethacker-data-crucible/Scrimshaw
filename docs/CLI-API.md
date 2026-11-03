@@ -1,26 +1,20 @@
 # Scrimshaw CLI and action API
 
-Scrimshaw's file operations are Fleet actions. Each action is one Windows PowerShell 5.1 function. The CLI, a JSON job, and the loopback API all call that function. Action ids are `scrimshaw.<noun>.<verb>`.
+Scrimshaw's file operations are Fleet actions on FleetAction 1.0.1. Each action is one Windows PowerShell 5.1 function. Action ids are `scrimshaw.<noun>.<verb>`.
 
 ```text
 scrimshaw.ps1 commands --json
 scrimshaw.ps1 help --json
-scrimshaw.ps1 <noun> <verb> [--json] [--out <file>] [--yes] [--dry-run] [--confirmed]
-scrimshaw.ps1 job run <file.json>
+scrimshaw.ps1 <noun> <verb> [--<arg> <value>]... [--json] [--out <file>] [--dry-run] [--confirmed]
+scrimshaw.ps1 job run --file <job.json> [--json] [--confirmed] [--dry-run]
 scrimshaw.ps1 api --port 8775
 ```
 
-`commands --json` is the discovery document. `help --json` prints the same document. Without `--json`, both print the same short list.
+`commands --json` is discovery. `help --json` prints the same document. The envelope is `{ "v": 1, "ok": true, "result": { "actions": [ ... ] } }`.
 
-Flags:
+`--confirmed` is Scrimshaw's destructive-confirm flag. The entry script passes it to FleetAction as `--yes`, which sets `-Confirmed`. `--dry-run` checks the action and does not call it. `--out` writes that JSON document. The course file an action writes is `--dest`, and `--replace true` overwrites it. The course to read is `--course`. Media paths are one `--media` string separated by `|`.
 
-| Flag | Meaning |
-| --- | --- |
-| `--json` | One JSON object on stdout. Errors are JSON too, with `error.code` and `error.message`. |
-| `--out` | File to write. UTF-8, no BOM. |
-| `--yes` | Replace an existing `--out` file. |
-| `--dry-run` | Report what would change and write nothing. |
-| `--confirmed` | Run a destructive action. The parameter name is `-Confirmed`. |
+Exit codes follow FleetAction: 0 ok, 2 bad arguments, 3 not found, 4 confirmation required, 1 internal.
 
 Exit codes: `0` ok, `1` error, `2` the course has problems, `64` bad usage.
 

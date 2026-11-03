@@ -13,6 +13,70 @@ $script:ScrimshawRoot = ''
 $script:EditorConnect = "connect-src 'self' http://127.0.0.1:8776 http://localhost:8776"
 $script:MaxMediaBytes = 25 * 1024 * 1024
 
+function Get-FleetProp {
+    param($Object, [string]$Name)
+    if ($null -eq $Object) { return $null }
+    if ($Object -is [System.Collections.IDictionary]) {
+        foreach ($key in @($Object.Keys)) {
+            if ([string]$key -ceq $Name) { return $Object[$key] }
+        }
+        return $null
+    }
+    $prop = $Object.PSObject.Properties[$Name]
+    if ($null -eq $prop) { return $null }
+    return $prop.Value
+}
+
+function New-FleetId {
+    param([string]$Prefix)
+    $bytes = New-Object byte[] 8
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $rng.GetBytes($bytes)
+    return ($Prefix + (-join ($bytes | ForEach-Object { $_.ToString('x2') })))
+}
+
+function Throw-Fleet {
+    param([string]$Code, [string]$Message)
+    FleetAction\New-FleetErrorRecord -Code $Code -Message $Message
+}
+
+function Test-ReplaceArg {
+    param($Arguments)
+    $value = Get-FleetProp $Arguments 'replace'
+    return ($value -eq $true)
+}
+
+function Write-FleetFile {
+    param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$Text, [bool]$Yes)
+    $utf8 = New-Object System.Text.UTF8Encoding $false
+    if ((Test-Path -LiteralPath $Path) -and -not $Yes) {
+        return @{ Ok = $false; Message = "$Path already exists. Pass --replace true to replace it." }
+    }
+    $parent = Split-Path -Parent $Path
+    if ($parent -and -not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent | Out-Null }
+    [IO.File]::WriteAllText($Path, $Text, $utf8)
+    return @{ Ok = $true; out = $Path; bytes = $utf8.GetByteCount($Text); written = $true }
+}
+
+function Write-FleetBytes {
+    param([string]$Path, [byte[]]$Bytes, [bool]$Yes)
+    if ((Test-Path -LiteralPath $Path) -and -not $Yes) {
+        return @{ Ok = $false; Message = "$Path already exists. Pass --replace true to replace it." }
+    }
+    $parent = Split-Path -Parent $Path
+    if ($parent -and -not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent | Out-Null }
+    [IO.File]::WriteAllBytes($Path, $Bytes)
+    return @{ Ok = $true; out = $Path; bytes = $Bytes.Length; written = $true }
+}
+
+function ConvertTo-FleetJson {
+    param($Value)
+    $module = Get-Module FleetAction
+    $script = $module.NewBoundScriptBlock({ param($Item) ConvertTo-FleetJson -Value $Item })
+    $raw = $script.Invoke($Value)
+    return ([string]$raw).TrimEnd()
+}
+
 function Set-FleetProp {
     param($Object, [string]$Name, $Value)
     if ($Object -is [System.Collections.IDictionary]) { $Object[$Name] = $Value; return }
@@ -139,29 +203,30 @@ function Read-ScrimText {
 function Read-ScrimArgument {
     param($Arguments)
     $inline = Get-FleetProp $Arguments 'scrim'
-    if ($inline) { return (Read-ScrimText ([string]$inline)) }
-    $path = Get-FleetProp $Arguments 'file'
-    if (-not $path) { return @{ Ok = $false; Message = 'Pass --file or scrim text.' } }
-    if (-not (Test-Path -LiteralPath $path)) { return @{ Ok = $false; Code = 'not-found'; Message = "File not found: $path" } }
-    return (Read-ScrimText ([IO.File]::ReadAllText($path)))
+    if ($inline) {
+        $loaded = Read-ScrimText ([string]$inline)
+        if (-not $loaded.Ok) { Throw-Fleet 'E_ARGS' ([string]$loaded.Message) }
+        return $loaded
+    }
+    $path = Get-FleetProp $Arguments 'course'
+    if (-not $path) { Throw-Fleet 'E_ARGS' 'Missing argument course.' }
+    if (-not (Test-Path -LiteralPath $path)) { Throw-Fleet 'E_NOT_FOUND' "File not found: $path" }
+    $loaded = Read-ScrimText ([IO.File]::ReadAllText($path))
+    if (-not $loaded.Ok) { Throw-Fleet 'E_ARGS' ([string]$loaded.Message) }
+    return $loaded
 }
 
 function Save-ScrimResult {
-    param($Course, $Arguments, $Context, [hashtable]$Extra)
+    param($Course, $Arguments, [hashtable]$Extra)
     $text = ConvertTo-ScrimText $Course
     $data = @{}
     if ($Extra) { foreach ($key in @($Extra.Keys)) { $data[$key] = $Extra[$key] } }
-    $inline = Get-FleetProp $Arguments 'inline'
-    if ($inline) { $data['scrim'] = $text }
-    $out = Get-FleetProp $Arguments 'out'
-    if (-not $out) {
-        if ($inline) { return @{ Data = $data; Exit = 0 } }
-        return @{ Ok = $false; Code = 'usage'; Exit = 64; Message = 'Pass --out, or inline=true to return the course text.' }
-    }
-    $written = Write-FleetFile -Path ([string]$out) -Text $text -Yes ([bool]$Context.Yes) -DryRun ([bool]$Context.DryRun)
-    if ($written -is [System.Collections.IDictionary] -and $written.ContainsKey('Ok') -and -not $written['Ok']) { return $written }
-    foreach ($key in @($written.Keys)) { $data[$key] = $written[$key] }
-    return @{ Data = $data; Exit = 0 }
+    $dest = Get-FleetProp $Arguments 'dest'
+    if (-not $dest) { Throw-Fleet 'E_ARGS' 'Missing argument dest.' }
+    $written = Write-FleetFile -Path ([string]$dest) -Text $text -Yes (Test-ReplaceArg $Arguments)
+    if (-not $written.Ok) { Throw-Fleet 'E_ARGS' ([string]$written.Message) }
+    foreach ($key in @($written.Keys)) { if ($key -ne 'Ok') { $data[$key] = $written[$key] } }
+    return $data
 }
 
 function Get-CourseSlides {
@@ -960,24 +1025,16 @@ function New-ZipBytes {
 }
 
 function Invoke-ScrimshawCourseNew {
-    param($Arguments, $Context)
+    param($Arguments)
     $title = [string](Get-FleetProp $Arguments 'title')
     if (-not $title) { $title = 'Untitled course' }
     $course = New-ScrimCourse $title
-    $saved = Save-ScrimResult $course $Arguments $Context @{ title = $title }
-    return $saved
+    return (Save-ScrimResult $course $Arguments @{ title = $title })
 }
 
 function Invoke-ScrimshawCourseInfo {
-    param($Arguments, $Context)
+    param($Arguments)
     $loaded = Read-ScrimArgument $Arguments
-    if (-not $loaded.Ok) {
-        $code = 'bad-course'
-        if ($loaded.ContainsKey('Code')) { $code = [string]$loaded.Code }
-        $exit = 1
-        if ($code -eq 'usage') { $exit = 64 }
-        return @{ Ok = $false; Code = $code; Exit = $exit; Message = [string]$loaded.Message }
-    }
     $course = $loaded.Course
     $slides = @(Get-CourseSlides $course $false)
     $questions = 0
@@ -995,60 +1052,39 @@ function Invoke-ScrimshawCourseInfo {
     if ($assets -is [System.Collections.IDictionary]) { $assetCount = @($assets.Keys).Count }
     elseif ($assets) { $assetCount = @($assets.PSObject.Properties).Count }
     return @{
-        Data = @{
-            title = [string](Get-FleetProp $course 'title')
-            scenes = (Get-ListProp $course 'scenes').Count
-            slides = $slides.Count
-            questions = $questions
-            graded = $graded
-            assets = $assetCount
-            variables = (Get-ListProp $course 'variables').Count
-        }
-        Exit = 0
+        title = [string](Get-FleetProp $course 'title')
+        scenes = (Get-ListProp $course 'scenes').Count
+        slides = $slides.Count
+        questions = $questions
+        graded = $graded
+        assets = $assetCount
+        variables = (Get-ListProp $course 'variables').Count
     }
 }
 
 function Invoke-ScrimshawCourseValidate {
-    param($Arguments, $Context)
+    param($Arguments)
     $loaded = Read-ScrimArgument $Arguments
-    if (-not $loaded.Ok) {
-        $code = 'bad-course'
-        if ($loaded.ContainsKey('Code')) { $code = [string]$loaded.Code }
-        return @{ Ok = $false; Code = $code; Exit = 1; Message = [string]$loaded.Message }
-    }
     $problems = @(Get-CourseProblems $loaded.Course)
-    $exit = 0
-    if ($problems.Count -gt 0) { $exit = 2 }
-    return @{ Data = @{ valid = ($problems.Count -eq 0); problems = $problems }; Exit = $exit }
+    return @{ valid = ($problems.Count -eq 0); problems = $problems }
 }
 
 function Invoke-ScrimshawCourseSave {
-    param($Arguments, $Context)
+    param($Arguments)
     $loaded = Read-ScrimArgument $Arguments
-    if (-not $loaded.Ok) {
-        $code = 'bad-course'
-        if ($loaded.ContainsKey('Code')) { $code = [string]$loaded.Code }
-        $exit = $(if ($code -eq 'usage') { 64 } else { 1 })
-        return @{ Ok = $false; Code = $code; Exit = $exit; Message = [string]$loaded.Message }
-    }
-    return (Save-ScrimResult $loaded.Course $Arguments $Context @{})
+    return (Save-ScrimResult $loaded.Course $Arguments @{})
 }
 
 function Invoke-ScrimshawCourseSettings {
-    param($Arguments, $Context)
+    param($Arguments)
     $loaded = Read-ScrimArgument $Arguments
-    if (-not $loaded.Ok) { return @{ Ok = $false; Code = 'bad-course'; Exit = 1; Message = [string]$loaded.Message } }
-    if ($Context.DryRun) {
-        return @{ Data = @{ title = [string](Get-FleetProp $loaded.Course 'title'); written = $false; dryRun = $true }; Exit = 0 }
-    }
     Update-CourseSettings $loaded.Course $Arguments
-    return (Save-ScrimResult $loaded.Course $Arguments $Context @{ title = [string](Get-FleetProp $loaded.Course 'title') })
+    return (Save-ScrimResult $loaded.Course $Arguments @{ title = [string](Get-FleetProp $loaded.Course 'title') })
 }
 
 function Invoke-ScrimshawCourseReplace {
-    param($Arguments, $Context)
+    param($Arguments)
     $loaded = Read-ScrimArgument $Arguments
-    if (-not $loaded.Ok) { return @{ Ok = $false; Code = 'bad-course'; Exit = 1; Message = [string]$loaded.Message } }
     $find = [string](Get-FleetProp $Arguments 'find')
     $replacement = ''
     if ($null -ne (Get-FleetProp $Arguments 'replacement')) { $replacement = [string](Get-FleetProp $Arguments 'replacement') }
@@ -1064,54 +1100,43 @@ function Invoke-ScrimshawCourseReplace {
             $found = [regex]::Matches([string]$row.text, $pattern, $options)
             if ($found.Count -eq 0) { continue }
             $count += $found.Count
-            if (-not $Context.DryRun) {
-                $next = [regex]::Replace([string]$row.text, $pattern, $eval, $options)
-                [void](Set-TextKey $loaded.Course ([string]$row.key) $next)
-            }
+            $next = [regex]::Replace([string]$row.text, $pattern, $eval, $options)
+            [void](Set-TextKey $loaded.Course ([string]$row.key) $next)
         }
-        if (-not $Context.DryRun) { Set-FleetProp $loaded.Course 'modified' ([DateTime]::UtcNow.ToString('o')) }
+        Set-FleetProp $loaded.Course 'modified' ([DateTime]::UtcNow.ToString('o'))
     }
-    if ($Context.DryRun) { return @{ Data = @{ replaced = $count; written = $false; dryRun = $true }; Exit = 0 } }
-    return (Save-ScrimResult $loaded.Course $Arguments $Context @{ replaced = $count })
+    $saved = Save-ScrimResult $loaded.Course $Arguments @{ replaced = $count }
+    return $saved
 }
 
 function Invoke-ScrimshawCourseExportTexts {
-    param($Arguments, $Context)
+    param($Arguments)
     $loaded = Read-ScrimArgument $Arguments
-    if (-not $loaded.Ok) { return @{ Ok = $false; Code = 'bad-course'; Exit = 1; Message = [string]$loaded.Message } }
     $lines = New-Object System.Collections.Generic.List[string]
     [void]$lines.Add('key,where,field,source,translation')
     foreach ($row in (Get-TextRows $loaded.Course)) {
         [void]$lines.Add(((ConvertTo-CsvCell $row.key) + ',,,' + (ConvertTo-CsvCell $row.text) + ','))
     }
     $csv = [char]0xFEFF + ($lines -join "`r`n") + "`r`n"
-    $data = @{ rows = @($lines).Count - 1 }
-    $inline = Get-FleetProp $Arguments 'inline'
-    if ($inline) { $data['csv'] = $csv }
-    $out = Get-FleetProp $Arguments 'out'
-    if (-not $out) {
-        if ($inline) { return @{ Data = $data; Exit = 0 } }
-        return @{ Ok = $false; Code = 'usage'; Exit = 64; Message = 'Pass --out, or inline=true to return the CSV.' }
-    }
-    $written = Write-FleetFile -Path ([string]$out) -Text $csv -Yes ([bool]$Context.Yes) -DryRun ([bool]$Context.DryRun)
-    if ($written.ContainsKey('Ok') -and -not $written['Ok']) { return $written }
-    foreach ($key in @($written.Keys)) { $data[$key] = $written[$key] }
-    return @{ Data = $data; Exit = 0 }
+    $dest = Get-FleetProp $Arguments 'dest'
+    if (-not $dest) { Throw-Fleet 'E_ARGS' 'Missing argument dest.' }
+    $written = Write-FleetFile -Path ([string]$dest) -Text $csv -Yes (Test-ReplaceArg $Arguments)
+    if (-not $written.Ok) { Throw-Fleet 'E_ARGS' ([string]$written.Message) }
+    return @{ rows = (@($lines).Count - 1); out = $written.out; bytes = $written.bytes; written = $true }
 }
 
 function Invoke-ScrimshawCourseImportTexts {
-    param($Arguments, $Context)
+    param($Arguments)
     $loaded = Read-ScrimArgument $Arguments
-    if (-not $loaded.Ok) { return @{ Ok = $false; Code = 'bad-course'; Exit = 1; Message = [string]$loaded.Message } }
     $csvText = [string](Get-FleetProp $Arguments 'csv')
     $csvPath = [string](Get-FleetProp $Arguments 'csvFile')
     if (-not $csvText -and $csvPath) {
-        if (-not (Test-Path -LiteralPath $csvPath)) { return @{ Ok = $false; Code = 'not-found'; Exit = 1; Message = "File not found: $csvPath" } }
+        if (-not (Test-Path -LiteralPath $csvPath)) { Throw-Fleet 'E_NOT_FOUND' "File not found: $csvPath" }
         $csvText = [IO.File]::ReadAllText($csvPath)
     }
-    if (-not $csvText) { return @{ Ok = $false; Code = 'usage'; Exit = 64; Message = 'Pass --csvFile or csv text.' } }
+    if (-not $csvText) { Throw-Fleet 'E_ARGS' 'Pass csvFile or csv text.' }
     $rows = @(ConvertFrom-CsvText $csvText)
-    if ($rows.Count -eq 0) { return @{ Ok = $false; Code = 'usage'; Exit = 1; Message = 'The CSV is empty.' } }
+    if ($rows.Count -eq 0) { Throw-Fleet 'E_ARGS' 'The CSV is empty.' }
     $head = @($rows[0])
     $keyCol = -1
     $valueCol = -1
@@ -1120,41 +1145,33 @@ function Invoke-ScrimshawCourseImportTexts {
         if ($name -eq 'key') { $keyCol = $i }
         if ($name -eq 'translation') { $valueCol = $i }
     }
-    if ($keyCol -lt 0 -or $valueCol -lt 0) { return @{ Ok = $false; Code = 'usage'; Exit = 1; Message = 'The CSV needs key and translation columns.' } }
+    if ($keyCol -lt 0 -or $valueCol -lt 0) { Throw-Fleet 'E_ARGS' 'The CSV needs key and translation columns.' }
     $applied = 0
-    if (-not $Context.DryRun) {
-        for ($r = 1; $r -lt $rows.Count; $r++) {
-            $row = @($rows[$r])
-            if ($keyCol -ge $row.Count -or $valueCol -ge $row.Count) { continue }
-            $key = [string]$row[$keyCol]
-            $value = [string]$row[$valueCol]
-            if ($key -and $value -ne '') {
-                if (Set-TextKey $loaded.Course $key $value) { $applied++ }
-            }
+    for ($r = 1; $r -lt $rows.Count; $r++) {
+        $row = @($rows[$r])
+        if ($keyCol -ge $row.Count -or $valueCol -ge $row.Count) { continue }
+        $key = [string]$row[$keyCol]
+        $value = [string]$row[$valueCol]
+        if ($key -and $value -ne '') {
+            if (Set-TextKey $loaded.Course $key $value) { $applied++ }
         }
-        Set-FleetProp $loaded.Course 'modified' ([DateTime]::UtcNow.ToString('o'))
-    } else {
-        for ($r = 1; $r -lt $rows.Count; $r++) {
-            $row = @($rows[$r])
-            if ($valueCol -lt $row.Count -and [string]$row[$valueCol] -ne '') { $applied++ }
-        }
-        return @{ Data = @{ applied = $applied; written = $false; dryRun = $true }; Exit = 0 }
     }
-    return (Save-ScrimResult $loaded.Course $Arguments $Context @{ applied = $applied })
+    Set-FleetProp $loaded.Course 'modified' ([DateTime]::UtcNow.ToString('o'))
+    $saved = Save-ScrimResult $loaded.Course $Arguments @{ applied = $applied }
+    return $saved
 }
 
 function Invoke-ScrimshawCoursePublish {
-    param($Arguments, $Context)
+    param($Arguments)
     $loaded = Read-ScrimArgument $Arguments
-    if (-not $loaded.Ok) { return @{ Ok = $false; Code = 'bad-course'; Exit = 1; Message = [string]$loaded.Message } }
     $format = [string](Get-FleetProp $Arguments 'format')
     $shellPath = [string](Get-FleetProp $Arguments 'shell')
     if (-not $shellPath) { $shellPath = Join-Path $script:ScrimshawRoot 'dist/index.html' }
-    if (-not (Test-Path -LiteralPath $shellPath)) { return @{ Ok = $false; Code = 'no-shell'; Exit = 1; Message = "The built app was not found at $shellPath." } }
+    if (-not (Test-Path -LiteralPath $shellPath)) { Throw-Fleet 'E_ARGS' "The built app was not found at $shellPath." }
     $shell = [IO.File]::ReadAllText($shellPath)
-    if ($shell -notmatch '<title>') { return @{ Ok = $false; Code = 'no-shell'; Exit = 1; Message = "$shellPath does not look like the built app." } }
+    if ($shell -notmatch '<title>') { Throw-Fleet 'E_ARGS' "$shellPath does not look like the built app." }
     $html = New-PlayerHtml $loaded.Course $shell $format
-    if ($null -eq $html) { return @{ Ok = $false; Code = 'no-shell'; Exit = 1; Message = 'The shell has no </head> element.' } }
+    if ($null -eq $html) { Throw-Fleet 'E_ARGS' 'The shell has no </head> element.' }
     $bytes = $null
     if ($format -eq 'html') {
         $utf8 = New-Object System.Text.UTF8Encoding $false
@@ -1168,54 +1185,36 @@ function Invoke-ScrimshawCoursePublish {
             @{ Name = $xmlName; Text = (New-PackageXml $loaded.Course $format) }
         )
     }
-    $data = @{ format = $format; bytes = $bytes.Length }
-    if (Get-FleetProp $Arguments 'inline') { $data['base64'] = [Convert]::ToBase64String($bytes) }
-    $out = Get-FleetProp $Arguments 'out'
-    if (-not $out) {
-        if (Get-FleetProp $Arguments 'inline') { $data['written'] = $false; return @{ Data = $data; Exit = 0 } }
-        return @{ Ok = $false; Code = 'usage'; Exit = 64; Message = 'Pass --out, or inline=true to return the package.' }
-    }
-    $written = Write-FleetBytes -Path ([string]$out) -Bytes $bytes -Yes ([bool]$Context.Yes) -DryRun ([bool]$Context.DryRun)
-    if ($written.ContainsKey('Ok') -and -not $written['Ok']) { return $written }
-    foreach ($key in @($written.Keys)) { $data[$key] = $written[$key] }
-    return @{ Data = $data; Exit = 0 }
+    $dest = Get-FleetProp $Arguments 'dest'
+    if (-not $dest) { Throw-Fleet 'E_ARGS' 'Missing argument dest.' }
+    $written = Write-FleetBytes -Path ([string]$dest) -Bytes $bytes -Yes (Test-ReplaceArg $Arguments)
+    if (-not $written.Ok) { Throw-Fleet 'E_ARGS' ([string]$written.Message) }
+    return @{ format = $format; out = $written.out; bytes = $written.bytes; written = $true }
 }
 
 function Invoke-ScrimshawMediaImport {
-    param($Arguments, $Context)
+    param($Arguments)
     $loaded = Read-ScrimArgument $Arguments
-    if (-not $loaded.Ok) { return @{ Ok = $false; Code = 'bad-course'; Exit = 1; Message = [string]$loaded.Message } }
-    $media = Get-ListProp $Arguments 'media'
-    if ($media.Count -eq 0) { return @{ Ok = $false; Code = 'usage'; Exit = 64; Message = 'Pass at least one --media path.' } }
+    $raw = [string](Get-FleetProp $Arguments 'media')
+    if (-not $raw) { Throw-Fleet 'E_ARGS' 'Missing argument media.' }
+    $media = @($raw -split '\|' | Where-Object { $_ })
     $plan = Build-MediaPlan $media
-    $added = 0
-    if (-not $Context.DryRun) { $added = Add-ImportedScene $loaded.Course $plan }
-    else {
-        $added = @($plan.Videos).Count + @($plan.Images).Count + @($plan.Audio).Count
-        return @{
-            Data = @{
-                slides = $added; rejected = @($plan.Rejected); warnings = @($plan.Warnings); written = $false; dryRun = $true
-            }
-            Exit = 0
-        }
-    }
+    $added = Add-ImportedScene $loaded.Course $plan
     $extra = @{ slides = $added; rejected = @($plan.Rejected); warnings = @($plan.Warnings) }
-    return (Save-ScrimResult $loaded.Course $Arguments $Context $extra)
+    return (Save-ScrimResult $loaded.Course $Arguments $extra)
 }
 
 function Invoke-ScrimshawSessionStop {
-    param($Arguments, $Context)
+    param($Arguments)
     $port = 8775
     $given = Get-FleetProp $Arguments 'port'
     if ($null -ne $given) { $port = [int]$given }
     $url = "http://127.0.0.1:$port/"
-    if ($Context.DryRun) { return @{ Data = @{ url = $url; stopping = $false; dryRun = $true }; Exit = 0 } }
     try {
         $response = Invoke-WebRequest -UseBasicParsing -Method Post -Uri ($url + '__fleethacker/shutdown') -Headers @{ 'X-FleetHacker-Shutdown' = '1' } -TimeoutSec 5
-        return @{ Data = @{ url = $url; stopping = ($response.StatusCode -eq 200); status = [int]$response.StatusCode }; Exit = 0 }
+        return @{ url = $url; stopping = ($response.StatusCode -eq 200); status = [int]$response.StatusCode }
     } catch {
-        $message = Protect-FleetLog $_.Exception.Message
-        return @{ Ok = $false; Code = 'unreachable'; Exit = 1; Message = "Could not stop Scrimshaw at ${url}: $message" }
+        Throw-Fleet 'E_NOT_FOUND' "Could not stop Scrimshaw at ${url}."
     }
 }
 
@@ -1223,95 +1222,56 @@ function Initialize-ScrimshawActions {
     param([string]$Root = '')
     if ($Root) { $script:ScrimshawRoot = $Root }
     elseif (-not $script:ScrimshawRoot) { $script:ScrimshawRoot = (Split-Path $PSScriptRoot -Parent) }
-    Clear-FleetAction -App 'scrimshaw'
-    $fileOrScrim = @{
-        file = @{ type = 'string'; description = 'A .scrim course file.' }
-        scrim = @{ type = 'string'; description = 'Course JSON text, used by the editor instead of a path.' }
-        inline = @{ type = 'boolean'; description = 'Return the result text in the JSON body.' }
-    }
-    $writeFlags = @{
-        out = @{ type = 'string'; description = 'File to write (UTF-8, no BOM).' }
-    }
-    Register-FleetAction -Id 'scrimshaw.course.new' -Summary 'Create a course file.' -Example @('course', 'new', '--title', 'Demo', '--out', 'new.scrim') -Handler ${function:Invoke-ScrimshawCourseNew} -Schema @{
-        type = 'object'; additionalProperties = $false; required = @()
-        properties = @{
-            title = @{ type = 'string'; description = 'Course title.'; default = 'Untitled course' }
-            out = $writeFlags.out; inline = $fileOrScrim.inline
-        }
-    }
-    Register-FleetAction -Id 'scrimshaw.course.info' -Summary 'Count the scenes, slides, questions and media in a course.' -Example @('course', 'info', '--file', 'demo.scrim') -Handler ${function:Invoke-ScrimshawCourseInfo} -Schema @{
-        type = 'object'; additionalProperties = $false; required = @()
-        properties = @{ file = $fileOrScrim.file; scrim = $fileOrScrim.scrim }
-    }
-    Register-FleetAction -Id 'scrimshaw.course.validate' -Summary 'List problems that would break playback. Exit code 2 when there are any.' -Example @('course', 'validate', '--file', 'demo.scrim') -Handler ${function:Invoke-ScrimshawCourseValidate} -Schema @{
-        type = 'object'; additionalProperties = $false; required = @()
-        properties = @{ file = $fileOrScrim.file; scrim = $fileOrScrim.scrim }
-    }
-    Register-FleetAction -Id 'scrimshaw.course.save' -Summary 'Write a course to a .scrim file.' -Example @('course', 'save', '--file', 'demo.scrim', '--out', 'copy.scrim') -Handler ${function:Invoke-ScrimshawCourseSave} -Schema @{
-        type = 'object'; additionalProperties = $false; required = @()
-        properties = @{ file = $fileOrScrim.file; scrim = $fileOrScrim.scrim; out = $writeFlags.out; inline = $fileOrScrim.inline }
-    }
-    Register-FleetAction -Id 'scrimshaw.course.settings' -Summary 'Set the title, description, player switches, navigation, or passing score.' -Destructive -Example @('course', 'settings', '--file', 'demo.scrim', '--title', 'Bridge watch', '--out', 'demo.scrim') -Handler ${function:Invoke-ScrimshawCourseSettings} -Schema @{
-        type = 'object'; additionalProperties = $false; required = @()
-        properties = @{
-            file = $fileOrScrim.file; scrim = $fileOrScrim.scrim; out = $writeFlags.out; inline = $fileOrScrim.inline
-            title = @{ type = 'string'; description = 'Course title.' }
-            description = @{ type = 'string'; description = 'Course description.' }
-            author = @{ type = 'string'; description = 'Author name stored in the course.' }
-            passPercent = @{ type = 'integer'; minimum = 0; maximum = 100; description = 'Passing score percent.' }
-            navigation = @{ type = 'string'; enum = @('free', 'restricted'); description = 'Menu navigation.' }
-            showMenu = @{ type = 'boolean'; description = 'Show the player menu.' }
-            showNav = @{ type = 'boolean'; description = 'Show previous and next.' }
-            showSeekbar = @{ type = 'boolean'; description = 'Show the seekbar.' }
-            showTitle = @{ type = 'boolean'; description = 'Show the title.' }
-            showNotes = @{ type = 'boolean'; description = 'Show slide notes to learners.' }
-            resume = @{ type = 'boolean'; description = 'Resume where the learner left off.' }
-        }
-    }
-    Register-FleetAction -Id 'scrimshaw.course.replace' -Summary 'Replace text across titles, objects, alt text, states, and accepted answers.' -Destructive -Example @('course', 'replace', '--file', 'demo.scrim', '--find', 'Hello', '--replacement', 'Welcome', '--out', 'demo.scrim') -Handler ${function:Invoke-ScrimshawCourseReplace} -Schema @{
-        type = 'object'; additionalProperties = $false; required = @('find')
-        properties = @{
-            file = $fileOrScrim.file; scrim = $fileOrScrim.scrim; out = $writeFlags.out; inline = $fileOrScrim.inline
-            find = @{ type = 'string'; minLength = 1; description = 'Text to find.' }
-            replacement = @{ type = 'string'; description = 'Text to write in its place.' }
-            matchCase = @{ type = 'boolean'; description = 'Match letter case.' }
-        }
-    }
-    Register-FleetAction -Id 'scrimshaw.course.export-texts' -Summary 'Export learner-facing text as CSV for translation.' -Example @('course', 'export-texts', '--file', 'demo.scrim', '--out', 'texts.csv') -Handler ${function:Invoke-ScrimshawCourseExportTexts} -Schema @{
-        type = 'object'; additionalProperties = $false; required = @()
-        properties = @{ file = $fileOrScrim.file; scrim = $fileOrScrim.scrim; out = $writeFlags.out; inline = $fileOrScrim.inline }
-    }
-    Register-FleetAction -Id 'scrimshaw.course.import-texts' -Summary 'Apply a translation CSV to a course.' -Destructive -Example @('course', 'import-texts', '--file', 'demo.scrim', '--csvFile', 'texts.csv', '--out', 'demo.scrim') -Handler ${function:Invoke-ScrimshawCourseImportTexts} -Schema @{
-        type = 'object'; additionalProperties = $false; required = @()
-        properties = @{
-            file = $fileOrScrim.file; scrim = $fileOrScrim.scrim; out = $writeFlags.out; inline = $fileOrScrim.inline
-            csvFile = @{ type = 'string'; description = 'CSV file with key and translation columns.' }
-            csv = @{ type = 'string'; description = 'CSV text, used by the editor instead of a path.' }
-        }
-    }
-    Register-FleetAction -Id 'scrimshaw.course.publish' -Summary 'Build a standalone player or an LMS package.' -Example @('course', 'publish', '--file', 'demo.scrim', '--format', 'html', '--out', 'course.html') -Handler ${function:Invoke-ScrimshawCoursePublish} -Schema @{
-        type = 'object'; additionalProperties = $false; required = @('format')
-        properties = @{
-            file = $fileOrScrim.file; scrim = $fileOrScrim.scrim; out = $writeFlags.out; inline = $fileOrScrim.inline
-            format = @{ type = 'string'; enum = @('html', 'scorm12', 'scorm2004', 'xapi', 'cmi5'); description = 'Package type.' }
-            shell = @{ type = 'string'; description = 'Built app to use as the player shell. Defaults to dist/index.html.' }
-        }
-    }
-    Register-FleetAction -Id 'scrimshaw.media.import' -Summary 'Add a scene from Capstan video, SnapShackle PNG, and TalkForge WAV.' -Destructive -Example @('media', 'import', '--file', 'demo.scrim', '--media', 'clip.mp4', '--out', 'demo.scrim') -Handler ${function:Invoke-ScrimshawMediaImport} -Schema @{
-        type = 'object'; additionalProperties = $false; required = @('media')
-        properties = @{
-            file = $fileOrScrim.file; scrim = $fileOrScrim.scrim; out = $writeFlags.out; inline = $fileOrScrim.inline
-            media = @{
-                type = 'array'; description = 'File paths, or objects with name and base64.'
-            }
-        }
-    }
-    Register-FleetAction -Id 'scrimshaw.session.stop' -Summary 'Stop the local Scrimshaw server.' -Destructive -Example @('session', 'stop', '--port', '8775') -Handler ${function:Invoke-ScrimshawSessionStop} -Schema @{
-        type = 'object'; additionalProperties = $false; required = @()
-        properties = @{
-            port = @{ type = 'integer'; minimum = 1; maximum = 65535; description = 'Server port. Default 8775.' }
-        }
-    }
+    Clear-FleetAction
+    $course = @{ name = 'course'; type = 'string'; required = $true; description = 'Path to a .scrim course file.' }
+    $dest = @{ name = 'dest'; type = 'string'; required = $true; description = 'File to write (UTF-8, no BOM).' }
+    $replace = @{ name = 'replace'; type = 'boolean'; required = $false; description = 'Replace dest if it already exists.' }
+    $null = Register-FleetAction -App scrimshaw -Noun course -Verb new -Description 'Create a course file.' -Handler ${function:Invoke-ScrimshawCourseNew} -Parameters @(
+        @{ name = 'title'; type = 'string'; required = $false; description = 'Course title.' }
+        $dest
+        $replace
+    )
+    $null = Register-FleetAction -App scrimshaw -Noun course -Verb info -Description 'Count the scenes, slides, questions and media in a course.' -Handler ${function:Invoke-ScrimshawCourseInfo} -Parameters @($course)
+    $null = Register-FleetAction -App scrimshaw -Noun course -Verb validate -Description 'List problems that would break playback.' -Handler ${function:Invoke-ScrimshawCourseValidate} -Parameters @($course)
+    $null = Register-FleetAction -App scrimshaw -Noun course -Verb save -Description 'Write a course to a .scrim file.' -Handler ${function:Invoke-ScrimshawCourseSave} -Parameters @($course, $dest, $replace)
+    $null = Register-FleetAction -App scrimshaw -Noun course -Verb settings -Description 'Set the title, description, player switches, navigation, or passing score.' -Destructive -Handler ${function:Invoke-ScrimshawCourseSettings} -Parameters @(
+        $course, $dest, $replace
+        @{ name = 'title'; type = 'string'; required = $false }
+        @{ name = 'description'; type = 'string'; required = $false }
+        @{ name = 'author'; type = 'string'; required = $false }
+        @{ name = 'passPercent'; type = 'number'; required = $false }
+        @{ name = 'navigation'; type = 'string'; required = $false }
+        @{ name = 'showMenu'; type = 'boolean'; required = $false }
+        @{ name = 'showNav'; type = 'boolean'; required = $false }
+        @{ name = 'showSeekbar'; type = 'boolean'; required = $false }
+        @{ name = 'showTitle'; type = 'boolean'; required = $false }
+        @{ name = 'showNotes'; type = 'boolean'; required = $false }
+        @{ name = 'resume'; type = 'boolean'; required = $false }
+    )
+    $null = Register-FleetAction -App scrimshaw -Noun course -Verb replace -Description 'Replace text across titles, objects, alt text, states, and accepted answers.' -Destructive -Handler ${function:Invoke-ScrimshawCourseReplace} -Parameters @(
+        $course, $dest, $replace
+        @{ name = 'find'; type = 'string'; required = $true }
+        @{ name = 'replacement'; type = 'string'; required = $false }
+        @{ name = 'matchCase'; type = 'boolean'; required = $false }
+    )
+    $null = Register-FleetAction -App scrimshaw -Noun course -Verb export-texts -Description 'Export learner-facing text as CSV for translation.' -Handler ${function:Invoke-ScrimshawCourseExportTexts} -Parameters @($course, $dest, $replace)
+    $null = Register-FleetAction -App scrimshaw -Noun course -Verb import-texts -Description 'Apply a translation CSV to a course.' -Destructive -Handler ${function:Invoke-ScrimshawCourseImportTexts} -Parameters @(
+        $course, $dest, $replace
+        @{ name = 'csvFile'; type = 'string'; required = $false }
+        @{ name = 'csv'; type = 'string'; required = $false }
+    )
+    $null = Register-FleetAction -App scrimshaw -Noun course -Verb publish -Description 'Build a standalone player or an LMS package.' -Handler ${function:Invoke-ScrimshawCoursePublish} -Parameters @(
+        $course, $dest, $replace
+        @{ name = 'format'; type = 'string'; required = $true }
+        @{ name = 'shell'; type = 'string'; required = $false }
+    )
+    $null = Register-FleetAction -App scrimshaw -Noun media -Verb import -Description 'Add a scene from Capstan video, SnapShackle PNG, and TalkForge WAV.' -Destructive -Handler ${function:Invoke-ScrimshawMediaImport} -Parameters @(
+        $course, $dest, $replace
+        @{ name = 'media'; type = 'string'; required = $true; description = 'Media paths separated by |.' }
+    )
+    $null = Register-FleetAction -App scrimshaw -Noun session -Verb stop -Description 'Stop the local Scrimshaw server.' -Destructive -Handler ${function:Invoke-ScrimshawSessionStop} -Parameters @(
+        @{ name = 'port'; type = 'number'; required = $false }
+    )
 }
 
 Export-ModuleMember -Function @('Initialize-ScrimshawActions')

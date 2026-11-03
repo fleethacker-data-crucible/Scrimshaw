@@ -160,11 +160,8 @@ $version = '0.0.0'
 foreach ($vf in @((Join-Path $PSScriptRoot 'VERSION'), (Join-Path $Root 'VERSION'))) {
     if (Test-Path -LiteralPath $vf -PathType Leaf) { $version = ([IO.File]::ReadAllText($vf)).Trim(); break }
 }
-$script:ApiEnabled = [bool]$Api
-if ($script:ApiEnabled) {
-    Import-Module (Join-Path $PSScriptRoot 'vendor/FleetAction/FleetAction.psm1') -Force
-    Import-Module (Join-Path $PSScriptRoot 'actions/Scrimshaw.Actions.psm1') -Force
-    Initialize-ScrimshawActions -Root $PSScriptRoot
+if ($Api) {
+    Write-Host 'The action API is scrimshaw.ps1 api (FleetAction on http://127.0.0.1 only). This window keeps serving the editor.'
 }
 $autoStop = (-not $Stay) -and ($env:SCRIMSHAW_AUTO_STOP -ne '0')
 $script:BeatSeen = $false
@@ -266,50 +263,6 @@ try {
                 $script:BeatSeen = $true
                 if ($leaving) { $script:LeaveAt = Get-Date } else { $script:LastBeat = Get-Date; $script:LeaveAt = $null }
                 Send-Response $stream 204 'No Content' 'text/plain; charset=utf-8' ([byte[]]@()) $false
-                continue
-            }
-            $apiRoute = $script:ApiEnabled -and ($route -eq '/api/session' -or $route -eq '/api/actions' -or $route -eq '/api/help' -or $route -eq '/api/jobs' -or $route.StartsWith('/api/actions/'))
-            if ($apiRoute) {
-                $hdr = @{}
-                foreach ($l in ($lines | Select-Object -Skip 1)) {
-                    $c = $l.IndexOf(':')
-                    if ($c -gt 0) { $hdr[$l.Substring(0, $c).Trim().ToLowerInvariant()] = $l.Substring($c + 1).Trim() }
-                }
-                $origin = if ($hdr.ContainsKey('origin')) { $hdr['origin'].ToLowerInvariant() } else { '' }
-                $remote = $client.Client.RemoteEndPoint
-                if (($origin -ne '' -and $allowedOrigins -notcontains $origin) -or -not [System.Net.IPAddress]::IsLoopback($remote.Address)) {
-                    Send-Text $stream 403 'Forbidden' 'Forbidden' $false; continue
-                }
-                $bodyText = ''
-                if ($method -eq 'POST') {
-                    $len = 0
-                    $tooBig = $false
-                    if ($hdr.ContainsKey('content-length') -and [int]::TryParse($hdr['content-length'], [ref]$len) -and $len -gt 0) {
-                        if ($len -gt 83886080) { $tooBig = $true }
-                        else {
-                            $raw = New-Object byte[] $len
-                            $got = 0
-                            while ($got -lt $len) { $n = $stream.Read($raw, $got, $len - $got); if ($n -le 0) { break }; $got += $n }
-                            $bodyText = [Text.Encoding]::UTF8.GetString($raw, 0, $got)
-                        }
-                    }
-                    if ($tooBig) { Send-Text $stream 413 'Payload Too Large' 'Payload too large' $false; continue }
-                } elseif ($method -ne 'GET' -and -not $headOnly) {
-                    Send-Text $stream 405 'Method Not Allowed' 'Method not allowed' $false; continue
-                }
-                $answered = Invoke-FleetHttpRequest -Method $(if ($headOnly) { 'GET' } else { $method }) -Path $target -Headers $hdr -Body $bodyText -RemoteAddress $remote.Address.ToString() -ListenHost $allowedHosts
-                if ($null -eq $answered) { Send-Text $stream 404 'Not Found' 'Not found' $headOnly; continue }
-                $status = [int]$answered.Status
-                $reason = 'Error'
-                if ($status -eq 200) { $reason = 'OK' }
-                elseif ($status -eq 400) { $reason = 'Bad Request' }
-                elseif ($status -eq 401) { $reason = 'Unauthorized' }
-                elseif ($status -eq 403) { $reason = 'Forbidden' }
-                elseif ($status -eq 404) { $reason = 'Not Found' }
-                elseif ($status -eq 405) { $reason = 'Method Not Allowed' }
-                elseif ($status -eq 409) { $reason = 'Conflict' }
-                elseif ($status -eq 413) { $reason = 'Payload Too Large' }
-                Send-Response $stream $status $reason ([string]$answered.Type) ([Text.Encoding]::UTF8.GetBytes([string]$answered.Body)) $headOnly
                 continue
             }
             if ($method -ne 'GET' -and -not $headOnly) { Send-Text $stream 405 'Method Not Allowed' 'Method not allowed' $false; continue }

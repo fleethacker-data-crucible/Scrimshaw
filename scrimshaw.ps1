@@ -1,22 +1,22 @@
 #requires -Version 5.1
 <#
-  Scrimshaw action CLI.
+  Scrimshaw action CLI (FleetAction 1.0.1).
 
     scrimshaw.ps1 commands --json
     scrimshaw.ps1 help --json
-    scrimshaw.ps1 course info --file course.scrim --json
-    scrimshaw.ps1 job run examples/training-to-course.job.json
+    scrimshaw.ps1 course info --course course.scrim --json
+    scrimshaw.ps1 job run --file examples/training-to-course.job.json
     scrimshaw.ps1 api --port 8775
 
-  Destructive actions need --confirmed. --dry-run writes nothing. --yes replaces
-  an existing --out file. --json prints one JSON object.
+  --confirmed is the destructive-confirm flag. It is passed to FleetAction as --yes,
+  which sets -Confirmed. --dry-run does not call the handler. --replace true overwrites dest.
 #>
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } catch {}
 
 $root = $PSScriptRoot
-Import-Module (Join-Path $root 'vendor/FleetAction/FleetAction.psm1') -Force
+Import-Module (Join-Path $root 'vendor/FleetAction/FleetAction.psd1') -Force
 Import-Module (Join-Path $root 'actions/Scrimshaw.Actions.psm1') -Force
 Initialize-ScrimshawActions -Root $root
 
@@ -28,17 +28,33 @@ if ($argv.Count -ge 1 -and [string]$argv[0] -eq 'api') {
     for ($i = 1; $i -lt $argv.Count; $i++) {
         if ([string]$argv[$i] -eq '--port') {
             $i++
-            if ($i -ge $argv.Count) { [Console]::Error.WriteLine('scrimshaw: --port needs a number.'); exit 64 }
+            if ($i -ge $argv.Count) { [Console]::Error.WriteLine('scrimshaw: --port needs a number.'); exit 2 }
             $parsed = 0
-            if (-not [int]::TryParse([string]$argv[$i], [ref]$parsed)) { [Console]::Error.WriteLine('scrimshaw: --port must be an integer.'); exit 64 }
+            if (-not [int]::TryParse([string]$argv[$i], [ref]$parsed)) { [Console]::Error.WriteLine('scrimshaw: --port must be an integer.'); exit 2 }
             $port = $parsed
-        } else { [Console]::Error.WriteLine("scrimshaw: unexpected '$($argv[$i])'."); exit 64 }
+        } else { [Console]::Error.WriteLine("scrimshaw: unexpected '$($argv[$i])'."); exit 2 }
     }
-    Start-FleetActionListener -Port $port
+    Start-FleetServer -App scrimshaw -Port $port
     exit 0
 }
 
-$result = Invoke-FleetActionCli -Argv $argv
-if ($result.Stdout) { [Console]::Out.Write($result.Stdout) }
-if ($result.Stderr) { [Console]::Error.Write($result.Stderr) }
-exit ([int]$result.Exit)
+$mapped = New-Object System.Collections.Generic.List[string]
+[void]$mapped.Add('scrimshaw')
+$seenYes = $false
+foreach ($token in $argv) {
+    if ([string]$token -eq '--confirmed') {
+        if (-not $seenYes) { [void]$mapped.Add('--yes'); $seenYes = $true }
+    } else {
+        if ([string]$token -eq '--yes') { $seenYes = $true }
+        [void]$mapped.Add([string]$token)
+    }
+}
+$result = Invoke-FleetCli -Arguments $mapped.ToArray()
+if ($result.EmitJson) {
+    [Console]::Out.Write($result.Json)
+} elseif ([int]$result.ExitCode -eq 0) {
+    if ($result.Text) { [Console]::Out.Write($result.Text + "`n") }
+} else {
+    [Console]::Error.WriteLine([string]$result.Text)
+}
+exit ([int]$result.ExitCode)
