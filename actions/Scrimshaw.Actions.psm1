@@ -22,14 +22,16 @@ function Set-FleetProp {
 }
 
 function Get-ListProp {
+    # Always return a real array. A bare "return @($one)" unwraps on Windows PowerShell 5.1,
+    # and strict mode then throws when the caller reads .Count.
     param($Object, [string]$Name)
-    $value = Get-FleetProp $Object $Name
-    if ($null -eq $value) { return @() }
-    if ($value -is [string]) { return @($value) }
-    if ($value -is [System.Collections.IDictionary] -or $value -is [System.Management.Automation.PSCustomObject]) { return @($value) }
     $list = New-Object System.Collections.Generic.List[object]
-    foreach ($item in $value) { [void]$list.Add($item) }
-    return $list.ToArray()
+    $value = Get-FleetProp $Object $Name
+    if ($null -eq $value) { return ,$list.ToArray() }
+    $one = ($value -is [string]) -or ($value -is [System.Collections.IDictionary]) -or ($value -is [System.Management.Automation.PSCustomObject])
+    if ($one) { [void]$list.Add($value); return ,$list.ToArray() }
+    foreach ($item in $value) { if ($null -ne $item) { [void]$list.Add($item) } }
+    return ,$list.ToArray()
 }
 
 function New-ScrimStyle {
@@ -282,7 +284,7 @@ function Get-CourseProblems {
                 [void]$problems.Add("${title}: the $qKind question has no text entry box linked.")
             }
             if ($qKind -eq 'fill-in') {
-                $accepted = @(Get-ListProp $question 'accepted')
+                $accepted = Get-ListProp $question 'accepted'
                 $any = $false
                 foreach ($a in $accepted) { if (([string]$a).Trim()) { $any = $true } }
                 if (-not $any) { [void]$problems.Add("${title}: the fill-in question has no accepted answers.") }
@@ -351,7 +353,7 @@ function Set-TextKey {
         }
         $question = Get-FleetProp $slide 'question'
         if ($question) {
-            $accepted = @(Get-ListProp $question 'accepted')
+            $accepted = Get-ListProp $question 'accepted'
             for ($j = 0; $j -lt $accepted.Count; $j++) {
                 if ($Key -eq "answer:${slideId}:$j") {
                     $accepted[$j] = $Value
@@ -995,12 +997,12 @@ function Invoke-ScrimshawCourseInfo {
     return @{
         Data = @{
             title = [string](Get-FleetProp $course 'title')
-            scenes = @(Get-ListProp $course 'scenes').Count
+            scenes = (Get-ListProp $course 'scenes').Count
             slides = $slides.Count
             questions = $questions
             graded = $graded
             assets = $assetCount
-            variables = @(Get-ListProp $course 'variables').Count
+            variables = (Get-ListProp $course 'variables').Count
         }
         Exit = 0
     }
@@ -1183,7 +1185,7 @@ function Invoke-ScrimshawMediaImport {
     param($Arguments, $Context)
     $loaded = Read-ScrimArgument $Arguments
     if (-not $loaded.Ok) { return @{ Ok = $false; Code = 'bad-course'; Exit = 1; Message = [string]$loaded.Message } }
-    $media = @(Get-ListProp $Arguments 'media')
+    $media = Get-ListProp $Arguments 'media'
     if ($media.Count -eq 0) { return @{ Ok = $false; Code = 'usage'; Exit = 64; Message = 'Pass at least one --media path.' } }
     $plan = Build-MediaPlan $media
     $added = 0
