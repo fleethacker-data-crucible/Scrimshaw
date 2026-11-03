@@ -164,11 +164,21 @@ jobs:
             }
           }
           if (-not $npm) {
-            Write-Host "GITHUB_WORKSPACE=$env:GITHUB_WORKSPACE"
-            Write-Host "ProgramFiles=$env:ProgramFiles user=$env:USERNAME"
-            Get-ChildItem -LiteralPath $env:ProgramFiles -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'node|nvm|fnm' } | ForEach-Object { Write-Host $_.FullName }
-            Write-Host '::error::Runner gap: npm is not on PATH for this self-hosted runner, and it was not found under Program Files, nvm, fnm, volta, scoop, per-user Node installs, or the runner externals folder. The UI job needs Node.js 22.18+ on the machine. Nothing was installed.'
-            exit 1
+            # Runner gap: this machine has no Node install. Download the official zip into the job temp
+            # directory and check SHA256. Nothing is installed on the runner.
+            Write-Host '::warning::Runner gap: npm is not installed on this self-hosted runner. Using a verified Node.js 22.23.4 download in RUNNER_TEMP.'
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            $ver = '22.23.4'
+            $zipName = "node-v$ver-win-x64.zip"
+            $expectedNode = 'CBC74B5E0982C9DBB41525FD8FB5DCD32FBEE237863F7829072F4639A1CE5F20'
+            $zipPath = Join-Path $env:RUNNER_TEMP $zipName
+            Invoke-WebRequest -UseBasicParsing -Uri "https://nodejs.org/dist/v$ver/$zipName" -OutFile $zipPath
+            $nodeHash = (Get-FileHash -Algorithm SHA256 -Path $zipPath).Hash
+            if ($nodeHash -ne $expectedNode) { Write-Host "::error::Node.js $ver SHA256 $nodeHash did not match $expectedNode"; exit 1 }
+            $nodeRoot = Join-Path $env:RUNNER_TEMP 'node-dist'
+            Expand-Archive -LiteralPath $zipPath -DestinationPath $nodeRoot -Force
+            $npm = Join-Path $nodeRoot "node-v$ver-win-x64\npm.cmd"
+            if (-not (Test-Path -LiteralPath $npm)) { Write-Host "::error::Node zip did not contain npm.cmd"; exit 1 }
           }
           $dir = Split-Path -Parent $npm
           Write-Host "Using npm at $npm"
