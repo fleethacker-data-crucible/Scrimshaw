@@ -66,6 +66,20 @@ backup you can move between machines or share with another author.
 
 New to it? Start with the [author guide](docs/GUIDE.md). See [ROADMAP.md](ROADMAP.md) for the full feature checklist and what is next.
 
+## How it works and how it connects to other Fleet tools
+
+![Scrimshaw architecture: browser editor and player, loopback PowerShell server, content in, packages out, optional Fairlead drafts, CLI and API](docs/architecture/Scrimshaw-architecture.png)
+
+([SVG](docs/architecture/Scrimshaw-architecture.svg) version.) Everything runs on one computer: `Launch.bat` starts the PowerShell
+server on 127.0.0.1:8775, and the editor and player run in the browser. Courses live in browser storage and `.scrim` files.
+
+| Fleet tool | What Scrimshaw does with it | Status |
+| --- | --- | --- |
+| Fairlead | **Draft with the router** writes a first-draft quiz or storyboard through Fairlead on 127.0.0.1:8776. Off until you opt in, local models only by default, the client key is typed per session and held in memory. A person reviews the draft and adds it. | Built |
+| Lazarette | Holds the model key that Fairlead uses. Scrimshaw does not talk to Lazarette itself. | Key hand-off to Scrimshaw is planned |
+| Capstan, SnapShackle, TalkForge | **Import Fleet media** reads their MP4 + captions, PNG, and WAV files, checked by their bytes. File based, no live link. | Built |
+| FleetAction | `scrimshaw.ps1` command line and the loopback API (`Start.ps1 -Api`); see [docs/CLI-API.md](docs/CLI-API.md). | Built |
+
 ## Develop
 
 Build off-workstation (per the TechStack), then commit `dist/`.
