@@ -13,6 +13,21 @@ Scrimshaw is a sailor's craft.
 Second line.
 `;
 
+test('cue tags come out as plain text, including an unclosed script tag', () => {
+  const cue = (body: string) => parseVtt(`WEBVTT\n\n00:00.000 --> 00:01.000\n${body}\n`)[0]?.text;
+  assert.equal(cue('<i>Hello</i> <b>there</b>'), 'Hello there');
+  assert.equal(cue('<v.loud Narrator>See <00:00.500>this'), 'See this');
+  assert.equal(cue('if x < y'), 'if x < y');
+  assert.equal(cue('if x < y and z > 0'), 'if x  0', 'a < through the next > is still one tag');
+  assert.equal(cue('hello <script'), 'hello');
+  assert.equal(cue('hello <SCRIPT'), 'hello');
+  assert.equal(cue('hello <style'), 'hello');
+  assert.equal(cue('hello <iframe'), 'hello');
+  assert.equal(cue('hello <script>alert(1)</script>'), 'hello alert(1)');
+  assert.equal(cue('<scr<script>ipt>'), 'ipt>');
+  assert.equal(cue('prefix <script suffix')?.includes('<script'), false);
+});
+
 test('WebVTT parsing, cue lookup and data URL round-trip', () => {
   const cues = parseVtt(VTT);
   assert.equal(cues.length, 2);

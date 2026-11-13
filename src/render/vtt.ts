@@ -20,10 +20,29 @@ export function parseVtt(text: string): Cue[] {
     if (start === null || end === null) continue;
     const body: string[] = [];
     while (i + 1 < lines.length && lines[i + 1].trim() !== '') body.push(lines[++i]);
-    // Strip cue markup such as <v Speaker>, <i>, <b>.
-    cues.push({ start, end, text: body.join('\n').replace(/<[^>]+>/g, '').trim() });
+    cues.push({ start, end, text: stripCueTags(body.join('\n')).trim() });
   }
   return cues;
+}
+
+// WebVTT cue markup (<v Speaker>, <i>, <b>, <c.class>, timestamps) is not spoken text.
+// A closed tag is the span from '<' through the next '>'. An unclosed <script, <style,
+// or <iframe has no '>' and is dropped. Any other bare '<' (as in "x < y") stays.
+const UNCLOSED_DANGEROUS = ['script', 'style', 'iframe'];
+
+function stripCueTags(text: string): string {
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] !== '<') { out += text[i++]; continue; }
+    const gt = text.indexOf('>', i + 1);
+    if (gt > i + 1) { i = gt + 1; continue; }
+    const head = text.slice(i + 1, i + 7).toLowerCase();
+    const bad = gt < 0 ? UNCLOSED_DANGEROUS.find((name) => head.startsWith(name)) : undefined;
+    if (bad) { i += 1 + bad.length; continue; }
+    out += text[i++];
+  }
+  return out;
 }
 
 export function cueAt(cues: Cue[], t: number): string {
