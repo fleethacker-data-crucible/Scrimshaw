@@ -77,7 +77,7 @@ server on 127.0.0.1:8775, and the editor and player run in the browser. Courses 
 | --- | --- | --- |
 | Fairlead | **Draft with the router** writes a first-draft quiz or storyboard through Fairlead on 127.0.0.1:8776. Off until you opt in, local models only by default. The local server sends the key (`Fairlead/Scrimshaw`, or the Fairlead local token) and the page never sees it. A typed key remains only when the page is not served by that server. A person reviews the draft and adds it. | Built |
 | Lazarette | Holds the model key that Fairlead uses. Scrimshaw does not talk to Lazarette itself. | Key hand-off to Scrimshaw is planned |
-| Capstan, SnapShackle, TalkForge | **Import Fleet media** reads their MP4 + captions, PNG, and WAV files, checked by their bytes. File based, no live link. | Built |
+| Capstan, SnapShackle, TalkForge | **Import Fleet media** reads their MP4 + captions, PNG, and WAV files, checked by their bytes. **Narrate this slide** and **Storyboard from a recording** reach TalkForge through Fairlead. The page does not call TalkForge. MP4 export is a hand-off to Capstan, with no encoder in Scrimshaw. | Import and narration built; MP4 export not built |
 | FleetAction | `scrimshaw.ps1` command line and the loopback API (`Start.ps1 -Api`); see [docs/CLI-API.md](docs/CLI-API.md). | Built |
 
 ## Develop

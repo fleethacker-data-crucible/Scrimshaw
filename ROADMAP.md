@@ -20,8 +20,8 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 | Shapes | ✅ | Rectangle, rounded, oval, triangle, arrow, line |
 | Images | ✅ | Embedded, alt text, decorative flag |
 | Video | 🟡 | Embedded file or URL, autoplay, controls, loop, play/pause triggers. No captions, no timeline sync |
-| Audio / narration | 🟡 | Audio objects that start on the timeline, optional play button, loop, play/pause triggers. No waveform editing or per-slide narration track |
-| Text-to-speech, closed captions | 🟡 | WebVTT captions for video (native track) and audio (caption bar); publish check warns when media has none. No text-to-speech |
+| Audio / narration | 🟡 | Audio objects that start on the timeline, optional play button, loop, play/pause triggers. File menu **Narrate this slide** asks TalkForge, through Fairlead, to read the notes (or the title and text) and attaches a WAV with captions. No waveform editing |
+| Text-to-speech, closed captions | 🟡 | WebVTT captions for video (native track) and audio (caption bar); publish check warns when media has none. Per-slide narration is TalkForge through Fairlead (`POST /v1/audio/speech`), not a second speech engine |
 | Buttons, hotspots | ✅ | |
 | Text entry | ✅ | Writes to a variable |
 | Sliders, dials | 🟡 | Sliders bound to a number variable; no dials |
@@ -77,7 +77,7 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 | cmi5 | ✅ | Fetch-token launch, LMS.LaunchData (context template, launch mode, mastery score), moveOn statements, cmi5.xml |
 | AICC | ⬜ | |
 | Word / PDF handout export | ✅ | Printable HTML storyboard (slide pictures, layers, triggers, answers, notes) to print or save as PDF, and a text-only Word .docx handout (slide text, question setup and answers, triggers, notes; no slide pictures) |
-| Video (MP4) export | ⬜ | Gap, not built. A course is interactive (triggers, variables, layers, quizzes), so a video can only be a linear walk-through of chosen slides with narration, not the course. It needs a frame renderer for slides, an H.264 encoder (WebCodecs) and an MP4 muxer, none of which Scrimshaw has. Capstan already ships WebCodecs H.264 export and its own MP4 muxer, so the likely route is to hand Capstan plain files (slide images, TalkForge narration, timing) rather than a second encoder here. Decision for Jeremy: hand-off to Capstan, or a shared encoder module |
+| Video (MP4) export | ⬜ | Decided 2026-11-14: a hand-off to Capstan, with no second encoder in Scrimshaw. A course is interactive, so a video is a linear walk-through. Capstan already has the H.264 encoder and MP4 muxer. Scrimshaw hands it plain files (slide images, TalkForge narration, timing) when that hand-off is built |
 | Publish-time validation | ✅ | Broken trigger targets, unanswerable questions, missing alt text |
 
 ## Platform
@@ -93,6 +93,7 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 | Import PowerPoint (.pptx) | 🟡 | Text boxes (size, bold, colour, alignment, bullets), pictures, solid backgrounds, speaker notes; no charts, tables, groups or animations |
 | Import Fleet media | ✅ | Capstan MP4/WebM, WebVTT captions and chapters (.vtt or "0:00 Title" list), SnapShackle PNG with its `.meta.json`, TalkForge WAV; checked by their bytes, one scene of slides per import. Chapters go to slide notes (no cue-point markers yet); TalkForge `timing.json` is not read yet |
 | Drafts through the Fairlead router | 🟡 | Opt-in File menu dialog: storyboard and quiz drafts from a brief. On the local server the page calls `POST /api/fairlead/v1/chat/completions` and `FairleadProxy.ps1` adds the key (`X-Fairlead-Label: Scrimshaw`, `X-Fairlead-Privacy: local` by default) after `GET /__fleethacker/id` checks out. A typed key is only the fallback with no local server. Reviewed before they are added. |
+| TalkForge voice | 🟡 | **Narrate this slide** reads the notes (or the on-slide text) through Fairlead `POST /v1/audio/speech` and attaches a WAV plus a caption cue. **Storyboard from a recording** sends the file to `POST /v1/audio/transcriptions`, then drafts a storyboard from the transcript for review. Both use the same local-server key path as drafts. The page does not call TalkForge directly |
 | Import other authoring tools' files | ⬜ | The formats are proprietary; a best-effort importer is a stretch goal |
 | Collaboration / review comments | ⬜ | |
 | Rust → WebAssembly compute | ⬜ | Not needed yet; reserved for heavy work such as video export |

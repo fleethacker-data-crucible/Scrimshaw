@@ -62,7 +62,7 @@ Describe 'Fairlead local-token proxy' {
         $script:ScrimshawHookKey = { return @{ Key = $script:FairleadTestKey; Source = 'local-token' } }
         $seen = @{ Url = ''; Key = ''; Privacy = $false }
         $script:ScrimshawHookForward = {
-            param($Url, $Key, $Privacy, $BodyBytes)
+            param($Url, $Key, $Privacy, $BodyBytes, $ContentType)
             $seen.Url = $Url; $seen.Key = $Key; $seen.Privacy = [bool]$Privacy
             return @{ Status = 200; Reason = 'OK'; Type = 'application/json'; Body = [Text.Encoding]::UTF8.GetBytes('{"choices":[{"message":{"content":"ok"}}]}') }
         }
@@ -124,6 +124,41 @@ Describe 'Fairlead local-token proxy' {
         ($text | ConvertFrom-Json).key | Should -Be 'local-token'
         ($text | ConvertFrom-Json).fairlead | Should -Be 'stopped'
         $script:started | Should -BeFalse
+    }
+
+    It 'forwards speech as JSON and a recording as multipart, and keeps the key off the page' {
+        $script:ScrimshawHookBase = 'http://127.0.0.1:8776'
+        $script:ScrimshawHookProbe = { return [pscustomobject]@{ tool = 'fairlead'; pid = 40; path = 'C:\Fairlead\Fairlead.exe' } }
+        $script:ScrimshawHookOwners = { return @(40) }
+        $script:ScrimshawHookProcess = { return @{ CommandLine = ''; ExecutablePath = 'C:\Fairlead\Fairlead.exe' } }
+        $script:ScrimshawHookKey = { return @{ Key = $script:FairleadTestKey; Source = 'local-token' } }
+        $seen = @{ Url = ''; Type = '' }
+        $script:ScrimshawHookForward = {
+            param($Url, $Key, $Privacy, $BodyBytes, $ContentType)
+            if ($Key -ne $script:FairleadTestKey) { throw 'wrong key' }
+            $seen.Url = $Url; $seen.Type = $ContentType
+            $wav = [Text.Encoding]::ASCII.GetBytes('RIFF')
+            return @{ Status = 200; Reason = 'OK'; Type = 'audio/wav'; Body = $wav }
+        }
+        $speech = [Text.Encoding]::UTF8.GetBytes('{"input":"Hello","voice":"en_US-libritts-high","response_format":"wav"}')
+        $r = Invoke-ScrimshawFairleadRoute -Method 'POST' -Route '/api/fairlead/v1/audio/speech' -Headers @{ 'content-type' = 'application/json'; 'x-fairlead-privacy' = 'local' } -Body $speech
+        $r.Status | Should -Be 200
+        $r.Type | Should -Be 'audio/wav'
+        $seen.Url | Should -Be 'http://127.0.0.1:8776/v1/audio/speech'
+        $seen.Type | Should -Be 'application/json'
+        $script:ScrimshawHookForward = {
+            param($Url, $Key, $Privacy, $BodyBytes, $ContentType)
+            $seen.Url = $Url; $seen.Type = $ContentType
+            return @{ Status = 200; Reason = 'OK'; Type = 'application/json'; Body = [Text.Encoding]::UTF8.GetBytes('{"text":"Hello from the recording"}') }
+        }
+        $form = [Text.Encoding]::UTF8.GetBytes("--bound`r`nContent-Disposition: form-data; name=`"file`"`r`n`r`naudio`r`n--bound--`r`n")
+        $t = Invoke-ScrimshawFairleadRoute -Method 'POST' -Route '/api/fairlead/v1/audio/transcriptions' -Headers @{ 'content-type' = 'multipart/form-data; boundary=bound' } -Body $form
+        $t.Status | Should -Be 200
+        $seen.Url | Should -Be 'http://127.0.0.1:8776/v1/audio/transcriptions'
+        $seen.Type | Should -Be 'multipart/form-data; boundary=bound'
+        [Text.Encoding]::UTF8.GetString($t.Body) | Should -Not -Match 'fl-'
+        $bad = Invoke-ScrimshawFairleadRoute -Method 'POST' -Route '/api/fairlead/v1/audio/transcriptions' -Headers @{ 'content-type' = "multipart/form-data; boundary=bound`r`nX-Evil: 1" } -Body $form
+        $bad.Status | Should -Be 400
     }
 
     It 'ignores a router address that is not on this computer' {

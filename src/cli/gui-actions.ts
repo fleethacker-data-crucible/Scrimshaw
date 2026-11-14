@@ -25,6 +25,8 @@ export const GUI_ACTIONS: GuiAction[] = [
   { label: 'Storyboard for review (printable HTML)', where: 'File menu', command: null, gap: 'src/export/storyboard.tsx renders with React; needs a string renderer first.' },
   { label: 'Handout for Word (.docx, text only)', where: 'File menu', command: 'course export-handout' },
   { label: 'Draft with the router…', where: 'File menu', command: null, gap: 'Needs a "course draft" command. The editor already drafts through FairleadProxy.ps1 (loopback only, key from Fairlead/Scrimshaw or the local-token file, never printed). The parsers in src/ai/router.ts are pure.' },
+  { label: 'Narrate this slide…', where: 'File menu', command: null, gap: 'Needs a "slide narrate" command. The editor already calls Fairlead /v1/audio/speech through FairleadProxy.ps1 and attaches a WAV plus captions. TalkForge is reached by Fairlead, not by the page.' },
+  { label: 'Storyboard from a recording…', where: 'File menu', command: null, gap: 'Needs a "course transcribe" command. The editor already sends the recording to Fairlead /v1/audio/transcriptions through the local server, then drafts a storyboard from the transcript for review.' },
   { label: 'Export text for translation (.csv)', where: 'File menu', command: 'course export-texts' },
   { label: 'Import translated text (.csv)…', where: 'File menu', command: null, gap: 'Needs a "course import-texts" command (applyTexts exists in src/model/texts.ts).' },
   { label: 'Import Fleet media (video, captions, PNG, WAV)…', where: 'File menu', command: null, gap: 'Needs a "media import" command that edits a .scrim file; planImport and applyImport in src/import/media.ts are already pure and tested.' },

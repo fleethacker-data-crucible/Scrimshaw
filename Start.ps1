@@ -19,8 +19,9 @@
   X-FleetHacker-Shutdown: 1. Both need a loopback caller, a loopback Host and an Origin that is absent or
   the same origin. Stop-Scrimshaw.ps1 stops every running instance through the shutdown endpoint.
   Drafts: POST /api/fairlead/v1/chat/completions is forwarded to Fairlead by FairleadProxy.ps1.
-  The page never sends the key. GET /api/fairlead/status reports whether Fairlead identified itself
-  and whether a key is present (credential, local-token, or none). It does not return the key.
+  Voice: POST /api/fairlead/v1/audio/speech and POST /api/fairlead/v1/audio/transcriptions use the
+  same key and the same id check. The page never sends the key. GET /api/fairlead/status reports
+  whether Fairlead identified itself and whether a key is present. It does not return the key.
 
   Close the console window (or press Ctrl+C) to stop it.
 #>
@@ -228,7 +229,7 @@ try {
             if ($allowedHosts -notcontains $hostValue) { Send-Text $stream 403 'Forbidden' 'Forbidden' $false; continue }
             $headOnly = $method -eq 'HEAD'
             $route = ($target -split '\?')[0]
-            $fairleadRoute = ($route -eq '/api/fairlead/status' -or $route -eq '/api/fairlead/v1/chat/completions')
+            $fairleadRoute = ($route -eq '/api/fairlead/status' -or $route -eq '/api/fairlead/v1/chat/completions' -or $route -eq '/api/fairlead/v1/audio/speech' -or $route -eq '/api/fairlead/v1/audio/transcriptions')
             if ($route -eq '/__fleethacker/id' -or $route -eq '/__fleethacker/shutdown' -or $route -eq '/api/heartbeat' -or $fairleadRoute) {
                 $hdr = @{}
                 foreach ($l in ($lines | Select-Object -Skip 1)) {
@@ -241,16 +242,20 @@ try {
                     Send-Text $stream 403 'Forbidden' 'Forbidden' $false; continue
                 }
                 if ($fairleadRoute) {
-                    if ($route -eq '/api/fairlead/v1/chat/completions' -and $method -ne 'POST') { Send-Text $stream 405 'Method Not Allowed' 'Method not allowed' $false; continue }
+                    $postRoute = ($route -eq '/api/fairlead/v1/chat/completions' -or $route -eq '/api/fairlead/v1/audio/speech' -or $route -eq '/api/fairlead/v1/audio/transcriptions')
+                    if ($postRoute -and $method -ne 'POST') { Send-Text $stream 405 'Method Not Allowed' 'Method not allowed' $false; continue }
                     if ($route -eq '/api/fairlead/status' -and $method -ne 'GET' -and -not $headOnly) { Send-Text $stream 405 'Method Not Allowed' 'Method not allowed' $false; continue }
+                    $maxBody = 262144
+                    if ($route -eq '/api/fairlead/v1/audio/speech') { $maxBody = 65536 }
+                    elseif ($route -eq '/api/fairlead/v1/audio/transcriptions') { $maxBody = 8388608 }
                     $proxyBody = New-Object byte[] 0
                     if ($method -eq 'POST') {
-                        $read = Read-ScrimshawLimitedBody -Stream $stream -Headers $hdr -MaxBytes 262144
+                        $read = Read-ScrimshawLimitedBody -Stream $stream -Headers $hdr -MaxBytes $maxBody
                         if (-not $read.Ok) { Send-Text $stream 400 'Bad Request' $read.Error $false; continue }
                         $proxyBody = $read.Body
                     }
-                    # A draft can take longer than the usual static-file send timeout.
-                    $client.SendTimeout = 130000
+                    # Speech synthesis can take longer than a static-file send.
+                    if ($route -like '/api/fairlead/v1/audio/*') { $client.SendTimeout = 180000 } else { $client.SendTimeout = 130000 }
                     $proxied = Invoke-ScrimshawFairleadRoute -Method $method -Route $route -Headers $hdr -Body $proxyBody
                     Send-Response $stream $proxied.Status $proxied.Reason $proxied.Type $proxied.Body $headOnly
                     continue
