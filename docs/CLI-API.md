@@ -256,7 +256,7 @@ These need the open page, a pointer, or browser storage. They are not actions:
 | Slides, layers, states, triggers, variables, timeline, quizzes as on-canvas edits | The operations exist in `src/store/ops.ts` and undo as you drag. There is no headless target for "the thing you have selected". |
 | Storyboard HTML | `src/export/storyboard.tsx` renders with React. |
 | Word handout | Built by the editor's docx writer. |
-| Draft with the router | Opt-in call to Fairlead, then a review step before anything is added. |
+| Draft with the router | Opt-in call to Fairlead, then a review step before anything is added. On the local server the key stays in Start.ps1 (`POST /api/fairlead/v1/chat/completions`). |
 | Preview, themes, zoom, shortcuts | Editor chrome, not a course file. |
 | PowerPoint import | Runs in the page from a picked `.pptx`. |
 

@@ -75,7 +75,7 @@ server on 127.0.0.1:8775, and the editor and player run in the browser. Courses 
 
 | Fleet tool | What Scrimshaw does with it | Status |
 | --- | --- | --- |
-| Fairlead | **Draft with the router** writes a first-draft quiz or storyboard through Fairlead on 127.0.0.1:8776. Off until you opt in, local models only by default, the client key is typed per session and held in memory. A person reviews the draft and adds it. | Built |
+| Fairlead | **Draft with the router** writes a first-draft quiz or storyboard through Fairlead on 127.0.0.1:8776. Off until you opt in, local models only by default. Scrimshaw's server attaches the local key (`Fairlead/Scrimshaw`, or Fairlead's local token) and the key never reaches the page. A typed key is only for a page that is not served by that server. A person reviews the draft and adds it. | Built |
 | Lazarette | Holds the model key that Fairlead uses. Scrimshaw does not talk to Lazarette itself. | Key hand-off to Scrimshaw is planned |
 | Capstan, SnapShackle, TalkForge | **Import Fleet media** reads their MP4 + captions, PNG, and WAV files, checked by their bytes. File based, no live link. | Built |
 | FleetAction | `scrimshaw.ps1` command line and the loopback API (`Start.ps1 -Api`); see [docs/CLI-API.md](docs/CLI-API.md). | Built |

@@ -4,7 +4,7 @@ import { createServer, type IncomingHttpHeaders, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { readFileSync, readdirSync } from 'node:fs';
 import {
-  FAIRLEAD_URL, RouterError, chat, defaultRouterSettings, isLoopbackUrl, loadRouterSettings, normalizeRouterSettings, parseQuiz,
+  FAIRLEAD_LABEL, FAIRLEAD_PROXY_PATH, FAIRLEAD_URL, RouterError, chat, defaultRouterSettings, isLoopbackUrl, loadRouterSettings, normalizeRouterSettings, parseQuiz,
   parseStoryboard, quizToSlides, saveRouterSettings, storyboardToScene, type RouterSettings,
 } from '../src/ai/router.ts';
 
@@ -76,7 +76,8 @@ test('a storyboard draft goes to the router with privacy and key headers, and be
     assert.equal(req.method, 'POST');
     assert.equal(req.url, '/v1/chat/completions');
     assert.equal(req.headers['x-fairlead-privacy'], 'local');
-    assert.equal(req.headers['x-fairlead-label'], 'scrimshaw-drafts');
+    assert.equal(req.headers['x-fairlead-label'], FAIRLEAD_LABEL);
+    assert.equal(FAIRLEAD_LABEL, 'Scrimshaw');
     assert.equal(req.headers.authorization, 'Bearer fl-test-synthetic');
     assert.equal(req.body.model, 'smart');
     assert.equal(req.body.messages[1].content, 'Safe lifting for warehouse staff');
@@ -87,6 +88,33 @@ test('a storyboard draft goes to the router with privacy and key headers, and be
     assert.equal(scene.slides[1].layers[0].objects[1].text, '- Feet apart\n- Bend the knees\n- Keep the load close');
     assert.equal(scene.slides[0].notes, 'Open with a story.');
   } finally { await router.close(); }
+});
+
+test('a draft served by Scrimshaw posts to the local route and does not send a key', async () => {
+  const seen: { url: string; headers: Record<string, string>; body: string }[] = [];
+  const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
+    const headers = init?.headers as Record<string, string>;
+    seen.push({ url: String(input), headers, body: String(init?.body ?? '') });
+    return new Response(JSON.stringify({ choices: [{ message: { content: STORYBOARD } }] }), { status: 200 });
+  }) as typeof fetch;
+  const text = await chat('storyboard', 'Safe lifting', { settings: on('http://evil.example'), key: 'fl-test-synthetic', proxy: true, fetchImpl });
+  assert.equal(seen[0].url, FAIRLEAD_PROXY_PATH);
+  assert.equal(seen[0].headers.Authorization, undefined);
+  assert.equal(seen[0].headers['X-Fairlead-Privacy'], 'local');
+  assert.equal(seen[0].headers['X-Fairlead-Label'], undefined);
+  assert.equal(JSON.parse(seen[0].body).messages[1].content, 'Safe lifting');
+  assert.ok(!seen[0].body.includes('fl-test-synthetic'));
+  assert.ok(text.includes('Safe lifting'));
+  const refused = (async () => new Response(JSON.stringify({ error: 'Bearer fl-should-not-pass' }), { status: 503 })) as typeof fetch;
+  try {
+    await chat('storyboard', 'x', { settings: on(FAIRLEAD_URL), key: 'fl-test-synthetic', proxy: true, fetchImpl: refused });
+    assert.fail('must throw');
+  } catch (e) {
+    assert.ok(e instanceof RouterError);
+    assert.equal(e.code, 'unreachable');
+    assert.ok(!e.message.toLowerCase().includes('bearer'));
+    assert.ok(!e.message.includes('fl-'));
+  }
 });
 
 test('local-only can be turned off and no key means no Authorization header', async () => {

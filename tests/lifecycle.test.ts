@@ -70,8 +70,9 @@ test('the editor may call its own server, but a published course keeps connect-s
 test('the server script and its stop script keep to the Fleet rules', () => {
   const start = readFileSync(new URL('../Start.ps1', import.meta.url), 'utf8');
   const stop = readFileSync(new URL('../Stop-Scrimshaw.ps1', import.meta.url), 'utf8');
-  for (const needle of ['/__fleethacker/id', '/__fleethacker/shutdown', 'X-FleetHacker-Shutdown', '/api/heartbeat', 'SCRIMSHAW_AUTO_STOP', 'scrimshaw-server-']) assert.ok(start.includes(needle), `Start.ps1 mentions ${needle}`);
+  for (const needle of ['/__fleethacker/id', '/__fleethacker/shutdown', 'X-FleetHacker-Shutdown', '/api/heartbeat', 'SCRIMSHAW_AUTO_STOP', 'scrimshaw-server-', '/api/fairlead/v1/chat/completions', 'FairleadProxy.ps1', 'FairleadBusy']) assert.ok(start.includes(needle), `Start.ps1 mentions ${needle}`);
   assert.ok(!/Stop-Process/.test(stop.replace(/<#[\s\S]*?#>/g, '').replace(/#.*$/gm, '')), 'Stop-Scrimshaw.ps1 never kills a process');
   // Windows PowerShell 5.1 misreads non-ASCII text in a script without a BOM.
-  for (const [name, text] of [['Start.ps1', start], ['Stop-Scrimshaw.ps1', stop]]) assert.ok(!/[^\x00-\x7f]/.test(text), `${name} is ASCII`);
+  const proxy = readFileSync(new URL('../actions/FairleadProxy.ps1', import.meta.url), 'utf8');
+  for (const [name, text] of [['Start.ps1', start], ['Stop-Scrimshaw.ps1', stop], ['FairleadProxy.ps1', proxy]]) assert.ok(!/[^\x00-\x7f]/.test(text), `${name} is ASCII`);
 });

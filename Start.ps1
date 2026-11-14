@@ -3,7 +3,9 @@
   Scrimshaw local server (run by Launch.bat).
   Serves the built app in dist\ on http://127.0.0.1 with a TcpListener, then opens the default
   browser. Per the TechStack: no admin rights, no installer, no service, nothing leaves the machine.
-  Projects are stored in the browser (IndexedDB), so this server only serves static files.
+  Projects are stored in the browser (IndexedDB). The server serves those files and, for drafts,
+  POST /api/fairlead/v1/chat/completions. That route calls Fairlead on this computer and attaches
+  the local key itself (actions\FairleadProxy.ps1). The key is not sent to the page.
 
     Start.ps1                 use port 8775 (Scrimshaw's Fleet port) and open the browser
     Start.ps1 -Port 9000      use a specific port exactly (an error if it is busy)
@@ -33,6 +35,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
+. (Join-Path (Join-Path $PSScriptRoot 'actions') 'FairleadProxy.ps1')
 
 if (-not $Root) { $Root = Join-Path $PSScriptRoot 'dist' }
 $Root = [IO.Path]::GetFullPath($Root)
@@ -168,6 +171,7 @@ $script:BeatSeen = $false
 $script:LastBeat = Get-Date
 $script:LeaveAt = $null
 $script:StopRequested = $false
+$script:FairleadBusy = $false
 # Runtime file: pid, port, url and start time (never a token) so Stop-Scrimshaw.ps1 can find this server.
 $runtimeFile = $null
 try {
@@ -187,8 +191,8 @@ try {
     while (-not $script:StopRequested) {
         if (-not $listener.Pending()) {
             Start-Sleep -Milliseconds 50
-            if ($autoStop -and $script:BeatSeen) {
-                # The server writes nothing itself (projects live in the browser), so there is no write to wait for.
+            if ($autoStop -and $script:BeatSeen -and -not $script:FairleadBusy) {
+                # A Fairlead draft counts as a job in progress: do not stop while it is being sent.
                 $now = Get-Date
                 if (($null -ne $script:LeaveAt -and ($now - $script:LeaveAt).TotalSeconds -ge 5) -or ($now - $script:LastBeat).TotalSeconds -ge 20) {
                     Write-Host 'The browser tab closed; stopping.' -ForegroundColor Yellow
@@ -224,7 +228,7 @@ try {
             if ($allowedHosts -notcontains $hostValue) { Send-Text $stream 403 'Forbidden' 'Forbidden' $false; continue }
             $headOnly = $method -eq 'HEAD'
             $route = ($target -split '\?')[0]
-            if ($route -eq '/__fleethacker/id' -or $route -eq '/__fleethacker/shutdown' -or $route -eq '/api/heartbeat') {
+            if ($route -eq '/__fleethacker/id' -or $route -eq '/__fleethacker/shutdown' -or $route -eq '/api/heartbeat' -or $route -eq '/api/fairlead/v1/chat/completions') {
                 $hdr = @{}
                 foreach ($l in ($lines | Select-Object -Skip 1)) {
                     $c = $l.IndexOf(':')
@@ -234,6 +238,30 @@ try {
                 $remote = $client.Client.RemoteEndPoint
                 if (($origin -ne '' -and $allowedOrigins -notcontains $origin) -or -not [System.Net.IPAddress]::IsLoopback($remote.Address)) {
                     Send-Text $stream 403 'Forbidden' 'Forbidden' $false; continue
+                }
+                if ($route -eq '/api/fairlead/v1/chat/completions') {
+                    if ($method -ne 'POST') { Send-Text $stream 405 'Method Not Allowed' 'Method not allowed' $false; continue }
+                    $len = 0
+                    $hasLen = $hdr.ContainsKey('content-length') -and [int]::TryParse($hdr['content-length'], [ref]$len)
+                    if (-not $hasLen -or $len -le 0 -or $len -gt 65536) { Send-Text $stream 400 'Bad Request' 'The draft was empty or too large.' $false; continue }
+                    $body = New-Object byte[] $len
+                    $got = 0
+                    while ($got -lt $len) { $n = $stream.Read($body, $got, $len - $got); if ($n -le 0) { break }; $got += $n }
+                    if ($got -ne $len) { Send-Text $stream 400 'Bad Request' 'The draft was cut off.' $false; continue }
+                    $privacy = $hdr.ContainsKey('x-fairlead-privacy') -and $hdr['x-fairlead-privacy'] -eq 'local'
+                    $script:FairleadBusy = $true
+                    try {
+                        $proxy = Invoke-ScrimshawFairleadProxy -Body $body -PrivacyLocal $privacy -CallerRoot $PSScriptRoot
+                    } catch {
+                        $proxy = @{ Status = 502; ContentType = 'application/json; charset=utf-8'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"error":"Fairlead did not answer."}') }
+                    } finally { $script:FairleadBusy = $false }
+                    # The draft itself shows the tab is still open, so the idle stop waits for the next heartbeat.
+                    $script:BeatSeen = $true
+                    $script:LastBeat = Get-Date
+                    $script:LeaveAt = $null
+                    $reason = Get-ScrimshawStatusReason ([int]$proxy.Status)
+                    Send-Response $stream ([int]$proxy.Status) $reason ([string]$proxy.ContentType) ([byte[]]$proxy.Bytes) $false
+                    continue
                 }
                 if ($route -eq '/__fleethacker/id') {
                     if ($method -ne 'GET' -and -not $headOnly) { Send-Text $stream 405 'Method Not Allowed' 'Method not allowed' $false; continue }
