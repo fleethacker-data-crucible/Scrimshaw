@@ -1,11 +1,15 @@
 // Fairlead router client for storyboard and quiz drafts (Fleet integrations, issue 14).
 // Opt-in: nothing is sent anywhere until the author turns the setting on. Every request goes to ONE loopback
 // address, Fairlead on 127.0.0.1:8776, which picks the engine. No key lives in the code, the course file or
-// localStorage: the client key is typed per session and held in memory only (the Lazarette hand-off is separate work).
+// localStorage. When the editor is served by Start.ps1, the page calls /api/fairlead/v1/chat/completions and
+// the server adds the key (issue 31). A typed key is only the fallback when there is no local server.
 import { baseStyle, newObject, newQuestionSlide, newScene, newSlide, uid } from '../model/factory.ts';
 import type { Scene, Slide } from '../model/types.ts';
 
 export const FAIRLEAD_URL = 'http://127.0.0.1:8776';
+/** Same-origin route. Start.ps1 forwards this to Fairlead and adds the key. */
+export const PROXY_CHAT_PATH = '/api/fairlead/v1/chat/completions';
+export const FAIRLEAD_LABEL = 'Scrimshaw';
 export const SETTINGS_KEY = 'scrimshaw.router';
 export const MAX_SLIDES = 12;
 export const MAX_QUESTIONS = 10;
@@ -78,28 +82,62 @@ export class RouterError extends Error {
   constructor(message: string, code: RouterError['code']) { super(message); this.code = code; }
 }
 
-export interface RouterCall { settings: RouterSettings; /** Client key, in memory only. */ key?: string; fetchImpl?: typeof fetch; signal?: AbortSignal }
+export interface RouterCall {
+  settings: RouterSettings;
+  /** Client key, in memory only. Ignored when viaProxy is set: the local server adds the key. */
+  key?: string;
+  /** Post to this app's server so the key never reaches the page. */
+  viaProxy?: boolean;
+  fetchImpl?: typeof fetch;
+  signal?: AbortSignal;
+}
+
+function safeRouterDetail(body: string): string {
+  const clipped = body.replace(/fl-[A-Za-z0-9]+/g, '[key]').replace(/\s+/g, ' ').trim().slice(0, 300);
+  return clipped;
+}
 
 /** Sends one chat request and returns the model's text. */
 export async function chat(kind: DraftKind, brief: string, call: RouterCall): Promise<string> {
   const { settings } = call;
   if (!settings.enabled) throw new RouterError('Drafting through the router is off. Turn it on in the draft dialog first.', 'disabled');
-  if (!isLoopbackUrl(settings.url)) throw new RouterError('The router address must be on this computer (127.0.0.1 or localhost).', 'bad-address');
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', 'X-Fairlead-Label': 'scrimshaw-drafts' };
-  if (settings.localOnly) headers['X-Fairlead-Privacy'] = 'local';
-  if (call.key) headers.Authorization = `Bearer ${call.key}`;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  let url: string;
+  if (call.viaProxy) {
+    url = PROXY_CHAT_PATH;
+    if (settings.localOnly) headers['X-Fairlead-Privacy'] = 'local';
+  } else {
+    if (!isLoopbackUrl(settings.url)) throw new RouterError('The router address must be on this computer (127.0.0.1 or localhost).', 'bad-address');
+    url = `${settings.url.replace(/\/+$/, '')}/v1/chat/completions`;
+    headers['X-Fairlead-Label'] = FAIRLEAD_LABEL;
+    if (settings.localOnly) headers['X-Fairlead-Privacy'] = 'local';
+    if (call.key) headers.Authorization = `Bearer ${call.key}`;
+  }
   const body = JSON.stringify({
     model: settings.model, stream: false, temperature: 0.4,
     messages: [{ role: 'system', content: SYSTEM[kind] }, { role: 'user', content: brief.slice(0, 8000) }],
   });
   let res: Response;
   try {
-    res = await (call.fetchImpl ?? fetch)(`${settings.url.replace(/\/+$/, '')}/v1/chat/completions`, { method: 'POST', headers, body, signal: call.signal });
+    res = await (call.fetchImpl ?? fetch)(url, { method: 'POST', headers, body, signal: call.signal });
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw e;
-    throw new RouterError('Could not reach the router. Start Fairlead and check that it allows this page (Fairlead settings, browser origins).', 'unreachable');
+    throw new RouterError(call.viaProxy
+      ? 'Could not reach Scrimshaw\'s server, so the draft was not sent.'
+      : 'Could not reach the router. Start Fairlead and check that it allows this page (Fairlead settings, browser origins).', 'unreachable');
   }
-  if (!res.ok) throw new RouterError(res.status === 401 || res.status === 403 ? 'The router refused the request. Check the client key.' : `The router answered with status ${res.status}.`, 'rejected');
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const j = await res.clone().json() as { error?: unknown };
+      if (typeof j.error === 'string') detail = safeRouterDetail(j.error);
+      else if (j.error && typeof j.error === 'object' && j.error && 'message' in j.error && typeof (j.error as { message?: unknown }).message === 'string') {
+        detail = safeRouterDetail((j.error as { message: string }).message);
+      }
+    } catch { /* status line is enough */ }
+    const fallback = res.status === 401 || res.status === 403 ? 'The router refused the request. Check the client key.' : `The router answered with status ${res.status}.`;
+    throw new RouterError(detail || fallback, 'rejected');
+  }
   let json: unknown;
   try { json = await res.json(); } catch { throw new RouterError('The router sent something that is not JSON.', 'bad-reply'); }
   const text = (json as { choices?: { message?: { content?: unknown } }[] })?.choices?.[0]?.message?.content;

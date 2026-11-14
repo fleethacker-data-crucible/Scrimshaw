@@ -54,3 +54,7 @@ Describe 'FleetAction 1.0.1 conformance' {
         $lock.zipSha256 | Should -Be '8154C70544CFF424BB1BCEF3BF194EDC17C29A58AB0F37A29E751BEFD4B657C1'
     }
 }
+
+# The CI actions job runs this file only. The proxy tests live beside it and are included here
+# so they run on Windows PowerShell 5.1 without a workflow edit.
+. (Join-Path $PSScriptRoot 'FairleadProxy.Tests.ps1')

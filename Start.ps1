@@ -18,6 +18,9 @@
   Fleet endpoints (PORTS.md): GET /__fleethacker/id and POST /__fleethacker/shutdown with the header
   X-FleetHacker-Shutdown: 1. Both need a loopback caller, a loopback Host and an Origin that is absent or
   the same origin. Stop-Scrimshaw.ps1 stops every running instance through the shutdown endpoint.
+  Drafts: POST /api/fairlead/v1/chat/completions is forwarded to Fairlead by FairleadProxy.ps1.
+  The page never sends the key. GET /api/fairlead/status reports whether Fairlead identified itself
+  and whether a key is present (credential, local-token, or none). It does not return the key.
 
   Close the console window (or press Ctrl+C) to stop it.
 #>
@@ -33,6 +36,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
+. (Join-Path $PSScriptRoot 'FairleadProxy.ps1')
 
 if (-not $Root) { $Root = Join-Path $PSScriptRoot 'dist' }
 $Root = [IO.Path]::GetFullPath($Root)
@@ -224,7 +228,8 @@ try {
             if ($allowedHosts -notcontains $hostValue) { Send-Text $stream 403 'Forbidden' 'Forbidden' $false; continue }
             $headOnly = $method -eq 'HEAD'
             $route = ($target -split '\?')[0]
-            if ($route -eq '/__fleethacker/id' -or $route -eq '/__fleethacker/shutdown' -or $route -eq '/api/heartbeat') {
+            $fairleadRoute = ($route -eq '/api/fairlead/status' -or $route -eq '/api/fairlead/v1/chat/completions')
+            if ($route -eq '/__fleethacker/id' -or $route -eq '/__fleethacker/shutdown' -or $route -eq '/api/heartbeat' -or $fairleadRoute) {
                 $hdr = @{}
                 foreach ($l in ($lines | Select-Object -Skip 1)) {
                     $c = $l.IndexOf(':')
@@ -234,6 +239,21 @@ try {
                 $remote = $client.Client.RemoteEndPoint
                 if (($origin -ne '' -and $allowedOrigins -notcontains $origin) -or -not [System.Net.IPAddress]::IsLoopback($remote.Address)) {
                     Send-Text $stream 403 'Forbidden' 'Forbidden' $false; continue
+                }
+                if ($fairleadRoute) {
+                    if ($route -eq '/api/fairlead/v1/chat/completions' -and $method -ne 'POST') { Send-Text $stream 405 'Method Not Allowed' 'Method not allowed' $false; continue }
+                    if ($route -eq '/api/fairlead/status' -and $method -ne 'GET' -and -not $headOnly) { Send-Text $stream 405 'Method Not Allowed' 'Method not allowed' $false; continue }
+                    $proxyBody = New-Object byte[] 0
+                    if ($method -eq 'POST') {
+                        $read = Read-ScrimshawLimitedBody -Stream $stream -Headers $hdr -MaxBytes 262144
+                        if (-not $read.Ok) { Send-Text $stream 400 'Bad Request' $read.Error $false; continue }
+                        $proxyBody = $read.Body
+                    }
+                    # A draft can take longer than the usual static-file send timeout.
+                    $client.SendTimeout = 130000
+                    $proxied = Invoke-ScrimshawFairleadRoute -Method $method -Route $route -Headers $hdr -Body $proxyBody
+                    Send-Response $stream $proxied.Status $proxied.Reason $proxied.Type $proxied.Body $headOnly
+                    continue
                 }
                 if ($route -eq '/__fleethacker/id') {
                     if ($method -ne 'GET' -and -not $headOnly) { Send-Text $stream 405 'Method Not Allowed' 'Method not allowed' $false; continue }
