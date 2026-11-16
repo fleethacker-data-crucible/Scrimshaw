@@ -247,8 +247,15 @@ function Test-ScrimshawProcessPath([string]$Path, [string]$CommandLine, [string]
     return $false
 }
 
-function Test-ScrimshawFairleadIdentity($Id, [int[]]$Owners, $Process) {
-    if (-not $Id) { return @{ Ok = $false; Problem = 'none' } }
+function Test-ScrimshawFairleadIdentity($Id, [int[]]$Owners, $Process, [bool]$OwnersKnown = $true) {
+    # No listener list means the check could not run. Do not send the key.
+    if (-not $OwnersKnown) { return @{ Ok = $false; Problem = 'owner' } }
+    $listeners = @($Owners)
+    if (-not $Id) {
+        # Nothing answered, and nothing is listening: Fairlead can be started.
+        if ($listeners.Count -eq 0) { return @{ Ok = $false; Problem = 'none' } }
+        return @{ Ok = $false; Problem = 'owner' }
+    }
     $tool = ''
     if ($Id.PSObject -and ($Id.PSObject.Properties.Name -contains 'tool')) { $tool = [string]$Id.tool }
     elseif ($Id -is [System.Collections.IDictionary] -and $Id.Contains('tool')) { $tool = [string]$Id['tool'] }
@@ -258,38 +265,61 @@ function Test-ScrimshawFairleadIdentity($Id, [int[]]$Owners, $Process) {
     elseif ($Id -is [System.Collections.IDictionary] -and $Id.Contains('pid')) { $pidText = [string]$Id['pid'] }
     $procId = 0
     if (-not [int]::TryParse($pidText, [ref]$procId) -or $procId -le 4) { return @{ Ok = $false; Problem = 'pid' } }
-    if (@($Owners) -notcontains $procId) { return @{ Ok = $false; Problem = 'owner' } }
+    # Exactly one listener, and it is the pid the id report named.
+    if ($listeners.Count -ne 1 -or [int]$listeners[0] -ne $procId) { return @{ Ok = $false; Problem = 'owner' } }
     $path = ''
     if ($Id.PSObject -and ($Id.PSObject.Properties.Name -contains 'path') -and $Id.path) { $path = [string]$Id.path }
     elseif ($Id -is [System.Collections.IDictionary] -and $Id.Contains('path') -and $Id['path']) { $path = [string]$Id['path'] }
-    if ($path) {
-        $cmd = ''; $exe = ''
-        if ($Process) {
-            if ($Process.PSObject -and ($Process.PSObject.Properties.Name -contains 'CommandLine')) { $cmd = [string]$Process.CommandLine }
-            elseif ($Process -is [System.Collections.IDictionary] -and $Process.Contains('CommandLine')) { $cmd = [string]$Process['CommandLine'] }
-            if ($Process.PSObject -and ($Process.PSObject.Properties.Name -contains 'ExecutablePath')) { $exe = [string]$Process.ExecutablePath }
-            elseif ($Process -is [System.Collections.IDictionary] -and $Process.Contains('ExecutablePath')) { $exe = [string]$Process['ExecutablePath'] }
-        }
-        if (-not (Test-ScrimshawProcessPath -Path $path -CommandLine $cmd -ExecutablePath $exe)) {
-            return @{ Ok = $false; Problem = 'path' }
-        }
+    # A missing path is not proof. Fail closed.
+    if (-not $path) { return @{ Ok = $false; Problem = 'path' } }
+    $cmd = ''; $exe = ''
+    if ($Process) {
+        if ($Process.PSObject -and ($Process.PSObject.Properties.Name -contains 'CommandLine')) { $cmd = [string]$Process.CommandLine }
+        elseif ($Process -is [System.Collections.IDictionary] -and $Process.Contains('CommandLine')) { $cmd = [string]$Process['CommandLine'] }
+        if ($Process.PSObject -and ($Process.PSObject.Properties.Name -contains 'ExecutablePath')) { $exe = [string]$Process.ExecutablePath }
+        elseif ($Process -is [System.Collections.IDictionary] -and $Process.Contains('ExecutablePath')) { $exe = [string]$Process['ExecutablePath'] }
+    }
+    if (-not (Test-ScrimshawProcessPath -Path $path -CommandLine $cmd -ExecutablePath $exe)) {
+        return @{ Ok = $false; Problem = 'path' }
     }
     return @{ Ok = $true; Problem = '' }
 }
 
+function Test-ScrimshawRequestOrigin([string]$Origin, [string[]]$Allowed, [bool]$RequireOrigin) {
+    # Fairlead routes require an Origin on the allowlist. Other loopback routes still allow a blank Origin.
+    $value = ''
+    if ($Origin) { $value = $Origin.Trim().ToLowerInvariant() }
+    $listed = $false
+    if ($value -and $null -ne $Allowed) {
+        foreach ($item in @($Allowed)) { if ([string]$item -eq $value) { $listed = $true; break } }
+    }
+    if ($RequireOrigin) { return $listed }
+    if ($value -eq '') { return $true }
+    return $listed
+}
+
 function Get-ScrimshawFairleadPortOwners([int]$Port) {
-    if ($script:ScrimshawHookOwners) { return @(& $script:ScrimshawHookOwners $Port) }
-    $owners = @()
+    # Known $false means the listener check could not run. Callers must not send the key.
+    if ($script:ScrimshawHookOwners) {
+        $hooked = & $script:ScrimshawHookOwners $Port
+        if ($null -eq $hooked) { return @{ Known = $false; Pids = @() } }
+        return @{ Known = $true; Pids = @($hooked | ForEach-Object { [int]$_ }) }
+    }
     if (Get-Command Get-NetTCPConnection -ErrorAction SilentlyContinue) {
-        $owners = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | ForEach-Object { [int]$_.OwningProcess } | Sort-Object -Unique)
-        return $owners
+        try {
+            $owners = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Stop | ForEach-Object { [int]$_.OwningProcess } | Sort-Object -Unique)
+            return @{ Known = $true; Pids = @($owners) }
+        } catch { return @{ Known = $false; Pids = @() } }
     }
     $netstat = Join-Path ([Environment]::SystemDirectory) 'netstat.exe'
-    if (-not (Test-Path -LiteralPath $netstat)) { return @() }
-    foreach ($line in @(& $netstat -ano -p TCP 2>$null) + @(& $netstat -ano -p TCPv6 2>$null)) {
-        if ([string]$line -match '^\s*TCP\s+(\S+):(\d+)\s+\S+\s+LISTENING\s+(\d+)\s*$' -and [int]$Matches[2] -eq $Port) { $owners += [int]$Matches[3] }
-    }
-    return @($owners | Sort-Object -Unique)
+    if (-not (Test-Path -LiteralPath $netstat)) { return @{ Known = $false; Pids = @() } }
+    try {
+        $owners = @()
+        foreach ($line in @(& $netstat -ano -p TCP 2>$null) + @(& $netstat -ano -p TCPv6 2>$null)) {
+            if ([string]$line -match '^\s*TCP\s+(\S+):(\d+)\s+\S+\s+LISTENING\s+(\d+)\s*$' -and [int]$Matches[2] -eq $Port) { $owners += [int]$Matches[3] }
+        }
+        return @{ Known = $true; Pids = @($owners | Sort-Object -Unique) }
+    } catch { return @{ Known = $false; Pids = @() } }
 }
 
 function Get-ScrimshawProcessInfo([int]$ProcessId) {
@@ -344,29 +374,46 @@ function Start-ScrimshawFairleadService {
 
 function Get-ScrimshawFairleadProbe([string]$Base) {
     if ($script:ScrimshawHookProbe) { return (& $script:ScrimshawHookProbe $Base) }
+    $url = $Base.TrimEnd('/') + '/__fleethacker/id'
+    if (-not (Test-ScrimshawLoopbackHttp $url)) { return $null }
+    $resp = $null
     try {
-        return Invoke-RestMethod -UseBasicParsing -Uri ($Base.TrimEnd('/') + '/__fleethacker/id') -TimeoutSec 2
+        $req = [System.Net.HttpWebRequest]::Create($url)
+        $req.Method = 'GET'
+        $req.Proxy = $null
+        $req.AllowAutoRedirect = $false
+        $req.Timeout = 3000
+        $req.ReadWriteTimeout = 3000
+        $req.Accept = 'application/json'
+        $resp = $req.GetResponse()
+        if ([int]$resp.StatusCode -ne 200) { return $null }
+        $reader = New-Object System.IO.StreamReader($resp.GetResponseStream())
+        try { $text = $reader.ReadToEnd() } finally { $reader.Close() }
+        if (-not $text -or $text.Length -gt 8192) { return $null }
+        return ($text | ConvertFrom-Json)
     } catch { return $null }
+    finally { if ($resp) { $resp.Close() } }
 }
 
 function Resolve-ScrimshawFairleadReady([string]$Base) {
     $port = 8776
     try { $parsed = [int]([uri]$Base).Port; if ($parsed -gt 0) { $port = $parsed } } catch { }
     $id = Get-ScrimshawFairleadProbe $Base
-    $owners = @(Get-ScrimshawFairleadPortOwners $port)
+    $found = Get-ScrimshawFairleadPortOwners $port
     $proc = $null
     $procId = 0
     if ($id -and [int]::TryParse([string]$id.pid, [ref]$procId) -and $procId -gt 0) { $proc = Get-ScrimshawProcessInfo $procId }
-    $check = Test-ScrimshawFairleadIdentity -Id $id -Owners $owners -Process $proc
+    $check = Test-ScrimshawFairleadIdentity -Id $id -Owners $found.Pids -Process $proc -OwnersKnown $found.Known
     if ($check.Ok) { return @{ Ok = $true; Problem = '' } }
-    # Start only when nothing answers. A foreign program on the port is left alone.
+    # Start only when nothing answers and nothing is listening. A foreign program, or a check
+    # that could not list listeners, is left alone and the key is not sent.
     if ($check.Problem -ne 'none') { return @{ Ok = $false; Problem = $check.Problem } }
     $started = Start-ScrimshawFairleadService
     $id = Get-ScrimshawFairleadProbe $Base
-    $owners = @(Get-ScrimshawFairleadPortOwners $port)
+    $found = Get-ScrimshawFairleadPortOwners $port
     $proc = $null; $procId = 0
     if ($id -and [int]::TryParse([string]$id.pid, [ref]$procId) -and $procId -gt 0) { $proc = Get-ScrimshawProcessInfo $procId }
-    $check = Test-ScrimshawFairleadIdentity -Id $id -Owners $owners -Process $proc
+    $check = Test-ScrimshawFairleadIdentity -Id $id -Owners $found.Pids -Process $proc -OwnersKnown $found.Known
     if ($check.Ok) { return @{ Ok = $true; Problem = '' } }
     $reason = 'start-failed'
     if ($started -and $started.Reason) { $reason = [string]$started.Reason }
@@ -380,6 +427,8 @@ function Send-ScrimshawFairleadBody([string]$Url, [string]$Key, [bool]$PrivacyLo
     }
     $req = [System.Net.HttpWebRequest]::Create($Url)
     $req.Method = 'POST'
+    # Do not let a system proxy see the request that carries the key.
+    $req.Proxy = $null
     $req.AllowAutoRedirect = $false
     $req.Timeout = 120000
     $req.ReadWriteTimeout = 120000
@@ -445,11 +494,11 @@ function Get-ScrimshawFairleadStateWord([string]$Base) {
     $port = 8776
     try { $parsed = [int]([uri]$Base).Port; if ($parsed -gt 0) { $port = $parsed } } catch { }
     $id = Get-ScrimshawFairleadProbe $Base
-    $owners = @(Get-ScrimshawFairleadPortOwners $port)
+    $found = Get-ScrimshawFairleadPortOwners $port
     $proc = $null
     $procId = 0
     if ($id -and [int]::TryParse([string]$id.pid, [ref]$procId) -and $procId -gt 0) { $proc = Get-ScrimshawProcessInfo $procId }
-    $check = Test-ScrimshawFairleadIdentity -Id $id -Owners $owners -Process $proc
+    $check = Test-ScrimshawFairleadIdentity -Id $id -Owners $found.Pids -Process $proc -OwnersKnown $found.Known
     if ($check.Ok) { return 'running' }
     if ($check.Problem -eq 'none') { return 'stopped' }
     return 'unverified'

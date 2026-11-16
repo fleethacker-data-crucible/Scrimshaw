@@ -48,6 +48,56 @@ Describe 'Fairlead local-token proxy' {
         (Test-ScrimshawFairleadIdentity -Id $null -Owners @() -Process $null).Problem | Should -Be 'none'
     }
 
+    It 'refuses a fairlead id with no path, with two listeners, or when the listener check cannot run' {
+        $proc = @{ CommandLine = ''; ExecutablePath = 'C:\Fairlead\Fairlead.exe' }
+        $noPath = [pscustomobject]@{ tool = 'fairlead'; pid = 40 }
+        (Test-ScrimshawFairleadIdentity -Id $noPath -Owners @(40) -Process $proc).Ok | Should -BeFalse
+        (Test-ScrimshawFairleadIdentity -Id $noPath -Owners @(40) -Process $proc).Problem | Should -Be 'path'
+        $id = [pscustomobject]@{ tool = 'fairlead'; pid = 40; path = 'C:\Fairlead\Fairlead.exe' }
+        (Test-ScrimshawFairleadIdentity -Id $id -Owners @(40, 41) -Process $proc).Problem | Should -Be 'owner'
+        (Test-ScrimshawFairleadIdentity -Id $id -Owners @() -Process $proc).Problem | Should -Be 'owner'
+        (Test-ScrimshawFairleadIdentity -Id $id -Owners @(40) -Process $proc -OwnersKnown $false).Problem | Should -Be 'owner'
+        (Test-ScrimshawFairleadIdentity -Id $null -Owners @(40) -Process $null).Problem | Should -Be 'owner'
+    }
+
+    It 'does not send the key when the path is missing, listeners are not exactly the pid, or the listener check cannot run' {
+        $proc = @{ CommandLine = ''; ExecutablePath = 'C:\Fairlead\Fairlead.exe' }
+        $script:ScrimshawHookProcess = { return $proc }
+        $script:ScrimshawHookKey = { return @{ Key = $script:FairleadTestKey; Source = 'local-token' } }
+        $script:started = $false
+        $script:ScrimshawHookStart = { $script:started = $true; return @{ State = 'running'; Reason = '' } }
+        $script:ScrimshawHookForward = { throw 'must not forward' }
+        $hdr = @{ 'content-type' = 'application/json' }
+        $body = [Text.Encoding]::UTF8.GetBytes('{"model":"auto"}')
+        $script:ScrimshawHookProbe = { return [pscustomobject]@{ tool = 'fairlead'; pid = 40 } }
+        $script:ScrimshawHookOwners = { return @(40) }
+        $missing = Invoke-ScrimshawFairleadRoute -Method 'POST' -Route '/api/fairlead/v1/chat/completions' -Headers $hdr -Body $body
+        $missing.Status | Should -Be 503
+        [Text.Encoding]::UTF8.GetString($missing.Body) | Should -Not -Match 'fl-'
+        $script:ScrimshawHookProbe = { return [pscustomobject]@{ tool = 'fairlead'; pid = 40; path = 'C:\Fairlead\Fairlead.exe' } }
+        $script:ScrimshawHookOwners = { return @(40, 99) }
+        $two = Invoke-ScrimshawFairleadRoute -Method 'POST' -Route '/api/fairlead/v1/chat/completions' -Headers $hdr -Body $body
+        $two.Status | Should -Be 503
+        $script:ScrimshawHookOwners = { return $null }
+        $unknown = Invoke-ScrimshawFairleadRoute -Method 'POST' -Route '/api/fairlead/v1/chat/completions' -Headers $hdr -Body $body
+        $unknown.Status | Should -Be 503
+        $script:started | Should -BeFalse
+    }
+
+    It 'requires an allowlisted Origin on Fairlead routes and still allows a blank Origin elsewhere' {
+        $allowed = @('http://127.0.0.1:8775', 'http://localhost:8775')
+        (Test-ScrimshawRequestOrigin '' $allowed $true) | Should -BeFalse
+        (Test-ScrimshawRequestOrigin 'http://evil.example' $allowed $true) | Should -BeFalse
+        (Test-ScrimshawRequestOrigin 'http://127.0.0.1:8775' $allowed $true) | Should -BeTrue
+        (Test-ScrimshawRequestOrigin '' $allowed $false) | Should -BeTrue
+        (Test-ScrimshawRequestOrigin 'http://evil.example' $allowed $false) | Should -BeFalse
+        $start = Get-Content -LiteralPath (Join-Path (Split-Path $PSScriptRoot -Parent) 'Start.ps1') -Raw
+        $start | Should -Match 'Test-ScrimshawRequestOrigin \$origin \$allowedOrigins \(\[bool\]\$fairleadRoute\)'
+        $proxy = Get-Content -LiteralPath (Join-Path (Split-Path $PSScriptRoot -Parent) 'FairleadProxy.ps1') -Raw
+        @([regex]::Matches($proxy, '\$req\.Proxy = \$null')).Count | Should -Be 2
+        $proxy | Should -Not -Match 'Invoke-RestMethod'
+    }
+
     It 'does not treat a path that merely contains the real path as a match' {
         $id = [pscustomobject]@{ tool = 'fairlead'; pid = 40; path = 'C:\Fairlead\Fairlead.exe' }
         $proc = @{ CommandLine = ''; ExecutablePath = 'C:\Fairlead\Fairlead.exe.evil' }
@@ -99,7 +149,7 @@ Describe 'Fairlead local-token proxy' {
             if ($script:calls -lt 2) { return $null }
             return [pscustomobject]@{ tool = 'fairlead'; pid = 41; path = 'C:\Fairlead\Fairlead.exe' }
         }
-        $script:ScrimshawHookOwners = { return @(41) }
+        $script:ScrimshawHookOwners = { if ($script:calls -lt 2) { return ,@() }; return @(41) }
         $script:ScrimshawHookProcess = { return @{ CommandLine = ''; ExecutablePath = 'C:\Fairlead\Fairlead.exe' } }
         $script:ScrimshawHookStart = { return @{ State = 'starting'; Reason = 'starting' } }
         $script:ScrimshawHookKey = { return @{ Key = $script:FairleadTestKey; Source = 'local-token' } }
@@ -113,7 +163,7 @@ Describe 'Fairlead local-token proxy' {
 
     It 'reports status without the key and without starting Fairlead' {
         $script:ScrimshawHookProbe = { return $null }
-        $script:ScrimshawHookOwners = { return @() }
+        $script:ScrimshawHookOwners = { return ,@() }
         $script:started = $false
         $script:ScrimshawHookStart = { $script:started = $true; return @{ State = 'running'; Reason = '' } }
         $script:ScrimshawLocalTokenReader = { return $script:FairleadTestKey }

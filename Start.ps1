@@ -237,7 +237,9 @@ try {
                 }
                 $origin = if ($hdr.ContainsKey('origin')) { $hdr['origin'].ToLowerInvariant() } else { '' }
                 $remote = $client.Client.RemoteEndPoint
-                if (($origin -ne '' -and $allowedOrigins -notcontains $origin) -or -not [System.Net.IPAddress]::IsLoopback($remote.Address)) {
+                # /api/fairlead/* requires an Origin on the allowlist. A missing Origin is refused.
+                # The id, shutdown and heartbeat routes still allow a blank Origin (Stop-Scrimshaw.ps1).
+                if (-not (Test-ScrimshawRequestOrigin $origin $allowedOrigins ([bool]$fairleadRoute)) -or -not [System.Net.IPAddress]::IsLoopback($remote.Address)) {
                     Send-Text $stream 403 'Forbidden' 'Forbidden' $false; continue
                 }
                 if ($fairleadRoute) {
