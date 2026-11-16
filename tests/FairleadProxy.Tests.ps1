@@ -68,19 +68,28 @@ Describe 'Fairlead local-token proxy' {
         $script:ScrimshawHookStart = { $script:started = $true; return @{ State = 'running'; Reason = '' } }
         $script:ScrimshawHookForward = { throw 'must not forward' }
         $hdr = @{ 'content-type' = 'application/json' }
-        $body = [Text.Encoding]::UTF8.GetBytes('{"model":"auto"}')
+        $body = [Text.Encoding]::UTF8.GetBytes('{"model":"auto","input":"Hello"}')
+        foreach ($route in @('/api/fairlead/v1/chat/completions', '/api/fairlead/v1/audio/speech')) {
+            $script:ScrimshawHookProbe = { return [pscustomobject]@{ tool = 'fairlead'; pid = 40 } }
+            $script:ScrimshawHookOwners = { return @(40) }
+            $missing = Invoke-ScrimshawFairleadRoute -Method 'POST' -Route $route -Headers $hdr -Body $body
+            $missing.Status | Should -Be 503
+            [Text.Encoding]::UTF8.GetString($missing.Body) | Should -Not -Match 'fl-'
+            $script:ScrimshawHookProbe = { return [pscustomobject]@{ tool = 'fairlead'; pid = 40; path = 'C:\Fairlead\Fairlead.exe' } }
+            $script:ScrimshawHookOwners = { return @(40, 99) }
+            $two = Invoke-ScrimshawFairleadRoute -Method 'POST' -Route $route -Headers $hdr -Body $body
+            $two.Status | Should -Be 503
+            $script:ScrimshawHookOwners = { return $null }
+            $unknown = Invoke-ScrimshawFairleadRoute -Method 'POST' -Route $route -Headers $hdr -Body $body
+            $unknown.Status | Should -Be 503
+        }
+        $form = [Text.Encoding]::UTF8.GetBytes("--bound`r`nContent-Disposition: form-data; name=`"file`"`r`n`r`naudio`r`n--bound--`r`n")
+        $formHeaders = @{ 'content-type' = 'multipart/form-data; boundary=bound' }
         $script:ScrimshawHookProbe = { return [pscustomobject]@{ tool = 'fairlead'; pid = 40 } }
         $script:ScrimshawHookOwners = { return @(40) }
-        $missing = Invoke-ScrimshawFairleadRoute -Method 'POST' -Route '/api/fairlead/v1/chat/completions' -Headers $hdr -Body $body
-        $missing.Status | Should -Be 503
-        [Text.Encoding]::UTF8.GetString($missing.Body) | Should -Not -Match 'fl-'
-        $script:ScrimshawHookProbe = { return [pscustomobject]@{ tool = 'fairlead'; pid = 40; path = 'C:\Fairlead\Fairlead.exe' } }
-        $script:ScrimshawHookOwners = { return @(40, 99) }
-        $two = Invoke-ScrimshawFairleadRoute -Method 'POST' -Route '/api/fairlead/v1/chat/completions' -Headers $hdr -Body $body
-        $two.Status | Should -Be 503
-        $script:ScrimshawHookOwners = { return $null }
-        $unknown = Invoke-ScrimshawFairleadRoute -Method 'POST' -Route '/api/fairlead/v1/chat/completions' -Headers $hdr -Body $body
-        $unknown.Status | Should -Be 503
+        $transcribe = Invoke-ScrimshawFairleadRoute -Method 'POST' -Route '/api/fairlead/v1/audio/transcriptions' -Headers $formHeaders -Body $form
+        $transcribe.Status | Should -Be 503
+        [Text.Encoding]::UTF8.GetString($transcribe.Body) | Should -Not -Match 'fl-'
         $script:started | Should -BeFalse
     }
 
