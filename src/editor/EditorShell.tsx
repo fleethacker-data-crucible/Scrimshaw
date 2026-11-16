@@ -21,6 +21,7 @@ import { endSession } from '../lifecycle.ts';
 import { Canvas } from './Canvas.tsx';
 import { EditorProvider, useEditor } from './context.tsx';
 import { CourseDialog, DraftDialog, FindReplaceDialog, ProjectsDialog, PublishDialog, ShortcutsDialog, VariablesDialog } from './Dialogs.tsx';
+import { VoiceDialog } from './VoiceDialog.tsx';
 import { applyTexts, csvToTexts, textsToCsv } from '../model/texts.ts';
 import { adoptCourse, bytesToBase64, callFleetAction, fleetApiReady } from './fleetAction.ts';
 import { buildStoryboard, currentCss } from '../export/storyboard.tsx';
@@ -81,7 +82,7 @@ export function EditorRoot() {
   );
 }
 
-type DialogName = 'variables' | 'course' | 'projects' | 'publish' | 'shortcuts' | 'find' | 'draft' | null;
+type DialogName = 'variables' | 'course' | 'projects' | 'publish' | 'shortcuts' | 'find' | 'draft' | 'narrate' | 'transcript' | null;
 
 function EditorShell({ settings, setSettings, openCourse }: { settings: Settings; setSettings: (fn: (s: Settings) => Settings) => void; openCourse: (c: Course) => void }) {
   const ed = useEditor();
@@ -432,6 +433,8 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
           { separator: true, label: '' },
           { label: 'Find and replace…', shortcut: 'Ctrl+H', action: 'scrimshaw.course.replace', onSelect: () => setDialog('find') },
           { label: 'Draft with the router…', onSelect: () => setDialog('draft') },
+          { label: 'Narrate this slide…', onSelect: () => setDialog('narrate') },
+          { label: 'Storyboard from a recording…', onSelect: () => setDialog('transcript') },
           { label: 'Storyboard for review (printable HTML)', onSelect: () => download(fileName(course.title, 'storyboard.html'), buildStoryboard(course, currentCss(document)), 'text/html') },
           { label: 'Handout for Word (.docx, text only)', onSelect: async () => { try { download(fileName(course.title, 'handout.docx'), await buildDocx(course)); } catch (e) { toast((e as Error).message, 'err'); } } },
           { label: 'Export text for translation (.csv)', action: 'scrimshaw.course.export-texts', busy: busyAction === 'scrimshaw.course.export-texts', onSelect: () => { void exportTexts(); } },
@@ -537,6 +540,7 @@ function EditorShell({ settings, setSettings, openCourse }: { settings: Settings
       {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}
       {dialog === 'find' && <FindReplaceDialog onClose={() => setDialog(null)} />}
       {dialog === 'draft' && <DraftDialog onClose={() => setDialog(null)} />}
+      {(dialog === 'narrate' || dialog === 'transcript') && <VoiceDialog mode={dialog === 'narrate' ? 'narrate' : 'transcript'} onClose={() => setDialog(null)} />}
       {dialog === 'projects' && (
         <ProjectsDialog currentId={course.id} onClose={() => setDialog(null)} onImport={importFile}
           onOpen={async (id) => {

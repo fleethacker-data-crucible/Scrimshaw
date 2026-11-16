@@ -12,6 +12,7 @@ $script:ScrimshawFairleadLabel = 'Scrimshaw'
 $script:ScrimshawFairleadTarget = 'Fairlead/Scrimshaw'
 $script:ScrimshawFairleadMaxBody = 262144
 $script:ScrimshawFairleadMaxReply = 2097152
+$script:ScrimshawFairleadMaxAudio = 12582912
 # Tests replace these. Production leaves them unset.
 $script:ScrimshawFairleadKeyReader = $null
 $script:ScrimshawLocalTokenReader = $null
@@ -421,20 +422,46 @@ function Resolve-ScrimshawFairleadReady([string]$Base) {
     return @{ Ok = $false; Problem = $reason }
 }
 
-function Send-ScrimshawFairleadBody([string]$Url, [string]$Key, [bool]$PrivacyLocal, [byte[]]$Body) {
-    if ($script:ScrimshawHookForward) { return (& $script:ScrimshawHookForward $Url $Key $PrivacyLocal $Body) }
+function Get-ScrimshawSafeResponseType([string]$Type) {
+    if ($Type -match '^(?i)audio/wav\b') { return 'audio/wav' }
+    if ($Type -match '^(?i)audio/(mpeg|mp3)\b') { return 'audio/mpeg' }
+    if ($Type -match '^(?i)text/plain\b') { return 'text/plain; charset=utf-8' }
+    if ($Type -match '^(?i)application/json\b') { return 'application/json; charset=utf-8' }
+    return 'application/octet-stream'
+}
+
+function Get-ScrimshawFairleadRouteSpec([string]$Route) {
+    # Fixed allowlist. The page cannot choose the upstream path.
+    switch ($Route) {
+        '/api/fairlead/v1/chat/completions' { return @{ Upstream = '/v1/chat/completions'; Kind = 'json'; MaxBody = 262144; MaxReply = 2097152 } }
+        '/api/fairlead/v1/audio/speech' { return @{ Upstream = '/v1/audio/speech'; Kind = 'json'; MaxBody = 65536; MaxReply = $script:ScrimshawFairleadMaxAudio } }
+        '/api/fairlead/v1/audio/transcriptions' { return @{ Upstream = '/v1/audio/transcriptions'; Kind = 'multipart'; MaxBody = 8388608; MaxReply = 2097152 } }
+        default { return $null }
+    }
+}
+
+function Test-ScrimshawForwardContentType([string]$Type, [string]$Kind) {
+    if ([string]::IsNullOrWhiteSpace($Type) -or $Type.Length -gt 200 -or $Type -match '[\r\n]') { return $false }
+    if ($Kind -eq 'json') { return [bool]($Type -match '^(?i)application/json\b') }
+    if ($Kind -eq 'multipart') { return [bool]($Type -match '^(?i)multipart/form-data;\s*boundary=[A-Za-z0-9''()+_,./:=?-]{1,70}\s*$') }
+    return $false
+}
+
+function Send-ScrimshawFairleadBody([string]$Url, [string]$Key, [bool]$PrivacyLocal, [byte[]]$Body, [string]$ContentType = 'application/json', [int]$MaxReply = 0) {
+    if ($script:ScrimshawHookForward) { return (& $script:ScrimshawHookForward $Url $Key $PrivacyLocal $Body $ContentType) }
     if (-not (Test-ScrimshawLoopbackHttp $Url)) {
         return (New-ScrimshawProxyResult 502 'The router address is not on this computer, so the key was not sent.')
     }
+    if ($MaxReply -le 0) { $MaxReply = $script:ScrimshawFairleadMaxReply }
     $req = [System.Net.HttpWebRequest]::Create($Url)
     $req.Method = 'POST'
     # Do not let a system proxy see the request that carries the key.
     $req.Proxy = $null
     $req.AllowAutoRedirect = $false
-    $req.Timeout = 120000
-    $req.ReadWriteTimeout = 120000
-    $req.ContentType = 'application/json'
-    $req.Accept = 'application/json'
+    $req.Timeout = 180000
+    $req.ReadWriteTimeout = 180000
+    $req.ContentType = $ContentType
+    $req.Accept = 'application/json, text/plain, audio/wav, audio/mpeg'
     [void]$req.Headers.Add('X-Fairlead-Label', $script:ScrimshawFairleadLabel)
     if ($PrivacyLocal) { [void]$req.Headers.Add('X-Fairlead-Privacy', 'local') }
     # Authorization is a restricted header on HttpWebRequest. Set it by the enum, not Add().
@@ -450,8 +477,7 @@ function Send-ScrimshawFairleadBody([string]$Url, [string]$Key, [bool]$PrivacyLo
     }
     try {
         $status = [int]$resp.StatusCode
-        $type = [string]$resp.ContentType
-        if (-not $type) { $type = 'application/json; charset=utf-8' }
+        $type = Get-ScrimshawSafeResponseType ([string]$resp.ContentType)
         $stream = $resp.GetResponseStream()
         $ms = New-Object System.IO.MemoryStream
         $buf = New-Object byte[] 8192
@@ -460,7 +486,7 @@ function Send-ScrimshawFairleadBody([string]$Url, [string]$Key, [bool]$PrivacyLo
             $n = $stream.Read($buf, 0, $buf.Length)
             if ($n -le 0) { break }
             $total += $n
-            if ($total -gt $script:ScrimshawFairleadMaxReply) {
+            if ($total -gt $MaxReply) {
                 return (New-ScrimshawProxyResult 502 'Fairlead sent a reply that is too large.')
             }
             $ms.Write($buf, 0, $n)
@@ -521,18 +547,23 @@ function Invoke-ScrimshawFairleadRoute([string]$Method, [string]$Route, $Headers
         $json = ($status | ConvertTo-Json -Compress)
         return (New-ScrimshawProxyResult 200 $null 'application/json; charset=utf-8' ([Text.Encoding]::UTF8.GetBytes($json)))
     }
-    if ($Route -ne '/api/fairlead/v1/chat/completions') {
-        return (New-ScrimshawProxyResult 404 'No such route.')
-    }
+    $spec = Get-ScrimshawFairleadRouteSpec $Route
+    if (-not $spec) { return (New-ScrimshawProxyResult 404 'No such route.') }
     if ($Method -ne 'POST') { return (New-ScrimshawProxyResult 405 'Method not allowed.') }
     $ctype = ''
     if ($Headers -and $Headers.ContainsKey('content-type')) { $ctype = [string]$Headers['content-type'] }
-    if ($ctype -notmatch 'application/json') { return (New-ScrimshawProxyResult 400 'Content-Type must be application/json.') }
+    if (-not (Test-ScrimshawForwardContentType $ctype $spec.Kind)) {
+        if ($spec.Kind -eq 'multipart') { return (New-ScrimshawProxyResult 400 'Content-Type must be multipart/form-data with a boundary.') }
+        return (New-ScrimshawProxyResult 400 'Content-Type must be application/json.')
+    }
     if (-not $Body -or $Body.Length -eq 0) { return (New-ScrimshawProxyResult 400 'The request had no body.') }
-    $text = ''
-    try { $text = [Text.Encoding]::UTF8.GetString($Body).Trim() } catch { return (New-ScrimshawProxyResult 400 'The request was not JSON.') }
-    if (-not $text.StartsWith('{')) { return (New-ScrimshawProxyResult 400 'The request was not a JSON object.') }
-    try { $null = $text | ConvertFrom-Json } catch { return (New-ScrimshawProxyResult 400 'The request was not JSON.') }
+    if ($Body.Length -gt [int]$spec.MaxBody) { return (New-ScrimshawProxyResult 413 'The request is too large.') }
+    if ($spec.Kind -eq 'json') {
+        $text = ''
+        try { $text = [Text.Encoding]::UTF8.GetString($Body).Trim() } catch { return (New-ScrimshawProxyResult 400 'The request was not JSON.') }
+        if (-not $text.StartsWith('{')) { return (New-ScrimshawProxyResult 400 'The request was not a JSON object.') }
+        try { $null = $text | ConvertFrom-Json } catch { return (New-ScrimshawProxyResult 400 'The request was not JSON.') }
+    }
     $ready = Resolve-ScrimshawFairleadReady $base
     if (-not $ready.Ok) {
         $msg = 'The program on Fairlead''s port did not identify itself as Fairlead, so the key was not sent.'
@@ -553,9 +584,9 @@ function Invoke-ScrimshawFairleadRoute([string]$Method, [string]$Route, $Headers
     $resolved.Key = $null
     $privacy = $false
     if ($Headers -and $Headers.ContainsKey('x-fairlead-privacy') -and [string]$Headers['x-fairlead-privacy'] -match '^(?i)local$') { $privacy = $true }
-    $url = $base.TrimEnd('/') + '/v1/chat/completions'
+    $url = $base.TrimEnd('/') + $spec.Upstream
     try {
-        return (Send-ScrimshawFairleadBody -Url $url -Key $key -PrivacyLocal $privacy -Body $Body)
+        return (Send-ScrimshawFairleadBody -Url $url -Key $key -PrivacyLocal $privacy -Body $Body -ContentType $ctype -MaxReply ([int]$spec.MaxReply))
     } catch {
         return (New-ScrimshawProxyResult 502 'Could not complete the call to Fairlead.')
     } finally {
