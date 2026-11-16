@@ -42,6 +42,8 @@ Describe 'Fairlead local-token proxy' {
         $scriptProc = @{ CommandLine = 'powershell.exe -NoProfile -File C:\Fairlead\scripts\Start-Fairlead.ps1 --no-browser'; ExecutablePath = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' }
         (Test-ScrimshawFairleadIdentity -Id $scriptId -Owners @(40) -Process $scriptProc).Ok | Should -BeTrue
         (Test-ScrimshawFairleadIdentity -Id ([pscustomobject]@{ tool = 'other'; pid = 40; path = 'C:\Fairlead\Fairlead.exe' }) -Owners @(40) -Process $proc).Problem | Should -Be 'tool'
+        (Test-ScrimshawFairleadIdentity -Id ([pscustomobject]@{ tool = 'Fairlead'; pid = 40; path = 'C:\Fairlead\Fairlead.exe' }) -Owners @(40) -Process $proc).Problem | Should -Be 'tool'
+        (Test-ScrimshawFairleadIdentity -Id ([pscustomobject]@{ tool = 'FAIRLEAD'; pid = 40; path = 'C:\Fairlead\Fairlead.exe' }) -Owners @(40) -Process $proc).Problem | Should -Be 'tool'
         (Test-ScrimshawFairleadIdentity -Id $id -Owners @(7) -Process $proc).Problem | Should -Be 'owner'
         (Test-ScrimshawFairleadIdentity -Id ([pscustomobject]@{ tool = 'fairlead'; pid = 4; path = 'C:\Fairlead\Fairlead.exe' }) -Owners @(4) -Process $proc).Problem | Should -Be 'pid'
         (Test-ScrimshawFairleadIdentity -Id $id -Owners @(40) -Process @{ CommandLine = 'C:\Fairlead\Fairlead.exe --extra'; ExecutablePath = 'C:\Other\Fairlead.exe' }).Problem | Should -Be 'path'
@@ -139,6 +141,11 @@ Describe 'Fairlead local-token proxy' {
         $r = Invoke-ScrimshawFairleadRoute -Method 'POST' -Route '/api/fairlead/v1/chat/completions' -Headers $hdr -Body $body
         $r.Status | Should -Be 503
         [Text.Encoding]::UTF8.GetString($r.Body) | Should -Not -Match 'fl-'
+        $script:ScrimshawHookProbe = { return [pscustomobject]@{ tool = 'Fairlead'; pid = 9; path = 'C:\Fairlead\Fairlead.exe' } }
+        $script:ScrimshawHookOwners = { return @(9) }
+        $script:ScrimshawHookProcess = { return @{ CommandLine = ''; ExecutablePath = 'C:\Fairlead\Fairlead.exe' } }
+        $cased = Invoke-ScrimshawFairleadRoute -Method 'POST' -Route '/api/fairlead/v1/chat/completions' -Headers $hdr -Body $body
+        $cased.Status | Should -Be 503
         $script:started | Should -BeFalse
     }
 
