@@ -260,7 +260,8 @@ function Test-ScrimshawFairleadIdentity($Id, [int[]]$Owners, $Process, [bool]$Ow
     $tool = ''
     if ($Id.PSObject -and ($Id.PSObject.Properties.Name -contains 'tool')) { $tool = [string]$Id.tool }
     elseif ($Id -is [System.Collections.IDictionary] -and $Id.Contains('tool')) { $tool = [string]$Id['tool'] }
-    if ($tool -ne 'fairlead') { return @{ Ok = $false; Problem = 'tool' } }
+    # Ordinal, so Fairlead or FAIRLEAD is not this service.
+    if (-not [string]::Equals($tool, 'fairlead', [StringComparison]::Ordinal)) { return @{ Ok = $false; Problem = 'tool' } }
     $pidText = ''
     if ($Id.PSObject -and ($Id.PSObject.Properties.Name -contains 'pid')) { $pidText = [string]$Id.pid }
     elseif ($Id -is [System.Collections.IDictionary] -and $Id.Contains('pid')) { $pidText = [string]$Id['pid'] }
