@@ -92,7 +92,7 @@ Status of each feature area in Scrimshaw. ✅ done, 🟡 partial, ⬜ not starte
 | Light / dark theme, reduced motion | ✅ | UI kit tokens |
 | Import PowerPoint (.pptx) | 🟡 | Text boxes (size, bold, colour, alignment, bullets), pictures, solid backgrounds, speaker notes; no charts, tables, groups or animations |
 | Import Fleet media | ✅ | Capstan MP4/WebM, WebVTT captions and chapters (.vtt or "0:00 Title" list), SnapShackle PNG with its `.meta.json`, TalkForge WAV; checked by their bytes, one scene of slides per import. Chapters go to slide notes (no cue-point markers yet); TalkForge `timing.json` is not read yet |
-| Drafts through the Fairlead router | 🟡 | Opt-in File menu dialog: storyboard and quiz drafts from a brief, sent only to Fairlead on 127.0.0.1:8776 (`X-Fairlead-Privacy: local` by default), reviewed before they are added. Client key kept for the session only; no Lazarette hand-off yet; Fairlead must list Scrimshaw's origin under browser origins |
+| Drafts through the Fairlead router | 🟡 | Opt-in File menu dialog: storyboard and quiz drafts from a brief. On the local server the page calls `POST /api/fairlead/v1/chat/completions` and `FairleadProxy.ps1` adds the key (`X-Fairlead-Label: Scrimshaw`, `X-Fairlead-Privacy: local` by default) after `GET /__fleethacker/id` checks out. A typed key is only the fallback with no local server. Reviewed before they are added. |
 | Import other authoring tools' files | ⬜ | The formats are proprietary; a best-effort importer is a stretch goal |
 | Collaboration / review comments | ⬜ | |
 | Rust → WebAssembly compute | ⬜ | Not needed yet; reserved for heavy work such as video export |

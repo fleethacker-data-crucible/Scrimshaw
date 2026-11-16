@@ -4,7 +4,7 @@ import { createServer, type IncomingHttpHeaders, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { readFileSync, readdirSync } from 'node:fs';
 import {
-  FAIRLEAD_URL, RouterError, chat, defaultRouterSettings, isLoopbackUrl, loadRouterSettings, normalizeRouterSettings, parseQuiz,
+  FAIRLEAD_LABEL, FAIRLEAD_URL, PROXY_CHAT_PATH, RouterError, chat, defaultRouterSettings, isLoopbackUrl, loadRouterSettings, normalizeRouterSettings, parseQuiz,
   parseStoryboard, quizToSlides, saveRouterSettings, storyboardToScene, type RouterSettings,
 } from '../src/ai/router.ts';
 
@@ -76,7 +76,8 @@ test('a storyboard draft goes to the router with privacy and key headers, and be
     assert.equal(req.method, 'POST');
     assert.equal(req.url, '/v1/chat/completions');
     assert.equal(req.headers['x-fairlead-privacy'], 'local');
-    assert.equal(req.headers['x-fairlead-label'], 'scrimshaw-drafts');
+    assert.equal(req.headers['x-fairlead-label'], FAIRLEAD_LABEL);
+    assert.equal(FAIRLEAD_LABEL, 'Scrimshaw');
     assert.equal(req.headers.authorization, 'Bearer fl-test-synthetic');
     assert.equal(req.body.model, 'smart');
     assert.equal(req.body.messages[1].content, 'Safe lifting for warehouse staff');
@@ -87,6 +88,33 @@ test('a storyboard draft goes to the router with privacy and key headers, and be
     assert.equal(scene.slides[1].layers[0].objects[1].text, '- Feet apart\n- Bend the knees\n- Keep the load close');
     assert.equal(scene.slides[0].notes, 'Open with a story.');
   } finally { await router.close(); }
+});
+
+test('the local server is called without a key, even if one was typed', async () => {
+  const seen: { url: string; headers: Record<string, string> }[] = [];
+  const fetchImpl = (async (url: string, init?: RequestInit) => {
+    seen.push({ url: String(url), headers: (init?.headers ?? {}) as Record<string, string> });
+    return new Response(JSON.stringify({ choices: [{ message: { content: STORYBOARD } }] }), { headers: { 'Content-Type': 'application/json' } });
+  }) as typeof fetch;
+  await chat('storyboard', 'Safe lifting', { settings: on('http://127.0.0.1:8776'), key: 'fl-abcdefghijklmnopqrstuvwx', viaProxy: true, fetchImpl });
+  assert.equal(seen[0].url, PROXY_CHAT_PATH);
+  assert.equal(seen[0].headers.Authorization, undefined);
+  assert.equal(seen[0].headers['X-Fairlead-Label'], undefined);
+  assert.equal(seen[0].headers['X-Fairlead-Privacy'], 'local');
+});
+
+test('a proxy error is shown, and a key in that error is not', async () => {
+  const fetchImpl = (async () => new Response(JSON.stringify({ error: 'refused fl-abcdefghijklmnopqrstuvwx' }), { status: 503, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
+  await assert.rejects(
+    () => chat('storyboard', 'Safe lifting', { settings: on('http://127.0.0.1:8776'), viaProxy: true, fetchImpl }),
+    (e: unknown) => {
+      const err = e as RouterError;
+      assert.equal(err.code, 'rejected');
+      assert.match(err.message, /refused/);
+      assert.equal(err.message.includes('fl-abcdefghijklmnopqrstuvwx'), false);
+      return true;
+    },
+  );
 });
 
 test('local-only can be turned off and no key means no Authorization header', async () => {
@@ -142,6 +170,17 @@ test('no key or token is written in the source', () => {
   const files = readdirSync(new URL('../src/ai/', import.meta.url));
   assert.ok(files.includes('router.ts'));
   for (const f of files) assert.ok(!/fl-[A-Za-z0-9]{8,}|sk-[A-Za-z0-9]{8,}/.test(readFileSync(new URL(`../src/ai/${f}`, import.meta.url), 'utf8')), f);
+  const proxy = readFileSync(new URL('../FairleadProxy.ps1', import.meta.url), 'utf8');
+  const start = readFileSync(new URL('../Start.ps1', import.meta.url), 'utf8');
+  assert.ok(start.includes(". (Join-Path $PSScriptRoot 'FairleadProxy.ps1')"));
+  assert.ok(start.includes('/api/fairlead/v1/chat/completions'));
+  assert.ok(proxy.includes('X-Fairlead-Label'));
+  assert.ok(proxy.includes('Start-FleetService'));
+  assert.ok(proxy.includes('/__fleethacker/id'));
+  assert.ok(proxy.includes('Fairlead/Scrimshaw'));
+  assert.equal(/fl-[A-Za-z0-9]{16,}/.test(proxy), false);
+  assert.equal(/[^\x00-\x7f]/.test(proxy), false);
+  assert.equal(/[^\x00-\x7f]/.test(start), false);
 });
 
 test('the editor may reach the router but a published course never can', async () => {

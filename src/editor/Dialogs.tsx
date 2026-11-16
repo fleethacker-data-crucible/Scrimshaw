@@ -14,6 +14,7 @@ import { Download, FileBraces, Globe, Package, Plus, Trash, TriangleAlert } from
 import { Button, Dialog, Field, IconButton, NumberInput, Select, useUi } from '../ui/kit.tsx';
 import { fileToAsset, pickFile, withAsset } from './assets.ts';
 import { chat, loadRouterSettings, parseQuiz, parseStoryboard, quizToSlides, saveRouterSettings, storyboardToScene, type DraftKind, type RouterSettings } from '../ai/router.ts';
+import { isLocalServer } from '../lifecycle.ts';
 import { newScene } from '../model/factory.ts';
 import type { Scene } from '../model/types.ts';
 import { useEditor } from './context.tsx';
@@ -445,12 +446,13 @@ function ThemeSwatch({ index, value, onCommit }: { index: number; value: string;
 
 // ---------- drafts through the Fairlead router ----------
 
-/** Opt-in drafting. The client key is held in this dialog's state only: it is never saved or put in the course. */
+/** Opt-in drafting. On the local server the key stays in FairleadProxy.ps1. A typed key is only for a page with no server. */
 export function DraftDialog({ onClose }: { onClose: () => void }) {
   const { edit, select } = useEditor();
   const { toast } = useUi();
   const [settings, setSettings] = useState<RouterSettings>(() => loadRouterSettings());
   const [key, setKey] = useState('');
+  const onServer = typeof window !== 'undefined' && isLocalServer(window.location);
   const [kind, setKind] = useState<DraftKind>('storyboard');
   const [brief, setBrief] = useState('');
   const [busy, setBusy] = useState(false);
@@ -463,7 +465,7 @@ export function DraftDialog({ onClose }: { onClose: () => void }) {
     setBusy(true); setError(''); setScene(null);
     abort.current = new AbortController();
     try {
-      const text = await chat(kind, brief, { settings, key: key || undefined, signal: abort.current.signal });
+      const text = await chat(kind, brief, { settings, key: onServer ? undefined : (key || undefined), viaProxy: onServer, signal: abort.current.signal });
       if (kind === 'storyboard') setScene(storyboardToScene(parseStoryboard(text)));
       else { const q = parseQuiz(text); setScene(newScene(q.title, quizToSlides(q))); }
     } catch (e) {
@@ -490,9 +492,11 @@ export function DraftDialog({ onClose }: { onClose: () => void }) {
       <label className="check"><input type="checkbox" checked={settings.enabled} onChange={(e) => change({ ...settings, enabled: e.target.checked })} /> Use the router for drafts</label>
       <fieldset className="grid gap-2" disabled={!settings.enabled}>
         <div className="grid grid-cols-2 gap-2">
-          <Field label="Router address" hint="Must be on this computer."><input value={settings.url} onChange={(e) => setSettings({ ...settings, url: e.target.value })} onBlur={() => change(settings)} spellCheck={false} /></Field>
+          <Field label="Router address" hint={onServer ? 'The server always calls Fairlead on this computer.' : 'Must be on this computer.'}><input value={settings.url} onChange={(e) => setSettings({ ...settings, url: e.target.value })} onBlur={() => change(settings)} spellCheck={false} disabled={onServer} /></Field>
           <Field label="Route or model"><input value={settings.model} onChange={(e) => setSettings({ ...settings, model: e.target.value })} onBlur={() => change(settings)} spellCheck={false} /></Field>
-          <Field label="Client key (kept for this session only)" className="col-span-2"><input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder="Leave empty if the router does not require one" /></Field>
+          {onServer
+            ? <p className="col-span-2 muted text-[13px]">This computer's Fairlead key is sent by Scrimshaw's server. Nothing is typed here, and the key never reaches this page.</p>
+            : <Field label="Client key (kept for this session only)" className="col-span-2"><input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder="Leave empty if the router does not require one" /></Field>}
         </div>
         <label className="check"><input type="checkbox" checked={settings.localOnly} onChange={(e) => change({ ...settings, localOnly: e.target.checked })} /> Keep drafts on this computer (local models only)</label>
         <Field label="Kind of draft"><Select<DraftKind> label="Kind of draft" value={kind} onChange={(v) => { setKind(v); setScene(null); }} options={[{ value: 'storyboard', label: 'Storyboard (a scene of slides)' }, { value: 'quiz', label: 'Quiz questions (a scene of question slides)' }]} /></Field>
